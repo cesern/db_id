@@ -5,11 +5,15 @@ import axios from 'axios';
 // Configurar axios para enviar cookies en todas las peticiones
 axios.defaults.withCredentials = true;
 
+// URL del backend desde variables de entorno
+const API_URL = import.meta.env.VITE_API_URL;
+
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
@@ -18,65 +22,120 @@ const Login = () => {
     setError('');
 
     try {
-      // Ajustar URL base si es necesario, o usar proxy
-      const response = await axios.post('http://localhost:8000/api/admin/login', {
-        username,
-        password
-      });
+      const response = await axios.post(
+        `${API_URL}/api/admin/login`,
+        {
+          username,
+          password
+        }
+      );
 
       if (response.data.message === "Login exitoso") {
         navigate('/admin/dashboard');
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Error al iniciar sesión');
+      setError(
+        err.response?.data?.detail ||
+        'Error al iniciar sesión'
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: '100vh',
-      backgroundColor: '#081C3A' // Color institucional
-    }}>
-      <div style={{
-        backgroundColor: 'white',
-        padding: '2.5rem',
-        borderRadius: '12px',
-        boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-        width: '100%',
-        maxWidth: '400px'
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <img src="/logo.png" alt="Logo" style={{ height: '60px', marginBottom: '1rem' }} />
-          <h2 style={{ margin: 0, color: '#1e293b', fontSize: '1.5rem' }}>Administración</h2>
-          <p style={{ margin: '0.5rem 0 0', color: '#64748b', fontSize: '0.9rem' }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        backgroundColor: '#081C3A'
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: 'white',
+          padding: '2.5rem',
+          borderRadius: '12px',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+          width: '100%',
+          maxWidth: '400px'
+        }}
+      >
+        <div
+          style={{
+            textAlign: 'center',
+            marginBottom: '2rem'
+          }}
+        >
+          <img
+            src="/logo.png"
+            alt="Logo"
+            style={{
+              height: '60px',
+              marginBottom: '1rem'
+            }}
+          />
+
+          <h2
+            style={{
+              margin: 0,
+              color: '#1e293b',
+              fontSize: '1.5rem'
+            }}
+          >
+            Administración
+          </h2>
+
+          <p
+            style={{
+              margin: '0.5rem 0 0',
+              color: '#64748b',
+              fontSize: '0.9rem'
+            }}
+          >
             Ingresa tus credenciales para continuar
           </p>
         </div>
 
         {error && (
-          <div style={{
-            backgroundColor: '#fef2f2',
-            color: '#ef4444',
-            padding: '0.75rem',
-            borderRadius: '6px',
-            marginBottom: '1rem',
-            fontSize: '0.9rem',
-            border: '1px solid #fee2e2'
-          }}>
+          <div
+            style={{
+              backgroundColor: '#fef2f2',
+              color: '#ef4444',
+              padding: '0.75rem',
+              borderRadius: '6px',
+              marginBottom: '1rem',
+              fontSize: '0.9rem',
+              border: '1px solid #fee2e2'
+            }}
+          >
             {error}
           </div>
         )}
 
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <form
+          onSubmit={handleLogin}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.25rem'
+          }}
+        >
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600, color: '#334155' }}>
+            <label
+              style={{
+                display: 'block',
+                marginBottom: '0.5rem',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                color: '#334155'
+              }}
+            >
               Usuario
             </label>
+
             <input
               type="text"
               value={username}
@@ -92,10 +151,20 @@ const Login = () => {
               required
             />
           </div>
+
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600, color: '#334155' }}>
+            <label
+              style={{
+                display: 'block',
+                marginBottom: '0.5rem',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                color: '#334155'
+              }}
+            >
               Contraseña
             </label>
+
             <input
               type="password"
               value={password}
@@ -111,6 +180,7 @@ const Login = () => {
               required
             />
           </div>
+
           <button
             type="submit"
             disabled={loading}
