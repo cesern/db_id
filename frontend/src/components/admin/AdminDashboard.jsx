@@ -63,8 +63,8 @@ const AdminDashboard = () => {
   };
 
   const handleFileChange = async (e) => {
-    console.log("Archivo detectado", file);
     const file = e.target.files[0];
+    console.log("Archivo detectado", file);
     if (!file) return;
 
     // Mensaje temporal (opcional)
