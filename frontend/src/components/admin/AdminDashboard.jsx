@@ -63,6 +63,7 @@ const AdminDashboard = () => {
   };
 
   const handleFileChange = async (e) => {
+    console.log("Archivo detectado", file);
     const file = e.target.files[0];
     if (!file) return;
 
@@ -139,7 +140,10 @@ const AdminDashboard = () => {
               style={{ display: 'none' }}
             />
             <button 
-              onClick={() => fileInputRef.current.click()}
+              onClick={() => {
+                console.log("Click upload");
+                fileInputRef.current.click();
+              }}
               style={{ padding: '0.75rem 1.5rem', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}
             >
               Subir nuevo CSV
