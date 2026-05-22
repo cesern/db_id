@@ -1,6 +1,6 @@
 .env
 __pycache__/
 venv/
-storage/
+storage/uploads/
 data/*
 !data/pob_municipios.csv
