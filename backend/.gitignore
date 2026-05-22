@@ -1,0 +1,7 @@
+.env
+__pycache__/
+venv/
+storage/
+*.parquet
+data/*
+!data/pob_municipios.csv
