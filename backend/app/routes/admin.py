@@ -30,19 +30,20 @@ async def login(credentials: LoginRequest, response: Response):
         access_token = create_access_token(
             data={"sub": credentials.username}, expires_delta=timedelta(hours=8)
         )
-        
+
         is_secure = settings.environment != "local"
-        
-        # Seteamos la cookie HttpOnly. En localhost no requiere secure=True, en prod sí.
+
         response.set_cookie(
             key="admin_session",
             value=access_token,
             httponly=True,
             max_age=8 * 3600,
-            samesite="lax",
+            samesite="none" if is_secure else "lax",
             secure=is_secure
         )
+
         return {"message": "Login exitoso"}
+
     raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
 
 @router.post("/logout")
