@@ -19,7 +19,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const res = await axios.get('${API_URL}/api/admin/me');
+        const res = await axios.get(`${API_URL}/api/admin/me`);
         setUser(res.data.username);
         setLoading(false);
       } catch (err) {
@@ -34,7 +34,7 @@ const AdminDashboard = () => {
     if (pollIntervalRef.current) return;
     pollIntervalRef.current = setInterval(async () => {
       try {
-        const res = await axios.get('${API_URL}/api/admin/etl-status');
+        const res = await axios.get(`${API_URL}/api/admin/etl-status`);
         setEtlStatus(res.data);
         
         if (res.data.status === 'completed' || res.data.status === 'error') {
@@ -55,7 +55,7 @@ const AdminDashboard = () => {
 
   const handleLogout = async () => {
     try {
-      await axios.post('${API_URL}/api/admin/logout');
+      await axios.post(`${API_URL}/api/admin/logout`);
       navigate('/admin/login');
     } catch (err) {
       console.error(err);
@@ -72,7 +72,7 @@ const AdminDashboard = () => {
     formData.append('file', file);
 
     try {
-      const res = await axios.post('${API_URL}/api/admin/upload', formData, {
+      const res = await axios.post(`${API_URL}/api/admin/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setUploadMessages(prev => [...prev, { type: 'success', text: `Éxito: ${res.data.message}` }]);
@@ -85,7 +85,7 @@ const AdminDashboard = () => {
 
   const handleRunETL = async () => {
     try {
-      await axios.post('${API_URL}/api/admin/run-etl');
+      await axios.post(`${API_URL}/api/admin/run-etl`);
       setEtlStatus({ status: 'processing', message: 'Iniciando proceso en segundo plano...', details: '' });
       startPolling();
     } catch (err) {
@@ -95,7 +95,7 @@ const AdminDashboard = () => {
 
   const handleReloadDB = async () => {
     try {
-      const res = await axios.post('${API_URL}/api/admin/reload-db');
+      const res = await axios.post(`${API_URL}/api/admin/reload-db`);
       toast.success(res.data.message);
     } catch (err) {
       toast.error('Error recargando la BD');
