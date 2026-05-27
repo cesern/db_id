@@ -1,11 +1,7 @@
 import React, { useState } from 'react';
 import InfoModal from './InfoModal';
 
-<<<<<<< HEAD
 const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) => {
-=======
-const Header = ({ dataset, setDataset }) => {
->>>>>>> ce4ea9aaf35a9667e97a313e943acafae32cd390
   const [isInfoOpen, setIsInfoOpen] = useState(false);
 
   return (
@@ -46,11 +42,7 @@ const Header = ({ dataset, setDataset }) => {
               display: 'inline-block',
             }}
           />
-<<<<<<< HEAD
           Incidencia Delictiva - {activeTab === 'rankings' ? 'Evolución Ranking' : (dataset === 'delitos' ? 'Delitos' : dataset === 'victimas' ? 'Víctimas' : 'Víctimas Municipios')}
-=======
-          Incidencia Delictiva - {dataset === 'delitos' ? 'Delitos' : dataset === 'victimas' ? 'Víctimas' : 'Víctimas Municipios'}
->>>>>>> ce4ea9aaf35a9667e97a313e943acafae32cd390
         </h1>
       </div>
 
@@ -85,15 +77,9 @@ const Header = ({ dataset, setDataset }) => {
         >
           i
         </button>
-<<<<<<< HEAD
         <div style={{
           display: 'flex',
           alignItems: 'center',
-=======
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
->>>>>>> ce4ea9aaf35a9667e97a313e943acafae32cd390
           backgroundColor: 'var(--bg-main, #f1f5f9)',
           padding: '4px',
           borderRadius: '10px',
@@ -102,7 +88,6 @@ const Header = ({ dataset, setDataset }) => {
           {[
             { id: 'delitos', label: 'Delitos' },
             { id: 'victimas', label: 'Víctimas' },
-<<<<<<< HEAD
             { id: 'victimas_mun', label: 'Víctimas Municipios' },
             { id: 'rankings', label: 'Rankings' }
           ].map(opt => {
@@ -123,15 +108,6 @@ const Header = ({ dataset, setDataset }) => {
               <button
                 key={opt.id}
                 onClick={handleClick}
-=======
-            { id: 'victimas_mun', label: 'Víctimas Municipios' }
-          ].map(opt => {
-            const isActive = dataset === opt.id;
-            return (
-              <button
-                key={opt.id}
-                onClick={() => setDataset(opt.id)}
->>>>>>> ce4ea9aaf35a9667e97a313e943acafae32cd390
                 style={{
                   padding: '0.45rem 1rem',
                   border: 'none',

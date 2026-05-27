@@ -6,7 +6,6 @@ import ChartBarYears from './components/ChartBarYears';
 import ChartLineTrend from './components/ChartLineTrend';
 import MapMexico from './components/MapMexico';
 import TableTopCrimes from './components/TableTopCrimes';
-<<<<<<< HEAD
 import HistoryRankings from './components/HistoryRankings';
 
 const DATASET_COLORS = {
@@ -14,8 +13,6 @@ const DATASET_COLORS = {
   victimas: "#ef4444",
   victimas_mun: "#7c3aed"
 };
-=======
->>>>>>> ce4ea9aaf35a9667e97a313e943acafae32cd390
 
 const INITIAL_FILTERS = {
   dataset: "delitos",
@@ -33,10 +30,7 @@ const INITIAL_FILTERS = {
 
 function PublicDashboard() {
   const [metricType, setMetricType] = useState('absolute');
-<<<<<<< HEAD
   const [activeTab, setActiveTab] = useState('dashboard');
-=======
->>>>>>> ce4ea9aaf35a9667e97a313e943acafae32cd390
 
   // Estado de carga inicial y animación
   const [initialLoading, setInitialLoading] = useState(true);
@@ -188,7 +182,6 @@ function PublicDashboard() {
         </div>
       )}
 
-<<<<<<< HEAD
       <Header 
         dataset={appliedFilters.dataset} 
         setDataset={handleDatasetChange} 
@@ -254,63 +247,6 @@ function PublicDashboard() {
       ) : (
         <HistoryRankings tempColor={DATASET_COLORS[appliedFilters.dataset] || "#455993"} />
       )}
-=======
-      <Header dataset={appliedFilters.dataset} setDataset={handleDatasetChange} />
-      <Filters
-        dataset={selectedFilters.dataset}
-        metricType={metricType}
-        setMetricType={setMetricType}
-        selectedFilters={selectedFilters}
-        setSelectedFilters={setSelectedFilters}
-        appliedFilters={appliedFilters}
-        onApply={handleApply}
-        onClear={handleClear}
-        onInitialLoadComplete={() => handleComponentLoaded('filters')}
-      />
-
-      <main className="dashboard-grid" style={{ flex: 1, minHeight: 0 }}>
-
-        {/* Left Column */}
-        <div className="dashboard-col">
-          <SidebarLeft
-            selectedFilters={appliedFilters}
-            metricType={metricType}
-            onInitialLoad={() => handleComponentLoaded('sidebar')}
-          />
-        </div>
-
-        {/* Center Column */}
-        <div className="dashboard-col">
-          <div className="card" style={{ minHeight: '300px', display: 'flex', flexDirection: 'column', padding: '1rem' }}>
-            <ChartBarYears
-              selectedFilters={appliedFilters}
-              metricType={metricType}
-              onInitialLoad={() => handleComponentLoaded('barChart')}
-            />
-          </div>
-
-          <div className="card" style={{ minHeight: '250px', display: 'flex', flexDirection: 'column', padding: '1rem' }}>
-            <ChartLineTrend
-              selectedFilters={appliedFilters}
-              metricType={metricType}
-              onInitialLoad={() => handleComponentLoaded('lineChart')}
-            />
-          </div>
-        </div>
-
-        {/* Right Column */}
-        <div className="dashboard-col dashboard-col-map">
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '1rem', height: '100%' }}>
-            <MapMexico
-              selectedFilters={appliedFilters}
-              metricType={metricType}
-              onInitialLoad={() => handleComponentLoaded('map')}
-            />
-          </div>
-        </div>
-
-      </main>
->>>>>>> ce4ea9aaf35a9667e97a313e943acafae32cd390
     </div>
   );
 }
