@@ -1,0 +1,189 @@
+import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
+import { API_URL } from '../api';
+import LoadingSpinner from './LoadingSpinner';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import ExportMenu from './ExportMenu';
+import { downloadCSV } from '../utils/exportUtils';
+
+const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const initialLoadCalled = useRef(false);
+  const cardRef = useRef(null);
+
+  useEffect(() => {
+    if (!selectedFilters) return;
+
+    const controller = new AbortController();
+    setLoading(true);
+
+    const dataset = selectedFilters.dataset || 'delitos';
+    const isVictimas = dataset === 'victimas';
+  const isVictimasMun = dataset === 'victimas_mun';
+  const isVictimasBase = isVictimas || isVictimasMun;
+
+    const params = new URLSearchParams();
+    params.append("dataset", dataset);
+    params.append("metric_type", metricType);
+    if (selectedFilters.entidad && selectedFilters.entidad !== "All") params.append("entidad", selectedFilters.entidad);
+    if (!isVictimas && selectedFilters.municipio && selectedFilters.municipio !== "All") params.append("municipio", selectedFilters.municipio);
+    const bj = Array.isArray(selectedFilters.bienJuridico) ? selectedFilters.bienJuridico : [];
+    const td = Array.isArray(selectedFilters.tipoDelito) ? selectedFilters.tipoDelito : [];
+    const sd = Array.isArray(selectedFilters.subtipoDelito) ? selectedFilters.subtipoDelito : [];
+    const mo = Array.isArray(selectedFilters.modalidad) ? selectedFilters.modalidad : [];
+    const sx = Array.isArray(selectedFilters.sexo) ? selectedFilters.sexo : [];
+    const re = Array.isArray(selectedFilters.rangoEdad) ? selectedFilters.rangoEdad : [];
+
+    if (bj.length > 0) params.append("bienJuridico", bj.join('|'));
+    if (td.length > 0) params.append("tipoDelito", td.join('|'));
+    if (sd.length > 0) params.append("subtipoDelito", sd.join('|'));
+    if (mo.length > 0) params.append("modalidad", mo.join('|'));
+    if (sx.length > 0) params.append("sexo", sx.join('|'));
+    if (re.length > 0) params.append("rangoEdad", re.join('|'));
+    if (selectedFilters.meses && selectedFilters.meses.length > 0) params.append("meses", selectedFilters.meses.join(','));
+
+    const endpoint = isVictimasMun ? "api/incidencia_por_mes_historico" : "api/incidencia_por_anio";
+    axios.get(`${API_URL}/${endpoint}?${params.toString()}`, { signal: controller.signal })
+      .then(res => {
+        if (res.data) {
+          const formatted = res.data.map(d => ({
+            ...d,
+            label: isVictimasMun ? d.name : d.year
+          }));
+          setData(formatted);
+        }
+      })
+      .catch(err => {
+        if (axios.isCancel(err)) return; // petición cancelada, ignorar
+        console.error("Error fetching incidencia por anio", err);
+      })
+      .finally(() => {
+        setLoading(false);
+        if (onInitialLoad && !initialLoadCalled.current) {
+          initialLoadCalled.current = true;
+          onInitialLoad();
+        }
+      });
+
+    return () => controller.abort();
+  }, [selectedFilters, metricType]);
+
+  const dataset = selectedFilters?.dataset || 'delitos';
+  const isVictimas = dataset === 'victimas';
+  const isVictimasMun = dataset === 'victimas_mun';
+  const isVictimasBase = isVictimas || isVictimasMun;
+
+  const formatValue = (val) => {
+    if (val === 'N/D' || val === undefined || val === null) return 'N/D';
+    const num = typeof val === 'number' ? val : parseFloat(val);
+    if (isNaN(num)) return 'N/D';
+    if (metricType === 'rate') {
+      return new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
+    }
+    return new Intl.NumberFormat('es-MX').format(num);
+  };
+
+  const formatCompactValue = (val) => {
+    if (val === 'N/D' || val === undefined || val === null) return '';
+    const num = typeof val === 'number' ? val : parseFloat(val);
+    if (isNaN(num)) return '';
+    if (metricType === 'rate') {
+      return new Intl.NumberFormat('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 1 }).format(num);
+    }
+    return new Intl.NumberFormat('es-MX', { notation: "compact", compactDisplay: "short", maximumFractionDigits: 1 }).format(num);
+  };
+
+  const handleDownloadCSV = () => {
+    const valLabel = isVictimasBase ? "Víctimas" : "Incidencia";
+    const actualValLabel = metricType === 'rate' ? `${valLabel} (Tasa por 100k hab.)` : valLabel;
+    const headers = [isVictimasMun ? "Mes" : "Año", actualValLabel];
+    const dataForExport = data.map(d => [d.label, d.value]);
+    downloadCSV(isVictimasMun ? "victimas_por_mes.csv" : (isVictimasBase ? "victimas_por_anio.csv" : "incidencia_por_anio.csv"), dataForExport, headers, { ...selectedFilters, metricType });
+  };
+
+  const chartTitle = isVictimasMun 
+    ? (metricType === 'rate' ? 'Tasa de víctimas por mes' : 'Víctimas por mes')
+    : isVictimasBase 
+      ? (metricType === 'rate' ? 'Tasa de víctimas por año' : 'Víctimas por año') 
+      : (metricType === 'rate' ? 'Tasa de incidencia por año' : 'Incidencia por año');
+
+  const tooltipLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
+
+  return (
+    <div ref={cardRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', position: 'relative' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingRight: '0.5rem' }}>
+        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0 }}>
+          {chartTitle}
+        </h3>
+        <ExportMenu
+          elementRef={cardRef}
+          imageFilename={isVictimasMun ? "victimas_por_mes.png" : (isVictimasBase ? "victimas_por_anio.png" : "incidencia_por_anio.png")}
+          onDownloadCSV={handleDownloadCSV}
+        />
+      </div>
+
+      <div style={{ flex: 1, position: 'relative', width: '100%', minHeight: 0 }}>
+        {loading && <LoadingSpinner size="md" />}
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={data}
+            margin={{ top: 30, right: 10, left: 0, bottom: 20 }}
+          >
+            <defs>
+              <linearGradient id="colorBarYears" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--color-accent)" stopOpacity={1} />
+                <stop offset="100%" stopColor="var(--color-accent)" stopOpacity={0.6} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 11, fill: 'var(--text-secondary)' }}
+              axisLine={false}
+              tickLine={false}
+              tickMargin={10}
+              minTickGap={-200}
+            />
+            <YAxis hide={true} />
+            <Tooltip
+              cursor={{ fill: 'var(--bg-main)' }}
+              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow-md)' }}
+              formatter={(value) => [formatValue(value), tooltipLabel]}
+            />
+            <Bar dataKey="value" radius={[6, 6, 0, 0]} fill="url(#colorBarYears)">
+              <LabelList
+                dataKey="value"
+                position="top"
+                content={(props) => {
+                  const { x, y, width, value, index } = props;
+                  // Si la barra es muy delgada, saltamos las etiquetas impares
+                  if (width < 45 && index % 2 !== 0) return null;
+                  return (
+                    <text 
+                      x={x + width / 2} 
+                      y={y - 8} 
+                      fill="var(--text-primary)" 
+                      textAnchor="middle" 
+                      dominantBaseline="middle" 
+                      fontSize="10" 
+                      fontWeight="700"
+                    >
+                      {formatValue(value)}
+                    </text>
+                  );
+                }}
+              />
+              {data.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill="url(#colorBarYears)" />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
+export default ChartBarYears;

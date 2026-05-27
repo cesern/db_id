@@ -1,0 +1,225 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg-main: #f4f7f9;
+  --bg-card: #ffffff;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --color-primary: #0f172a;
+  --color-accent: #455993;
+  --color-accent-light: #eceef5;
+  --border-color: #e2e8f0;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Utility classes */
+.card {
+  background-color: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  padding: 1.5rem;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid var(--border-color);
+  background: white;
+  color: var(--text-primary);
+}
+
+.btn:hover {
+  background: var(--bg-main);
+}
+
+.btn-primary {
+  background-color: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+
+.btn-primary:hover {
+  background-color: #2563eb;
+}
+
+.btn-toggle {
+  background: var(--bg-main);
+  border-radius: var(--radius-lg);
+  display: flex;
+  padding: 0.25rem;
+  border: 1px solid var(--border-color);
+}
+
+.btn-toggle button {
+  border: none;
+  background: transparent;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+  flex: 1;
+}
+
+.btn-toggle button.active {
+  background: var(--color-accent);
+  color: white;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+
+.input-select {
+  width: 100%;
+  padding: 0.5rem 2rem 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: white;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1.25em;
+}
+
+.input-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.label-sm {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Grid Layout Mobile First */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 1rem;
+}
+
+.app-container {
+  min-height: 100vh;
+}
+
+.dashboard-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-height: 0;
+}
+
+.dashboard-col-map {
+  min-height: 400px;
+}
+
+.sidebar-table-card {
+  max-height: 500px;
+}
+
+@media (min-width: 768px) {
+  .dashboard-grid {
+    padding: 1.5rem;
+    grid-template-columns: 1fr 1fr;
+  }
+  /* En tablet, sidebar ocupa todo el ancho arriba */
+  .dashboard-col:nth-child(1) { grid-column: span 2; }
+  .dashboard-col:nth-child(2) { grid-column: span 1; }
+  .dashboard-col:nth-child(3) { grid-column: span 1; }
+}
+
+@media (min-width: 1024px) {
+  .app-container {
+    height: 100vh;
+    overflow: hidden; /* Forzamos a no hacer scroll en body */
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 280px 1fr 1fr;
+    height: 100%;
+    min-height: 0; /* Permite a la grid encogerse */
+    overflow-y: hidden;
+  }
+  .dashboard-col:nth-child(1) { grid-column: span 1; overflow-y: hidden; } /* La tabla hace scroll interno */
+  .dashboard-col:nth-child(2) { grid-column: span 1; overflow-y: auto; padding-right: 0.5rem; } /* Gráficas hacen scroll */
+  .dashboard-col:nth-child(3) { grid-column: span 1; overflow-y: hidden; } /* El mapa se adapta */
+  .dashboard-col-map { height: 100%; min-height: 0; }
+  
+  .sidebar-table-card {
+    max-height: none; /* En escritorio flex controla la altura */
+  }
+}
+
+@media (min-width: 1280px) {
+  .dashboard-grid {
+    grid-template-columns: 300px 1.1fr 1fr;
+  }
+}
+
+.filters-controls-right {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: stretch;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .filters-controls-right {
+    align-items: flex-end;
+    width: auto;
+  }
+}
