@@ -32,6 +32,7 @@ from app.routes import admin
 # Initialize DuckDB in-memory and create views to parquet files
 db = duckdb.connect(':memory:')
 
+<<<<<<< HEAD
 # Global pandas dataframes for cache
 CACHE_POB_DF = None
 CACHE_ENT_MAP = None
@@ -41,6 +42,9 @@ CACHE_MUN_POB_DF = None
 
 def reload_duckdb_views():
     global CACHE_POB_DF, CACHE_ENT_MAP, CACHE_MERGED_POP, CACHE_MUN_MAP, CACHE_MUN_POB_DF
+=======
+def reload_duckdb_views():
+>>>>>>> ce4ea9aaf35a9667e97a313e943acafae32cd390
     # Drop existing views to recreate them
     views_to_drop = ["delitos", "victimas", "victimas_mun", "poblacion"]
     for v in views_to_drop:
@@ -59,6 +63,7 @@ def reload_duckdb_views():
     if (PARQUET_DIR / "pob_municipios.parquet").exists():
         db.cursor().execute(f"CREATE VIEW poblacion AS SELECT * FROM read_parquet('{PARQUET_DIR}/pob_municipios.parquet')")
 
+<<<<<<< HEAD
     # Warm up caches for high-performance in-memory joins
     try:
         if (PARQUET_DIR / "pob_municipios.parquet").exists():
@@ -83,6 +88,8 @@ def reload_duckdb_views():
     except Exception as e:
         print("Error populating backend cache:", e)
 
+=======
+>>>>>>> ce4ea9aaf35a9667e97a313e943acafae32cd390
 # Initial load
 reload_duckdb_views()
 
@@ -97,6 +104,7 @@ def get_columns(dataset_name: str) -> list[str]:
 def get_poblacion_valor(anio: int, entidad: Optional[str] = "All", municipio: Optional[str] = "All") -> int:
     y = int(anio) if anio is not None else 2026
     
+<<<<<<< HEAD
     # 1. Resolve closest year using cached years if available
     if CACHE_POB_DF is not None:
         avail_years = sorted(CACHE_POB_DF['Año_Pob'].unique())
@@ -157,6 +165,41 @@ def get_poblacion_valor(anio: int, entidad: Optional[str] = "All", municipio: Op
         if pop_res and pop_res[0]: return int(pop_res[0])
         return 0
 
+=======
+    # Check nearest available year in poblacion
+    try:
+        query_years = "SELECT DISTINCT AÑO FROM poblacion"
+        avail_years = [r[0] for r in db.cursor().execute(query_years).fetchall()]
+        if not avail_years: return 0
+        if y not in avail_years:
+            y = min(avail_years, key=lambda x: abs(x - y))
+    except Exception:
+        return 0
+
+    if municipio and municipio != "All" and entidad and entidad != "All":
+        # Resolve Cve. Municipio using delitos view
+        res = db.cursor().execute('SELECT "Cve. Municipio" FROM delitos WHERE Entidad = ? AND Municipio = ? LIMIT 1', [entidad, municipio]).fetchone()
+        if res and res[0] is not None:
+            cve_mun = int(res[0])
+            pop_res = db.cursor().execute('SELECT MAX(POB_MIT_MUN) FROM poblacion WHERE AÑO = ? AND CLAVE = ?', [y, cve_mun]).fetchone()
+            if pop_res and pop_res[0]: return int(pop_res[0])
+        return 0
+        
+    if entidad and entidad != "All":
+        # Resolve Clave_Ent
+        res = db.cursor().execute('SELECT Clave_Ent FROM delitos WHERE Entidad = ? LIMIT 1', [entidad]).fetchone()
+        if res and res[0] is not None:
+            cve_ent = int(res[0])
+            pop_res = db.cursor().execute('SELECT MAX(POB_MIT_ENT) FROM poblacion WHERE AÑO = ? AND CLAVE_ENT = ? GROUP BY CLAVE_ENT', [y, cve_ent]).fetchone()
+            if pop_res and pop_res[0]: return int(pop_res[0])
+        return 0
+        
+    # National
+    pop_res = db.cursor().execute('SELECT SUM(POB_MIT_ENT) FROM (SELECT DISTINCT CLAVE_ENT, POB_MIT_ENT FROM poblacion WHERE AÑO = ?)', [y]).fetchone()
+    if pop_res and pop_res[0]: return int(pop_res[0])
+    return 0
+
+>>>>>>> ce4ea9aaf35a9667e97a313e943acafae32cd390
 def build_where(dataset: DatasetEnum, anio=None, entidad=None, meses=None, bienJuridico=None, tipoDelito=None, subtipoDelito=None, modalidad=None, municipio=None, sexo=None, rangoEdad=None, additional_clause=None):
     valid_cols = get_columns(dataset.value)
     where_clauses = []
@@ -327,6 +370,7 @@ async def obtener_incidencia_por_entidad(
     if metric_type == "rate":
         y = int(anio) if anio is not None else 2026
         try:
+<<<<<<< HEAD
             if CACHE_ENT_MAP is not None and CACHE_POB_DF is not None:
                 ent_map = CACHE_ENT_MAP
                 pop_res = CACHE_POB_DF[CACHE_POB_DF['Año_Pob'] == y][['CLAVE_ENT', 'pop']]
@@ -339,6 +383,11 @@ async def obtener_incidencia_por_entidad(
                 pop_query = 'SELECT Entidad, Clave_Ent FROM delitos WHERE Entidad IS NOT NULL GROUP BY Entidad, Clave_Ent'
                 ent_map = db.cursor().execute(pop_query).df()
                 pop_res = db.cursor().execute('SELECT CLAVE_ENT, MAX(POB_MIT_ENT) as pop FROM poblacion WHERE AÑO = ? GROUP BY CLAVE_ENT', [y]).df()
+=======
+            pop_query = 'SELECT Entidad, Clave_Ent FROM delitos WHERE Entidad IS NOT NULL GROUP BY Entidad, Clave_Ent'
+            ent_map = db.cursor().execute(pop_query).df()
+            pop_res = db.cursor().execute('SELECT CLAVE_ENT, MAX(POB_MIT_ENT) as pop FROM poblacion WHERE AÑO = ? GROUP BY CLAVE_ENT', [y]).df()
+>>>>>>> ce4ea9aaf35a9667e97a313e943acafae32cd390
             
             merged = pd.merge(ent_map, pop_res, left_on='Clave_Ent', right_on='CLAVE_ENT', how='left')
             merged['pop'] = merged['pop'].fillna(1)
@@ -391,6 +440,7 @@ async def obtener_incidencia_por_municipio(
     if metric_type == "rate":
         y = int(anio) if anio is not None else 2026
         try:
+<<<<<<< HEAD
             if CACHE_MUN_MAP is not None and CACHE_MUN_POB_DF is not None:
                 mun_map = CACHE_MUN_MAP
                 pop_res = CACHE_MUN_POB_DF[CACHE_MUN_POB_DF['Año_Pob'] == y][['CLAVE', 'pop']]
@@ -404,6 +454,10 @@ async def obtener_incidencia_por_municipio(
                 if 'Cve. Municipio' in mun_map.columns:
                     mun_map['Cve. Municipio'] = mun_map['Cve. Municipio'].astype(int)
                 pop_res = db.cursor().execute('SELECT CLAVE, MAX(POB_MIT_MUN) as pop FROM poblacion WHERE AÑO = ? GROUP BY CLAVE', [y]).df()
+=======
+            mun_map = db.cursor().execute('SELECT Entidad, Municipio, "Cve. Municipio" FROM delitos WHERE Municipio IS NOT NULL GROUP BY Entidad, Municipio, "Cve. Municipio"').df()
+            pop_res = db.cursor().execute('SELECT CLAVE, MAX(POB_MIT_MUN) as pop FROM poblacion WHERE AÑO = ? GROUP BY CLAVE', [y]).df()
+>>>>>>> ce4ea9aaf35a9667e97a313e943acafae32cd390
             
             merged = pd.merge(mun_map, pop_res, left_on='Cve. Municipio', right_on='CLAVE', how='left')
             final = pd.merge(df_res, merged, on=['Entidad', 'Municipio'], how='left')
@@ -582,6 +636,7 @@ async def obtener_incidencia_por_delito(
     df_res['name'] = df_res[col].astype(str)
     return df_res[['id', 'name', 'value']].to_dict('records')
 
+<<<<<<< HEAD
 @app.get("/api/ranking_historico")
 async def obtener_ranking_historico(
     dataset: DatasetEnum = DatasetEnum.delitos,
@@ -713,6 +768,8 @@ async def obtener_ranking_historico(
     
     return df_res[['period', 'name', 'rank', 'total']].to_dict('records')
 
+=======
+>>>>>>> ce4ea9aaf35a9667e97a313e943acafae32cd390
 @app.get("/incidencia")
 async def obtener_incidencia():
     inicio = time.time()
