@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot, Line } from 'recharts';
+import { ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot, Line } from 'recharts';
 import ExportMenu from './ExportMenu';
 import { downloadCSV } from '../utils/exportUtils';
 
@@ -32,7 +32,6 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
     const dataset = selectedFilters.dataset || 'delitos';
     const isVictimas = dataset === 'victimas';
   const isVictimasMun = dataset === 'victimas_mun';
-  const isVictimasBase = isVictimas || isVictimasMun;
 
     const params = new URLSearchParams();
     params.append("dataset", dataset);
@@ -355,10 +354,10 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
         </div>
       </div>
 
-      <div style={{ flex: 1, position: 'relative', width: '100%', minHeight: 0 }}>
+      <div style={{ flex: 1, position: 'relative', width: '100%', minHeight: '120px' }}>
         {loading && <LoadingSpinner size="md" />}
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart
+          <ComposedChart
             data={chartData}
             margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
           >
@@ -517,7 +516,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
                 name="trendValue"
               />
             )}
-          </AreaChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
     </div>

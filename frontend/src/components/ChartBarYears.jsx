@@ -124,7 +124,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
         />
       </div>
 
-      <div style={{ flex: 1, position: 'relative', width: '100%', minHeight: 0 }}>
+      <div style={{ flex: 1, position: 'relative', width: '100%', minHeight: '120px' }}>
         {loading && <LoadingSpinner size="md" />}
         <ResponsiveContainer width="100%" height="100%">
           <BarChart

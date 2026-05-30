@@ -11,13 +11,13 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
       alignItems: 'center',
       flexWrap: 'wrap',
       gap: '1rem',
-      padding: '1rem 1.5rem',
+      padding: 'var(--header-padding, 1rem 1.5rem)',
       backgroundColor: 'white',
       borderBottom: '1px solid var(--border-color)',
       boxShadow: 'var(--shadow-sm)'
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <img src="/logo.png" alt="Logo Institucional" style={{ height: '50px', objectFit: 'contain' }} />
+        <img src="/logo.png" alt="Logo Institucional" style={{ height: 'var(--header-logo-height, 50px)', objectFit: 'contain' }} />
         <h1
           style={{
             fontSize: 'clamp(1.2rem, 3.5vw, 2.2rem)',
@@ -36,7 +36,7 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
           <span
             style={{
               width: '6px',
-              height: '38px',
+              height: 'var(--header-bar-height, 38px)',
               background: 'linear-gradient(to bottom, #C8A96B, #9F7A3D)',
               borderRadius: '999px',
               display: 'inline-block',

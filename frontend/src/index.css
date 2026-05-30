@@ -17,6 +17,31 @@
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
+
+  /* Responsive styling variables */
+  --header-padding: 1rem 1.5rem;
+  --header-logo-height: 50px;
+  --header-bar-height: 38px;
+
+  --filters-padding: 1.25rem 1.5rem;
+  --filters-gap: 1rem;
+  --filters-row-gap: 1.25rem;
+  --filters-select-gap: 1rem;
+  --filters-label-margin: 0.25rem;
+  --filters-label-size: 0.75rem;
+
+  --input-padding: 0.5rem 2rem 0.5rem 0.75rem;
+  --input-min-height: 38px;
+  --btn-padding: 0.5rem 1rem;
+  --month-btn-padding: 0.4rem 0.1rem;
+  --month-btn-size: 0.75rem;
+
+  --card-padding: 1.5rem;
+  --grid-gap: 1.5rem;
+  --grid-padding: 1rem;
+  
+  --chart-card-min-height: 300px;
+  --chart-trend-card-min-height: 250px;
 }
 
 * {
@@ -57,11 +82,11 @@ body {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-color);
-  padding: 1.5rem;
+  padding: var(--card-padding, 1.5rem);
 }
 
 .btn {
-  padding: 0.5rem 1rem;
+  padding: var(--btn-padding, 0.5rem 1rem);
   border-radius: var(--radius-md);
   font-weight: 500;
   cursor: pointer;
@@ -114,7 +139,7 @@ body {
 
 .input-select {
   width: 100%;
-  padding: 0.5rem 2rem 0.5rem 0.75rem;
+  padding: var(--input-padding, 0.5rem 2rem 0.5rem 0.75rem);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   background-color: white;
@@ -134,10 +159,10 @@ body {
 }
 
 .label-sm {
-  font-size: 0.75rem;
+  font-size: var(--filters-label-size, 0.75rem);
   font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--filters-label-margin, 0.25rem);
   display: block;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -147,8 +172,8 @@ body {
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1.5rem;
-  padding: 1rem;
+  gap: var(--grid-gap, 1.5rem);
+  padding: var(--grid-padding, 1rem);
 }
 
 .app-container {
@@ -158,7 +183,7 @@ body {
 .dashboard-col {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: var(--grid-gap, 1.5rem);
   min-height: 0;
 }
 
@@ -182,30 +207,57 @@ body {
 }
 
 @media (min-width: 1024px) {
-  .app-container {
-    height: 100vh;
-    overflow: hidden; /* Forzamos a no hacer scroll en body */
-  }
-
   .dashboard-grid {
     grid-template-columns: 280px 1fr 1fr;
-    height: 100%;
-    min-height: 0; /* Permite a la grid encogerse */
-    overflow-y: hidden;
   }
-  .dashboard-col:nth-child(1) { grid-column: span 1; overflow-y: hidden; } /* La tabla hace scroll interno */
-  .dashboard-col:nth-child(2) { grid-column: span 1; overflow-y: auto; padding-right: 0.5rem; } /* Gráficas hacen scroll */
-  .dashboard-col:nth-child(3) { grid-column: span 1; overflow-y: hidden; } /* El mapa se adapta */
-  .dashboard-col-map { height: 100%; min-height: 0; }
-  
-  .sidebar-table-card {
-    max-height: none; /* En escritorio flex controla la altura */
-  }
+  .dashboard-col:nth-child(1) { grid-column: span 1; }
+  .dashboard-col:nth-child(2) { grid-column: span 1; }
+  .dashboard-col:nth-child(3) { grid-column: span 1; }
 }
 
 @media (min-width: 1280px) {
   .dashboard-grid {
     grid-template-columns: 300px 1.1fr 1fr;
+  }
+}
+
+/* Pantallas de escritorio ALTAS (sin scroll de body, con scroll de columnas interno) */
+@media (min-width: 1024px) and (min-height: 800px) {
+  .app-container {
+    height: 100vh;
+    overflow: hidden;
+  }
+  .dashboard-grid {
+    height: 100%;
+    min-height: 0;
+    overflow-y: hidden;
+  }
+  .dashboard-col:nth-child(1) { overflow-y: hidden; }
+  .dashboard-col:nth-child(2) { overflow-y: auto; padding-right: 0.5rem; }
+  .dashboard-col:nth-child(3) { overflow-y: hidden; }
+  .dashboard-col-map { height: 100%; min-height: 0; }
+  .sidebar-table-card {
+    max-height: none;
+  }
+}
+
+/* Pantallas de escritorio BAJAS (con scroll de body completo para ver todas las tarjetas sin colapsar) */
+@media (min-width: 1024px) and (max-height: 799px) {
+  .app-container {
+    height: auto;
+    overflow: visible;
+  }
+  .dashboard-grid {
+    height: auto;
+    min-height: 0;
+    overflow-y: visible;
+  }
+  .dashboard-col:nth-child(1) { overflow-y: visible; }
+  .dashboard-col:nth-child(2) { overflow-y: visible; padding-right: 0; }
+  .dashboard-col:nth-child(3) { overflow-y: visible; }
+  .dashboard-col-map { height: 480px; min-height: 400px; }
+  .sidebar-table-card {
+    max-height: 400px; /* Para que la tabla de municipios no se extienda infinitamente */
   }
 }
 
@@ -221,5 +273,45 @@ body {
   .filters-controls-right {
     align-items: flex-end;
     width: auto;
+  }
+}
+
+/* Media query para pantallas pequeñas en altura (laptops, zoom de navegador) */
+@media (max-height: 820px) {
+  :root {
+    --header-padding: 0.4rem 1rem;
+    --header-logo-height: 38px;
+    --header-bar-height: 28px;
+
+    --filters-padding: 0.5rem 1rem;
+    --filters-gap: 0.4rem;
+    --filters-row-gap: 0.4rem;
+    --filters-select-gap: 0.5rem;
+    --filters-label-margin: 0.1rem;
+    --filters-label-size: 0.7rem;
+
+    --input-padding: 0.3rem 1.5rem 0.3rem 0.5rem;
+    --input-min-height: 30px;
+    --btn-padding: 0.3rem 0.6rem;
+    --month-btn-padding: 0.2rem 0.1rem;
+    --month-btn-size: 0.65rem;
+
+    --card-padding: 0.75rem;
+    --grid-gap: 0.75rem;
+    --grid-padding: 0.75rem;
+    
+    --chart-card-min-height: 240px;
+    --chart-trend-card-min-height: 220px;
+  }
+
+  /* Reducir tamaño de títulos en tarjetas */
+  .card h3 {
+    font-size: 0.85rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  /* Reducir espacio entre columnas en grids de filtros */
+  .filters-controls-right {
+    gap: 0.25rem !important;
   }
 }

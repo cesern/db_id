@@ -82,7 +82,7 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
       <label className="label-sm">{label}</label>
       <div
         className="input-select"
-        style={{ cursor: 'pointer', userSelect: 'none', minHeight: '38px', display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        style={{ cursor: 'pointer', userSelect: 'none', minHeight: 'var(--input-min-height, 38px)', display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
         onClick={() => setIsOpen(!isOpen)}
         title={displayText}
       >
@@ -371,20 +371,20 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
 
   return (
     <div style={{
-      padding: '1.25rem 1.5rem',
+      padding: 'var(--filters-padding, 1.25rem 1.5rem)',
       backgroundColor: 'white',
       borderBottom: '1px solid var(--border-color)',
       display: 'flex',
       flexDirection: 'column',
-      gap: '1rem'
+      gap: 'var(--filters-gap, 1rem)'
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1.5rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--filters-select-gap, 1.5rem)', flexWrap: 'wrap' }}>
         
         {/* Contenedor principal de Filtros */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: '1 1 auto', minWidth: '0' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--filters-row-gap, 1.25rem)', flex: '1 1 auto', minWidth: '0' }}>
           
           {/* Fila 1: Filtros Principales (Territoriales y Temporales) */}
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 'var(--filters-select-gap, 1rem)', flexWrap: 'wrap' }}>
             <div style={{ flex: '1 1 120px', maxWidth: '200px' }}>
               <label className="label-sm">Año</label>
               <select className="input-select" value={selectedFilters.anio || ""} onChange={e => handleChange('anio', e.target.value)}>
@@ -425,7 +425,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
           </div>
 
           {/* Fila 2: Filtros Categóricos y Dependientes */}
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 'var(--filters-select-gap, 1rem)', flexWrap: 'wrap' }}>
             <MultiSelectDropdown
               label="Bien jurídico afectado"
               options={filtrosOpciones.bienesJuridicos}
@@ -470,7 +470,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
         </div>
 
         {/* Controles de Acción (Alineados a la derecha) */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'flex-end', flexShrink: 0 }}>
+        <div className="filters-controls-right" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--filters-gap, 1rem)', alignItems: 'flex-end', flexShrink: 0 }}>
           <div className="btn-toggle" style={{ display: 'flex' }}>
             <button
               className={metricType === 'absolute' ? 'active' : ''}
@@ -555,8 +555,8 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
               style={{
                 flex: 1,
                 minWidth: '35px',
-                padding: '0.4rem 0.1rem',
-                fontSize: '0.75rem',
+                padding: 'var(--month-btn-padding, 0.4rem 0.1rem)',
+                fontSize: 'var(--month-btn-size, 0.75rem)',
                 background: isSelected ? 'var(--bg-main)' : 'white',
                 borderColor: isSelected ? 'var(--color-accent)' : 'var(--border-color)',
                 color: isSelected ? 'var(--color-accent)' : 'inherit',
