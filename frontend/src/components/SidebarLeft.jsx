@@ -3,6 +3,7 @@ import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import ExportMenu from './ExportMenu';
+import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 
 const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
@@ -11,9 +12,20 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [municipios, setMunicipios] = useState([]);
   const [tableView, setTableView] = useState('entidades'); // 'entidades' | 'municipios'
   const [loading, setLoading] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   const initialLoadCalled = useRef(false);
   const tableCardRef = useRef(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsFullScreen(false);
+    };
+    if (isFullScreen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullScreen]);
 
   // Auto-switch to municipios when a specific entity is selected
   useEffect(() => {
@@ -150,6 +162,149 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
     copyTableToClipboard(dataForExport, headers);
   };
 
+  if (isFullScreen) {
+    return (
+      <div 
+        ref={tableCardRef} 
+        className="fullscreen-immersive-overlay"
+      >
+        <FullScreenHeader
+          title={isVictimas ? "Víctimas por Entidad" : `Ranking de Incidencia por ${tableView === 'entidades' ? 'Entidad' : 'Municipio'}`}
+          selectedFilters={selectedFilters}
+          metricType={metricType}
+          onClose={() => setIsFullScreen(false)}
+          extraActions={
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              {!isVictimas && (
+                <div style={{
+                  display: 'inline-flex',
+                  background: 'var(--color-accent-light, #f0f4ff)',
+                  borderRadius: '10px',
+                  padding: '3px',
+                  gap: '2px',
+                  width: '200px',
+                  boxSizing: 'border-box',
+                }}>
+                  {['entidades', 'municipios'].map((view) => {
+                    const active = tableView === view;
+                    const label = view === 'entidades' ? 'Entidades' : 'Municipios';
+                    return (
+                      <button
+                        key={view}
+                        onClick={() => setTableView(view)}
+                        style={{
+                          flex: 1,
+                          padding: '0.4rem 0',
+                          fontSize: '0.8rem',
+                          fontWeight: active ? 700 : 500,
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          transition: 'background 0.22s ease, color 0.22s ease',
+                          background: active ? 'var(--color-accent, #2563eb)' : 'transparent',
+                          color: active ? '#fff' : 'var(--text-secondary, #64748b)',
+                          letterSpacing: '0.01em',
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <ExportMenu
+                elementRef={tableCardRef}
+                imageFilename={getExportFilename('png')}
+                onDownloadCSV={handleDownloadCSV}
+                onCopyTable={handleCopy}
+                isTable={true}
+              />
+            </div>
+          }
+        />
+
+        {/* Centered Table wrapper for perfect layout */}
+        <div style={{ 
+          maxWidth: '800px', 
+          width: '100%', 
+          margin: '0 auto', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          flex: 1, 
+          overflow: 'hidden',
+          backgroundColor: '#ffffff',
+          border: '1px solid var(--border-color)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--shadow-sm)',
+          position: 'relative'
+        }}>
+          {loading && <LoadingSpinner size="md" />}
+          
+          {/* Table Header */}
+          <div style={{ padding: '1rem', borderBottom: '2px solid var(--border-color)', backgroundColor: 'var(--bg-main)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 120px', gap: '1rem', fontWeight: 700, color: 'var(--color-primary)', fontSize: '0.95rem' }}>
+              <span>#</span>
+              <span>{colLabel}</span>
+              <span style={{ textAlign: 'right' }}>{valLabel}</span>
+            </div>
+          </div>
+
+          {/* Table Rows */}
+          <div style={{ overflowY: 'auto', flex: 1, padding: '0.5rem 0' }}>
+            {rows.map((m, i) => {
+              const isSonora = isEntidades
+                ? m.name === 'Sonora'
+                : m.entidad === 'Sonora';
+
+              return (
+                <div
+                  key={`${tableView}-${m.name}-${m.id}`}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '40px 1fr 120px',
+                    gap: '1rem',
+                    padding: '0.75rem 1rem',
+                    fontSize: '0.9rem',
+                    backgroundColor: isSonora
+                      ? 'var(--color-accent)'
+                      : (i % 2 === 0 ? 'white' : 'var(--color-accent-light)'),
+                    color: isSonora ? 'white' : 'var(--color-primary)',
+                    borderBottom: '1px solid var(--border-color)',
+                    fontWeight: isSonora ? 'bold' : 'normal',
+                    transition: 'background-color 0.15s ease',
+                  }}
+                >
+                  <span style={{ color: isSonora ? 'rgba(255,255,255,0.8)' : 'var(--text-secondary)', fontWeight: isSonora ? 700 : 500 }}>
+                    {m.id}
+                  </span>
+                  <span style={{ fontWeight: isSonora ? 700 : 500 }}>
+                    {m.name}
+                  </span>
+                  <span style={{ textAlign: 'right', fontWeight: isSonora ? 700 : 600 }}>
+                    {formatNumber(m.value)}
+                  </span>
+                </div>
+              );
+            })}
+
+            {rows.length === 0 && !loading && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '150px',
+                color: 'var(--text-secondary)',
+                fontSize: '0.95rem',
+              }}>
+                Sin datos disponibles
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {/* KPI Cards */}
@@ -218,13 +373,35 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
               Víctimas por Entidad
             </span>
           )}
-          <ExportMenu
-            elementRef={tableCardRef}
-            imageFilename={getExportFilename('png')}
-            onDownloadCSV={handleDownloadCSV}
-            onCopyTable={handleCopy}
-            isTable={true}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <ExportMenu
+              elementRef={tableCardRef}
+              imageFilename={getExportFilename('png')}
+              onDownloadCSV={handleDownloadCSV}
+              onCopyTable={handleCopy}
+              isTable={true}
+            />
+            <button
+              onClick={() => setIsFullScreen(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                padding: '4px',
+                borderRadius: '4px',
+                transition: 'background 0.2s',
+              }}
+              title="Pantalla completa"
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Table Header */}

@@ -353,3 +353,30 @@ body {
     gap: 0.25rem !important;
   }
 }
+
+/* Estilos para el Modo Analítico de Pantalla Completa / Zoom Inmersivo */
+.fullscreen-immersive-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background-color: #ffffff !important;
+  z-index: 99999 !important;
+  padding: 2.5rem 3.5rem !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  animation: fadeInFullscreen 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInFullscreen {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

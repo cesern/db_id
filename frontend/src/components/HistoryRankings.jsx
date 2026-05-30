@@ -3,6 +3,7 @@ import axios from 'axios';
 import { API_URL } from '../api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceArea } from 'recharts';
 import ExportMenu from './ExportMenu';
+import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 
 const MultiSelectDropdown = ({ label, options, selected, onChange, maxSelection }) => {
@@ -186,7 +187,7 @@ const MultiSelectDropdown = ({ label, options, selected, onChange, maxSelection 
   );
 };
 
-const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad }) => {
+const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, dataset }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const top3 = data._top3 || [];
@@ -194,10 +195,11 @@ const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad }) 
     const highlighted = [...payload].sort((a, b) => a.value - b.value);
     const toShow = highlighted.filter(p => p.name === selectedEntidad);
 
+    const metricLabel = dataset === 'victimas' ? 'Víctimas' : 'Delitos';
     const formatVal = (val) => {
       if (val === null || val === undefined) return '';
       const numStr = Number(val).toLocaleString('en-US');
-      return metricType === 'rate' ? `${numStr} (tasa)` : `${numStr} casos`;
+      return metricType === 'rate' ? `${numStr} (tasa)` : `${numStr} ${metricLabel}`;
     };
 
     const parts = label.split('-');
@@ -265,6 +267,17 @@ const HistoryRankings = ({ tempColor }) => {
   const [rankingData, setRankingData] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const headerRef = useRef(null);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsFullScreen(false);
+    };
+    if (isFullScreen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullScreen]);
 
   const [filters, setFilters] = useState({
     bienJuridico: [], tipoDelito: [], subtipoDelito: [], modalidad: [], sexo: [], rangoEdad: []
@@ -283,13 +296,12 @@ const HistoryRankings = ({ tempColor }) => {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const queryDataset = dataset;
-        const params = { dataset: queryDataset };
-        if (filters.bienJuridico.length > 0) params.bienJuridico = filters.bienJuridico.join('|');
-        if (filters.tipoDelito.length > 0) params.tipoDelito = filters.tipoDelito.join('|');
-        if (filters.subtipoDelito.length > 0) params.subtipoDelito = filters.subtipoDelito.join('|');
-        if (filters.sexo.length > 0) params.sexo = filters.sexo.join('|');
-        if (filters.rangoEdad.length > 0) params.rangoEdad = filters.rangoEdad.join('|');
+        const params = { dataset: applied.dataset };
+        if (applied.filters.bienJuridico.length > 0) params.bienJuridico = applied.filters.bienJuridico.join('|');
+        if (applied.filters.tipoDelito.length > 0) params.tipoDelito = applied.filters.tipoDelito.join('|');
+        if (applied.filters.subtipoDelito.length > 0) params.subtipoDelito = applied.filters.subtipoDelito.join('|');
+        if (applied.filters.sexo.length > 0) params.sexo = applied.filters.sexo.join('|');
+        if (applied.filters.rangoEdad.length > 0) params.rangoEdad = applied.filters.rangoEdad.join('|');
 
         const res = await axios.get(`${API_URL}/api/filtros`, { params });
         if (res.data) {
@@ -308,7 +320,7 @@ const HistoryRankings = ({ tempColor }) => {
       }
     };
     fetchOptions();
-  }, [dataset, filters]);
+  }, [applied]);
 
   useEffect(() => {
     const fetchRanking = async () => {
@@ -422,6 +434,8 @@ const HistoryRankings = ({ tempColor }) => {
     return str;
   };
 
+  const metricLabel = applied.dataset === 'victimas' ? 'Víctimas' : 'Delitos';
+
   const formatCardValue = (val) => {
     if (val === null || val === undefined) return '';
     if (applied.metricType === 'rate') {
@@ -429,7 +443,7 @@ const HistoryRankings = ({ tempColor }) => {
       const formatted = num % 1 === 0 ? num.toLocaleString('en-US') : num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       return `${formatted} (tasa)`;
     } else {
-      return `${Math.round(val).toLocaleString('en-US')} casos`;
+      return `${Math.round(val).toLocaleString('en-US')} ${metricLabel}`;
     }
   };
 
@@ -470,50 +484,76 @@ const HistoryRankings = ({ tempColor }) => {
   };
 
   return (
-    <div className="card" ref={headerRef} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
-      <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border-color)', backgroundColor: 'white' }}>
-        <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            Evolución del ranking nacional de{' '}
-            <select
-              value={selectedEntidad}
-              onChange={e => setSelectedEntidad(e.target.value)}
-              className="inline-title-select"
-            >
-              {(options.entidades || []).map(ent => (
-                <option key={ent} value={ent} style={{ fontSize: '0.875rem', fontWeight: 'normal', color: 'var(--text-primary)', background: 'white' }}>
-                  {ent}
-                </option>
-              ))}
-            </select>
-            <button onClick={() => setIsModalOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex' }} title="Información">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div className="btn-toggle" style={{ display: 'flex' }}>
-              <button
-                className={metricType === 'absolute' ? 'active' : ''}
-                onClick={() => {
-                  setMetricType('absolute');
-                  setApplied(prev => ({ ...prev, metricType: 'absolute' }));
-                }}
+    <div
+      ref={headerRef}
+      className={isFullScreen ? "fullscreen-immersive-overlay" : "card"}
+      style={isFullScreen ? {} : { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}
+    >
+      {isFullScreen ? (
+        <FullScreenHeader
+          title={`Evolución del ranking nacional — ${selectedEntidad}`}
+          selectedFilters={{
+            entidad: selectedEntidad,
+            dataset: applied.dataset,
+            temporalidad: applied.temporalidad,
+            mesAcumulado: applied.mesAcumulado,
+            filters: applied.filters
+          }}
+          metricType={metricType}
+          onClose={() => setIsFullScreen(false)}
+          extraActions={
+            <ExportMenu
+              imageFilename="evolucion_ranking"
+              onDownloadCSV={handleDownloadCSV}
+              onCopyTable={handleCopyTable}
+              isTable={true}
+            />
+          }
+        />
+      ) : (
+        <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border-color)', backgroundColor: 'white' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              Evolución del ranking nacional de{' '}
+              <select
+                value={selectedEntidad}
+                onChange={e => setSelectedEntidad(e.target.value)}
+                className="inline-title-select"
               >
-                Cifras absolutas
-              </button>
-              <button
-                className={metricType === 'rate' ? 'active' : ''}
-                onClick={() => {
-                  setMetricType('rate');
-                  setApplied(prev => ({ ...prev, metricType: 'rate' }));
-                }}
-              >
-                Tasa 100 mil habitantes
+                {(options.entidades || []).map(ent => (
+                  <option key={ent} value={ent} style={{ fontSize: '0.875rem', fontWeight: 'normal', color: 'var(--text-primary)', background: 'white' }}>
+                    {ent}
+                  </option>
+                ))}
+              </select>
+              <button onClick={() => setIsModalOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex' }} title="Información">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
               </button>
             </div>
-          </div>
-        </h2>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div className="btn-toggle" style={{ display: 'flex' }}>
+                <button
+                  className={metricType === 'absolute' ? 'active' : ''}
+                  onClick={() => {
+                    setMetricType('absolute');
+                    setApplied(prev => ({ ...prev, metricType: 'absolute' }));
+                  }}
+                >
+                  Cifras absolutas
+                </button>
+                <button
+                  className={metricType === 'rate' ? 'active' : ''}
+                  onClick={() => {
+                    setMetricType('rate');
+                    setApplied(prev => ({ ...prev, metricType: 'rate' }));
+                  }}
+                >
+                  Tasa 100 mil habitantes
+                </button>
+              </div>
+            </div>
+          </h2>
 
         {/* Filters and Selectors Container */}
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', padding: '1rem', backgroundColor: 'var(--bg-main)', borderRadius: '8px', marginTop: '1rem' }}>
@@ -595,16 +635,39 @@ const HistoryRankings = ({ tempColor }) => {
           </div>
         </div>
       </div>
+    )}
 
       <div style={{ flex: 1, minHeight: 0, backgroundColor: '#fcfcfc', position: 'relative' }}>
-        <div style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', zIndex: 110 }}>
-          <ExportMenu
-            imageFilename="evolucion_ranking"
-            onDownloadCSV={handleDownloadCSV}
-            onCopyTable={handleCopyTable}
-            isTable={true}
-          />
-        </div>
+        {!isFullScreen && (
+          <div style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', zIndex: 110, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <ExportMenu
+              imageFilename="evolucion_ranking"
+              onDownloadCSV={handleDownloadCSV}
+              onCopyTable={handleCopyTable}
+              isTable={true}
+            />
+            <button
+              onClick={() => setIsFullScreen(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                padding: '4px',
+                borderRadius: '4px',
+                transition: 'background 0.2s',
+              }}
+              title="Pantalla completa"
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+            </button>
+          </div>
+        )}
         <div style={{
           position: 'absolute',
           top: '1rem', left: '1rem', right: '1rem', bottom: '0.2rem',
@@ -646,7 +709,7 @@ const HistoryRankings = ({ tempColor }) => {
                   tickLine={false}
                   dx={-5}
                 />
-                <Tooltip content={<CustomTooltip metricType={applied.metricType} selectedEntidad={selectedEntidad} />} wrapperStyle={{ zIndex: 1000 }} />
+                <Tooltip content={<CustomTooltip metricType={applied.metricType} selectedEntidad={selectedEntidad} dataset={applied.dataset} />} wrapperStyle={{ zIndex: 1000 }} />
 
                 <ReferenceArea y1={1} y2={10} fill="#ef4444" fillOpacity={0.06} strokeOpacity={0} />
                 <ReferenceArea y1={11} y2={20} fill="#f59e0b" fillOpacity={0.06} strokeOpacity={0} />
@@ -660,7 +723,7 @@ const HistoryRankings = ({ tempColor }) => {
                     dataKey={name}
                     name={name}
                     stroke="#e2e8f0"
-                    strokeWidth={1}
+                    strokeWidth={isFullScreen ? 1.5 : 1}
                     strokeOpacity={0.8}
                     dot={false}
                     activeDot={false}
@@ -678,7 +741,7 @@ const HistoryRankings = ({ tempColor }) => {
                     dataKey={selectedEntidad}
                     name={selectedEntidad}
                     stroke={primaryColor}
-                    strokeWidth={3}
+                    strokeWidth={isFullScreen ? 4.5 : 3}
                     strokeOpacity={1}
                     dot={false}
                     activeDot={{ r: 6, fill: primaryColor }}

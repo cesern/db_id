@@ -4,11 +4,13 @@ import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import { ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot, Line } from 'recharts';
 import ExportMenu from './ExportMenu';
+import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV } from '../utils/exportUtils';
 
 const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   const [activeToggles, setActiveToggles] = useState({
     promedio: false,
@@ -22,6 +24,16 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
 
   const initialLoadCalled = useRef(false);
   const cardRef = useRef(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsFullScreen(false);
+    };
+    if (isFullScreen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullScreen]);
 
   useEffect(() => {
     if (!selectedFilters) return;
@@ -238,121 +250,274 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
   const maLabel = maWindow === 12 ? 'Suavizado (MA 12M)' : maWindow ? `MA ${maWindow}M` : '';
 
   return (
-    <div ref={cardRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', position: 'relative' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingRight: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0 }}>
-          {chartTitle}
-        </h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          {/* Toggles estadísticos */}
-          <div style={{ display: 'flex', gap: '0.35rem' }}>
-            {toggleButtons.map((btn) => (
+    <div 
+      ref={cardRef} 
+      className={isFullScreen ? "fullscreen-immersive-overlay" : ""}
+      style={isFullScreen ? {} : { display: 'flex', flexDirection: 'column', height: '100%', width: '100%', position: 'relative' }}
+    >
+      {isFullScreen ? (
+        <FullScreenHeader
+          title={chartTitle}
+          selectedFilters={selectedFilters}
+          metricType={metricType}
+          onClose={() => setIsFullScreen(false)}
+          extraActions={
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {/* Toggles estadísticos */}
+              <div style={{ display: 'flex', gap: '0.35rem' }}>
+                {toggleButtons.map((btn) => (
+                  <button
+                    key={btn.key}
+                    onClick={() => handleToggle(btn.key)}
+                    style={btnStyle(activeToggles[btn.key])}
+                  >
+                    {btn.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Separador visual */}
+              <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
+
+              {/* Botones de Promedio Móvil + Info */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
+                {maButtons.map(({ win, label }) => (
+                  <button
+                    key={win}
+                    onClick={() => handleMAToggle(win)}
+                    style={btnStyle(maWindow === win)}
+                  >
+                    {label}
+                  </button>
+                ))}
+
+                {/* Botón de info */}
+                <button
+                  ref={infoRef}
+                  onMouseEnter={() => {
+                    if (infoRef.current) {
+                      const rect = infoRef.current.getBoundingClientRect();
+                      setInfoPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+                    }
+                    setShowMAInfo(true);
+                  }}
+                  onMouseLeave={() => setShowMAInfo(false)}
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    borderRadius: '50%',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-main)',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.65rem',
+                    fontWeight: 700,
+                    cursor: 'default',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    lineHeight: 1,
+                    marginLeft: '2px',
+                  }}
+                >
+                  ?
+                </button>
+
+                {/* Popover de explicación */}
+                {showMAInfo && (
+                  <div style={{
+                    position: 'fixed',
+                    top: `${infoPos.top}px`,
+                    right: `${infoPos.right}px`,
+                    width: '280px',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '10px',
+                    boxShadow: 'var(--shadow-lg)',
+                    padding: '0.85rem 1rem',
+                    zIndex: 9999,
+                    pointerEvents: 'none',
+                  }}>
+                    <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-primary)', marginBottom: '0.5rem' }}>
+                      Promedio Móvil (PM)
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-accent)' }}>3M — </span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                          Promedio de los últimos 3 meses. Reduce el ruido mensual conservando el detalle de corto plazo.
+                        </span>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-accent)' }}>6M — </span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                          Promedio de los últimos 6 meses. Elimina la variación estacional semestral y muestra la tendencia media.
+                        </span>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-accent)' }}>Suavizado — </span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                          Promedio anual de 12 meses. Elimina la estacionalidad y revela la tendencia estructural de largo plazo.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Separador visual */}
+              <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
+
+              <ExportMenu
+                elementRef={cardRef}
+                imageFilename={isVictimasBase ? "historico_victimas.png" : "historico_incidencia.png"}
+                onDownloadCSV={handleDownloadCSV}
+              />
+            </div>
+          }
+        />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+          {/* Fila 1: Título y Acciones */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '0.2rem' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0 }}>
+              {chartTitle}
+            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <ExportMenu
+                elementRef={cardRef}
+                imageFilename={isVictimasBase ? "historico_victimas.png" : "historico_incidencia.png"}
+                onDownloadCSV={handleDownloadCSV}
+              />
               <button
-                key={btn.key}
-                onClick={() => handleToggle(btn.key)}
-                style={btnStyle(activeToggles[btn.key])}
+                onClick={() => setIsFullScreen(true)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  transition: 'background 0.2s',
+                }}
+                title="Pantalla completa"
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
               >
-                {btn.label}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                </svg>
               </button>
-            ))}
+            </div>
           </div>
 
-          {/* Separador visual */}
-          <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
+          {/* Fila 2: Toggles de filtros/promedios */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            {/* Toggles estadísticos */}
+            <div style={{ display: 'flex', gap: '0.35rem' }}>
+              {toggleButtons.map((btn) => (
+                <button
+                  key={btn.key}
+                  onClick={() => handleToggle(btn.key)}
+                  style={btnStyle(activeToggles[btn.key])}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
 
-          {/* Botones de Promedio Móvil + Info */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
-            {maButtons.map(({ win, label }) => (
+            {/* Separador visual */}
+            <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
+
+            {/* Botones de Promedio Móvil + Info */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
+              {maButtons.map(({ win, label }) => (
+                <button
+                  key={win}
+                  onClick={() => handleMAToggle(win)}
+                  style={btnStyle(maWindow === win)}
+                >
+                  {label}
+                </button>
+              ))}
+
+              {/* Botón de info */}
               <button
-                key={win}
-                onClick={() => handleMAToggle(win)}
-                style={btnStyle(maWindow === win)}
+                ref={infoRef}
+                onMouseEnter={() => {
+                  if (infoRef.current) {
+                    const rect = infoRef.current.getBoundingClientRect();
+                    setInfoPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+                  }
+                  setShowMAInfo(true);
+                }}
+                onMouseLeave={() => setShowMAInfo(false)}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-main)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  cursor: 'default',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  lineHeight: 1,
+                  marginLeft: '2px',
+                }}
               >
-                {label}
+                ?
               </button>
-            ))}
 
-            {/* Botón de info */}
-            <button
-              ref={infoRef}
-              onMouseEnter={() => {
-                if (infoRef.current) {
-                  const rect = infoRef.current.getBoundingClientRect();
-                  setInfoPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
-                }
-                setShowMAInfo(true);
-              }}
-              onMouseLeave={() => setShowMAInfo(false)}
-              style={{
-                width: '18px',
-                height: '18px',
-                borderRadius: '50%',
-                border: '1px solid var(--border-color)',
-                background: 'var(--bg-main)',
-                color: 'var(--text-secondary)',
-                fontSize: '0.65rem',
-                fontWeight: 700,
-                cursor: 'default',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                lineHeight: 1,
-                marginLeft: '2px',
-              }}
-            >
-              ?
-            </button>
-
-            {/* Popover de explicación — position:fixed para evitar overflow clipping */}
-            {showMAInfo && (
-              <div style={{
-                position: 'fixed',
-                top: `${infoPos.top}px`,
-                right: `${infoPos.right}px`,
-                width: '280px',
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '10px',
-                boxShadow: 'var(--shadow-lg)',
-                padding: '0.85rem 1rem',
-                zIndex: 9999,
-                pointerEvents: 'none',
-              }}>
-                <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-primary)', marginBottom: '0.5rem' }}>
-                  Promedio Móvil (PM)
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                  <div>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-accent)' }}>3M — </span>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                      Promedio de los últimos 3 meses. Reduce el ruido mensual conservando el detalle de corto plazo.
-                    </span>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-accent)' }}>6M — </span>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                      Promedio de los últimos 6 meses. Elimina la variación estacional semestral y muestra la tendencia media.
-                    </span>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-accent)' }}>Suavizado — </span>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                      Promedio anual de 12 meses. Elimina la estacionalidad y revela la tendencia estructural de largo plazo.
-                    </span>
+              {/* Popover de explicación */}
+              {showMAInfo && (
+                <div style={{
+                  position: 'fixed',
+                  top: `${infoPos.top}px`,
+                  right: `${infoPos.right}px`,
+                  width: '280px',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '10px',
+                  boxShadow: 'var(--shadow-lg)',
+                  padding: '0.85rem 1rem',
+                  zIndex: 9999,
+                  pointerEvents: 'none',
+                }}>
+                  <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-primary)', marginBottom: '0.5rem' }}>
+                    Promedio Móvil (PM)
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                    <div>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-accent)' }}>3M — </span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                        Promedio de los últimos 3 meses. Reduce el ruido mensual conservando el detalle de corto plazo.
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-accent)' }}>6M — </span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                        Promedio de los últimos 6 meses. Elimina la variación estacional semestral y muestra la tendencia media.
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-accent)' }}>Suavizado — </span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                        Promedio anual de 12 meses. Elimina la estacionalidad y revela la tendencia estructural de largo plazo.
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-
-          <ExportMenu
-            elementRef={cardRef}
-            imageFilename={isVictimasBase ? "historico_victimas.png" : "historico_incidencia.png"}
-            onDownloadCSV={handleDownloadCSV}
-          />
         </div>
-      </div>
+      )}
 
       <div style={{ flex: 1, position: 'relative', width: '100%', minHeight: '120px' }}>
         {loading && <LoadingSpinner size="md" />}

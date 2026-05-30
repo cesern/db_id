@@ -4,14 +4,26 @@ import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import ExportMenu from './ExportMenu';
+import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV } from '../utils/exportUtils';
 
 const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   const initialLoadCalled = useRef(false);
   const cardRef = useRef(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsFullScreen(false);
+    };
+    if (isFullScreen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullScreen]);
 
   useEffect(() => {
     if (!selectedFilters) return;
@@ -112,17 +124,59 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
   const tooltipLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
 
   return (
-    <div ref={cardRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', position: 'relative' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingRight: '0.5rem' }}>
-        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0 }}>
-          {chartTitle}
-        </h3>
-        <ExportMenu
-          elementRef={cardRef}
-          imageFilename={isVictimasMun ? "victimas_por_mes.png" : (isVictimasBase ? "victimas_por_anio.png" : "incidencia_por_anio.png")}
-          onDownloadCSV={handleDownloadCSV}
+    <div 
+      ref={cardRef} 
+      className={isFullScreen ? "fullscreen-immersive-overlay" : ""}
+      style={isFullScreen ? {} : { display: 'flex', flexDirection: 'column', height: '100%', width: '100%', position: 'relative' }}
+    >
+      {isFullScreen ? (
+        <FullScreenHeader
+          title={chartTitle}
+          selectedFilters={selectedFilters}
+          metricType={metricType}
+          onClose={() => setIsFullScreen(false)}
+          extraActions={
+            <ExportMenu
+              elementRef={cardRef}
+              imageFilename={isVictimasMun ? "victimas_por_mes.png" : (isVictimasBase ? "victimas_por_anio.png" : "incidencia_por_anio.png")}
+              onDownloadCSV={handleDownloadCSV}
+            />
+          }
         />
-      </div>
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingRight: '0.5rem' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0 }}>
+            {chartTitle}
+          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <ExportMenu
+              elementRef={cardRef}
+              imageFilename={isVictimasMun ? "victimas_por_mes.png" : (isVictimasBase ? "victimas_por_anio.png" : "incidencia_por_anio.png")}
+              onDownloadCSV={handleDownloadCSV}
+            />
+            <button
+              onClick={() => setIsFullScreen(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                padding: '4px',
+                borderRadius: '4px',
+                transition: 'background 0.2s',
+              }}
+              title="Pantalla completa"
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={{ flex: 1, position: 'relative', width: '100%', minHeight: '120px' }}>
         {loading && <LoadingSpinner size="md" />}
