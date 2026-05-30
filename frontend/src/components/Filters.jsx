@@ -82,7 +82,7 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
       <label className="label-sm">{label}</label>
       <div
         className="input-select"
-        style={{ cursor: 'pointer', userSelect: 'none', minHeight: 'var(--input-min-height, 38px)', display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        style={{ cursor: 'pointer', userSelect: 'none', minHeight: 'var(--input-min-height, 30px)', display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
         onClick={() => setIsOpen(!isOpen)}
         title={displayText}
       >

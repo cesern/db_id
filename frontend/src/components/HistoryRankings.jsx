@@ -91,10 +91,10 @@ const MultiSelectDropdown = ({ label, options, selected, onChange, maxSelection 
 
   return (
     <div style={{ position: 'relative', flex: '1 1 min(100%, 180px)' }} ref={containerRef}>
-      <label className="label-sm" style={{ display: 'block', marginBottom: '4px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{label}</label>
+      <label className="label-sm">{label}</label>
       <div
         className="input-select"
-        style={{ cursor: 'pointer', userSelect: 'none', minHeight: '38px', display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', backgroundColor: 'white', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0 0.75rem', fontSize: '0.875rem' }}
+        style={{ cursor: 'pointer', userSelect: 'none', minHeight: 'var(--input-min-height, 30px)', display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
         onClick={() => setIsOpen(!isOpen)}
         title={displayText}
       >
@@ -186,13 +186,13 @@ const MultiSelectDropdown = ({ label, options, selected, onChange, maxSelection 
   );
 };
 
-const CustomTooltip = ({ active, payload, label, metricType }) => {
+const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const top3 = data._top3 || [];
 
     const highlighted = [...payload].sort((a, b) => a.value - b.value);
-    const toShow = highlighted.filter(p => p.name === 'Sonora');
+    const toShow = highlighted.filter(p => p.name === selectedEntidad);
 
     const formatVal = (val) => {
       if (val === null || val === undefined) return '';
@@ -212,7 +212,7 @@ const CustomTooltip = ({ active, payload, label, metricType }) => {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
           {toShow.length === 0 && (
-            <span style={{ fontSize: '13px', color: '#64748b' }}>Sin datos para Sonora</span>
+            <span style={{ fontSize: '13px', color: '#64748b' }}>Sin datos para {selectedEntidad}</span>
           )}
           {toShow.map((entry, index) => {
             const total = data[entry.name + '_total'];
@@ -256,6 +256,7 @@ const CustomTooltip = ({ active, payload, label, metricType }) => {
 };
 
 const HistoryRankings = ({ tempColor }) => {
+  const [selectedEntidad, setSelectedEntidad] = useState('Sonora');
   const [dataset, setDataset] = useState('delitos');
   const [temporalidad, setTemporalidad] = useState('mensual');
   const [mesAcumulado, setMesAcumulado] = useState('Agosto');
@@ -275,6 +276,7 @@ const HistoryRankings = ({ tempColor }) => {
   });
 
   const [options, setOptions] = useState({
+    entidades: ['Sonora'],
     bienesJuridicos: [], tiposDelito: [], subtiposDelito: [], modalidades: [], sexos: [], rangosEdad: []
   });
 
@@ -292,6 +294,7 @@ const HistoryRankings = ({ tempColor }) => {
         const res = await axios.get(`${API_URL}/api/filtros`, { params });
         if (res.data) {
           setOptions({
+            entidades: res.data.entidades || ['Sonora'],
             bienesJuridicos: res.data.bienesJuridicos || [],
             tiposDelito: res.data.tiposDelito || [],
             subtiposDelito: res.data.subtiposDelito || [],
@@ -363,13 +366,7 @@ const HistoryRankings = ({ tempColor }) => {
   }, [rankingData]);
 
   const lineNames = useMemo(() => {
-    const names = [...new Set(rankingData.map(d => d.name))];
-    // Sort so Sonora is always last (renders on top)
-    return names.sort((a, b) => {
-      if (a === 'Sonora') return 1;
-      if (b === 'Sonora') return -1;
-      return a.localeCompare(b);
-    });
+    return [...new Set(rankingData.map(d => d.name))].sort((a, b) => a.localeCompare(b));
   }, [rankingData]);
 
   const handleFilterChange = (name, val) => {
@@ -390,26 +387,26 @@ const HistoryRankings = ({ tempColor }) => {
     });
   };
 
-  const summarySonora = useMemo(() => {
+  const summaryEntidad = useMemo(() => {
     if (!chartData || chartData.length === 0) return null;
 
-    const sonoraPoints = chartData.filter(d => d.Sonora !== undefined && d.Sonora !== null);
-    if (sonoraPoints.length === 0) return null;
+    const entidadPoints = chartData.filter(d => d[selectedEntidad] !== undefined && d[selectedEntidad] !== null);
+    if (entidadPoints.length === 0) return null;
 
-    const sonoraRanks = sonoraPoints.map(d => d.Sonora);
-    const mejor = Math.max(...sonoraRanks);
-    const peor = Math.min(...sonoraRanks);
+    const entidadRanks = entidadPoints.map(d => d[selectedEntidad]);
+    const mejor = Math.max(...entidadRanks);
+    const peor = Math.min(...entidadRanks);
 
-    const mejorPoints = sonoraPoints.filter(d => d.Sonora === mejor);
-    const peorPoints = sonoraPoints.filter(d => d.Sonora === peor);
+    const mejorPoints = entidadPoints.filter(d => d[selectedEntidad] === mejor);
+    const peorPoints = entidadPoints.filter(d => d[selectedEntidad] === peor);
 
     return {
       mejor,
-      mejorItems: mejorPoints.map(p => ({ period: p.period, total: p.Sonora_total })),
+      mejorItems: mejorPoints.map(p => ({ period: p.period, total: p[selectedEntidad + '_total'] })),
       peor,
-      peorItems: peorPoints.map(p => ({ period: p.period, total: p.Sonora_total }))
+      peorItems: peorPoints.map(p => ({ period: p.period, total: p[selectedEntidad + '_total'] }))
     };
-  }, [chartData]);
+  }, [chartData, selectedEntidad]);
 
   const formatPeriodLabel = (periodStr) => {
     if (!periodStr) return '';
@@ -438,18 +435,18 @@ const HistoryRankings = ({ tempColor }) => {
 
   const dataForExport = useMemo(() => {
     if (!chartData || chartData.length === 0) return [];
-    return chartData.filter(d => d.Sonora !== undefined).map(d => ({
+    return chartData.filter(d => d[selectedEntidad] !== undefined).map(d => ({
       Periodo: d.period,
-      Entidad: 'Sonora',
-      Ranking: d.Sonora,
-      Total: d.Sonora_total
+      Entidad: selectedEntidad,
+      Ranking: d[selectedEntidad],
+      Total: d[selectedEntidad + '_total']
     }));
-  }, [chartData]);
+  }, [chartData, selectedEntidad]);
 
   const handleDownloadCSV = () => {
     const csvValLabel = metricType === 'rate' ? 'Incidencia (Tasa por 100k hab.)' : 'Incidencia';
     const headers = ["Periodo", "Entidad", "Ranking", csvValLabel];
-    downloadCSV("evolucion_ranking_sonora.csv", dataForExport, headers, { ...applied, metricType });
+    downloadCSV(`evolucion_ranking_${selectedEntidad.toLowerCase()}.csv`, dataForExport, headers, { ...applied, metricType });
   };
 
   const handleCopyTable = () => {
@@ -458,14 +455,14 @@ const HistoryRankings = ({ tempColor }) => {
     copyTableToClipboard(dataForExport, headers);
   };
 
-  const primaryColor = tempColor || '#455993';
+  const primaryColor = 'var(--color-accent)';
 
   const renderCustomLabel = (props) => {
     const { x, y, value, index } = props;
     if (index === chartData.length - 1) {
       return (
         <text x={x + 10} y={y + 4} fill={primaryColor} fontSize={14} fontWeight={700} textAnchor="start">
-          Sonora #{value}
+          {selectedEntidad} #{value}
         </text>
       );
     }
@@ -477,7 +474,18 @@ const HistoryRankings = ({ tempColor }) => {
       <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border-color)', backgroundColor: 'white' }}>
         <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            Evolución del ranking nacional de Sonora
+            Evolución del ranking nacional de{' '}
+            <select
+              value={selectedEntidad}
+              onChange={e => setSelectedEntidad(e.target.value)}
+              className="inline-title-select"
+            >
+              {(options.entidades || []).map(ent => (
+                <option key={ent} value={ent} style={{ fontSize: '0.875rem', fontWeight: 'normal', color: 'var(--text-primary)', background: 'white' }}>
+                  {ent}
+                </option>
+              ))}
+            </select>
             <button onClick={() => setIsModalOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex' }} title="Información">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
             </button>
@@ -549,13 +557,13 @@ const HistoryRankings = ({ tempColor }) => {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', marginBottom: '0.5rem', gap: '1rem', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: '1rem', flex: '1 1 300px' }}>
-            {summarySonora && (
+            {summaryEntidad && (
               <>
                 <div style={{ flex: 1, backgroundColor: 'var(--bg-main)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '150px' }}>
                   <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Mejor Posición</span>
-                  <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981', marginTop: '0.2rem' }}>#{summarySonora.mejor}</span>
+                  <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981', marginTop: '0.2rem' }}>#{summaryEntidad.mejor}</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%', alignItems: 'center', marginTop: '0.4rem', maxHeight: '65px', overflowY: 'auto', paddingRight: '4px' }}>
-                    {summarySonora.mejorItems.map((item, idx) => (
+                    {summaryEntidad.mejorItems.map((item, idx) => (
                       <span key={idx} style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'center', display: 'block', width: '100%', lineHeight: '1.2' }}>
                         <strong style={{ color: 'var(--text-primary)' }}>{formatPeriodLabel(item.period)}</strong>: {formatCardValue(item.total)}
                       </span>
@@ -564,9 +572,9 @@ const HistoryRankings = ({ tempColor }) => {
                 </div>
                 <div style={{ flex: 1, backgroundColor: 'var(--bg-main)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '150px' }}>
                   <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Peor Posición</span>
-                  <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ef4444', marginTop: '0.2rem' }}>#{summarySonora.peor}</span>
+                  <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ef4444', marginTop: '0.2rem' }}>#{summaryEntidad.peor}</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%', alignItems: 'center', marginTop: '0.4rem', maxHeight: '65px', overflowY: 'auto', paddingRight: '4px' }}>
-                    {summarySonora.peorItems.map((item, idx) => (
+                    {summaryEntidad.peorItems.map((item, idx) => (
                       <span key={idx} style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'center', display: 'block', width: '100%', lineHeight: '1.2' }}>
                         <strong style={{ color: 'var(--text-primary)' }}>{formatPeriodLabel(item.period)}</strong>: {formatCardValue(item.total)}
                       </span>
@@ -638,38 +646,48 @@ const HistoryRankings = ({ tempColor }) => {
                   tickLine={false}
                   dx={-5}
                 />
-                <Tooltip content={<CustomTooltip metricType={applied.metricType} />} wrapperStyle={{ zIndex: 1000 }} />
+                <Tooltip content={<CustomTooltip metricType={applied.metricType} selectedEntidad={selectedEntidad} />} wrapperStyle={{ zIndex: 1000 }} />
 
                 <ReferenceArea y1={1} y2={10} fill="#ef4444" fillOpacity={0.06} strokeOpacity={0} />
                 <ReferenceArea y1={11} y2={20} fill="#f59e0b" fillOpacity={0.06} strokeOpacity={0} />
                 <ReferenceArea y1={21} y2={32} fill="#10b981" fillOpacity={0.06} strokeOpacity={0} />
 
-                {/* Render lines */}
-                {lineNames.map((name) => {
-                  const isSonora = name === 'Sonora';
+                {/* Render background/inactive lines */}
+                {lineNames.filter(name => name !== selectedEntidad).map((name) => (
+                  <Line
+                    key={name}
+                    type="monotone"
+                    dataKey={name}
+                    name={name}
+                    stroke="#e2e8f0"
+                    strokeWidth={1}
+                    strokeOpacity={0.8}
+                    dot={false}
+                    activeDot={false}
+                    isAnimationActive={false}
+                    legendType="none"
+                    label={false}
+                  />
+                ))}
 
-                  let strokeColor = isSonora ? primaryColor : '#e2e8f0';
-                  let strokeWidth = isSonora ? 3 : 1;
-                  let zIndex = isSonora ? 10 : 0;
-
-                  return (
-                    <Line
-                      key={name}
-                      type="monotone"
-                      dataKey={name}
-                      name={name}
-                      stroke={strokeColor}
-                      strokeWidth={strokeWidth}
-                      strokeOpacity={1}
-                      dot={false}
-                      activeDot={isSonora ? { r: 6, fill: strokeColor } : false}
-                      isAnimationActive={false}
-                      style={{ zIndex }}
-                      legendType={isSonora ? "none" : "none"}
-                      label={isSonora ? renderCustomLabel : false}
-                    />
-                  );
-                })}
+                {/* Render active line always on top */}
+                {lineNames.includes(selectedEntidad) && (
+                  <Line
+                    key={selectedEntidad}
+                    type="monotone"
+                    dataKey={selectedEntidad}
+                    name={selectedEntidad}
+                    stroke={primaryColor}
+                    strokeWidth={3}
+                    strokeOpacity={1}
+                    dot={false}
+                    activeDot={{ r: 6, fill: primaryColor }}
+                    isAnimationActive={false}
+                    style={{ zIndex: 10 }}
+                    legendType="none"
+                    label={renderCustomLabel}
+                  />
+                )}
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -686,7 +704,7 @@ const HistoryRankings = ({ tempColor }) => {
           <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '12px', maxWidth: '500px', width: '90%' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--text-primary)' }}>Evolución del Ranking</h3>
             <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '1.5rem' }}>
-              Visualización dinámica de la evolución del ranking por entidad, permitiendo comparar el comportamiento histórico de delitos y víctimas. Los elementos correspondientes a Sonora se resaltan automáticamente para facilitar su seguimiento frente al contexto nacional.
+              Visualización dinámica de la evolución del ranking por entidad, permitiendo comparar el comportamiento histórico de delitos y víctimas. Los elementos correspondientes a la entidad seleccionada se resaltan automáticamente para facilitar su seguimiento frente al contexto nacional.
             </p>
             <button className="btn btn-primary" onClick={() => setIsModalOpen(false)} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>Entendido</button>
           </div>
