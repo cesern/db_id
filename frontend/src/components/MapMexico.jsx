@@ -7,6 +7,7 @@ import LoadingSpinner from './LoadingSpinner';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV } from '../utils/exportUtils';
+import DrillDownModal from './DrillDownModal';
 
 // NOTA: El mapa solo soporta dos vistas:
 //   1. Vista Nacional (entidad = "All")  → muestra todas las entidades usando /mexico_geo.json
@@ -28,8 +29,98 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [loading, setLoading] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
+  const [drillModal, setDrillModal] = useState(null);
   const initialLoadCalled = useRef(false);
   const cardRef = useRef(null);
+
+  // Builds shared filter query params from selectedFilters
+  const buildFilterParams = (params) => {
+    const bj = Array.isArray(selectedFilters.bienJuridico) ? selectedFilters.bienJuridico : [];
+    const td = Array.isArray(selectedFilters.tipoDelito) ? selectedFilters.tipoDelito : [];
+    const sd = Array.isArray(selectedFilters.subtipoDelito) ? selectedFilters.subtipoDelito : [];
+    const mo = Array.isArray(selectedFilters.modalidad) ? selectedFilters.modalidad : [];
+    const sx = Array.isArray(selectedFilters.sexo) ? selectedFilters.sexo : [];
+    const re = Array.isArray(selectedFilters.rangoEdad) ? selectedFilters.rangoEdad : [];
+    if (bj.length > 0) params.append('bienJuridico', bj.join('|'));
+    if (td.length > 0) params.append('tipoDelito', td.join('|'));
+    if (sd.length > 0) params.append('subtipoDelito', sd.join('|'));
+    if (mo.length > 0) params.append('modalidad', mo.join('|'));
+    if (sx.length > 0) params.append('sexo', sx.join('|'));
+    if (re.length > 0) params.append('rangoEdad', re.join('|'));
+    if (selectedFilters.meses && selectedFilters.meses.length > 0) params.append('meses', selectedFilters.meses.join(','));
+  };
+
+  // Clic en entidad (mapa nacional) → desglose de municipios
+  const handleEntityClick = async (entidadName) => {
+    if (!entidadName || entidadName === 'Desconocido') return;
+    setDrillModal({ title: entidadName, data: null, loading: true });
+    try {
+      const params = new URLSearchParams();
+      params.append('dataset', dataset);
+      params.append('metric_type', metricType);
+      params.append('entidad', entidadName);
+      if (selectedFilters.anio) params.append('anio', selectedFilters.anio);
+      buildFilterParams(params);
+      const res = await axios.get(`${API_URL}/api/incidencia_por_municipio?${params.toString()}`);
+      const rawData = res.data || [];
+      const mappedData = rawData.map(d => ({
+        name: d.municipio || d.name,
+        value: typeof d.value === 'number' ? d.value : (parseFloat(d.value) || 0),
+        rank: d.id,
+      }));
+      const anioLabel = selectedFilters.anio ? ` · ${selectedFilters.anio}` : ' · Todos los años';
+      const dataLabel = isVictimasBase ? 'Víctimas' : 'Delitos';
+      setDrillModal({
+        title: `Municipios — ${entidadName}`,
+        subtitle: `Desglose por municipio${anioLabel} · ${dataLabel}`,
+        data: mappedData,
+        loading: false,
+        valueLabel: dataLabel,
+        showRank: true,
+        showPct: true,
+      });
+    } catch (err) {
+      console.error('Error fetching municipio drill-down', err);
+      setDrillModal(prev => ({ ...prev, loading: false, data: [] }));
+    }
+  };
+
+  // Clic en municipio (mapa Sonora) → desglose por subtipo de delito
+  const handleMunicipioClick = async (municipioName) => {
+    if (!municipioName || municipioName === 'Desconocido') return;
+    setDrillModal({ title: municipioName, data: null, loading: true });
+    try {
+      const params = new URLSearchParams();
+      params.append('categoria', 'subtipo_delito');
+      params.append('dataset', dataset);
+      params.append('metric_type', metricType);
+      params.append('entidad', 'Sonora');
+      params.append('municipio', municipioName);
+      if (selectedFilters.anio) params.append('anio', selectedFilters.anio);
+      buildFilterParams(params);
+      const res = await axios.get(`${API_URL}/api/incidencia_por_delito?${params.toString()}`);
+      const rawData = res.data || [];
+      const mappedData = rawData.map(d => ({
+        name: d.name,
+        value: typeof d.value === 'number' ? d.value : (parseFloat(d.value) || 0),
+        rank: d.id,
+      }));
+      const anioLabel = selectedFilters.anio ? ` · ${selectedFilters.anio}` : ' · Todos los años';
+      const dataLabel = isVictimasBase ? 'Víctimas' : 'Delitos';
+      setDrillModal({
+        title: `${municipioName}, Sonora`,
+        subtitle: `Subtipo de delito${anioLabel}`,
+        data: mappedData,
+        loading: false,
+        valueLabel: dataLabel,
+        showRank: true,
+        showPct: true,
+      });
+    } catch (err) {
+      console.error('Error fetching subtipo drill-down', err);
+      setDrillModal(prev => ({ ...prev, loading: false, data: [] }));
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -257,12 +348,9 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
                   <Geography
                     key={geo.rsmKey}
                     geography={geo}
-                    onMouseEnter={() => {
-                      setTooltipData({ name: stateName, value: realValue });
-                    }}
-                    onMouseLeave={() => {
-                      setTooltipData(null);
-                    }}
+                    onMouseEnter={() => setTooltipData({ name: stateName, value: realValue })}
+                    onMouseLeave={() => setTooltipData(null)}
+                    onClick={() => isSonora ? handleMunicipioClick(stateName) : handleEntityClick(stateName)}
                     style={{
                       default: {
                         fill: getFillColor(realValue),
@@ -291,6 +379,18 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
           </Geographies>
         </ComposableMap>
       </div>
+      {drillModal && (
+        <DrillDownModal
+          title={drillModal.title}
+          subtitle={drillModal.subtitle}
+          data={drillModal.data}
+          loading={drillModal.loading}
+          onClose={() => setDrillModal(null)}
+          valueLabel={drillModal.valueLabel || tooltipLabel}
+          showRank={drillModal.showRank || false}
+          showPct={drillModal.showPct || false}
+        />
+      )}
     </div>
   );
 };
