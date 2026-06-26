@@ -348,7 +348,7 @@ async def obtener_incidencia_por_entidad(
             final['rate_value'] = (final['total'] / final['pop']) * 100000
             
             final = final.sort_values('rate_value', ascending=False)
-            final['id'] = final['rate_value'].rank(ascending=False, method='dense').astype(int)
+            final['id'] = final['rate_value'].rank(ascending=False, method='min').astype(int)
             final['value'] = final['rate_value'].round(2)
         except Exception:
             final = df_res.copy()
@@ -359,7 +359,7 @@ async def obtener_incidencia_por_entidad(
         return final[['id', 'name', 'value']].to_dict('records')
     else:
         df_res = df_res.sort_values('total', ascending=False)
-        df_res['id'] = df_res['total'].rank(ascending=False, method='dense').astype(int)
+        df_res['id'] = df_res['total'].rank(ascending=False, method='min').astype(int)
         df_res['value'] = df_res['total'].astype(int)
         df_res['name'] = df_res['Entidad'].astype(str)
         return df_res[['id', 'name', 'value']].to_dict('records')
@@ -414,11 +414,11 @@ async def obtener_incidencia_por_municipio(
             )
             final = final.sort_values('rate_value', ascending=False, na_position='last')
             
-            ranks = final['rate_value'].rank(ascending=False, method='dense')
-            max_rank = int(ranks.max()) if not ranks.isna().all() else 0
+            ranks = final['rate_value'].rank(ascending=False, method='min')
+            valid_count = int((~ranks.isna()).sum())
             null_mask = ranks.isna()
             if null_mask.any():
-                ranks[null_mask] = range(max_rank + 1, max_rank + 1 + null_mask.sum())
+                ranks[null_mask] = range(valid_count + 1, valid_count + 1 + null_mask.sum())
             final['id'] = ranks.astype(int)
             final['value'] = final['rate_value'].map(lambda x: "N/D" if pd.isna(x) else round(x, 2))
         except Exception:
@@ -427,7 +427,7 @@ async def obtener_incidencia_por_municipio(
             final['value'] = "N/D"
     else:
         df_res = df_res.sort_values('total', ascending=False)
-        df_res['id'] = df_res['total'].rank(ascending=False, method='dense').astype(int)
+        df_res['id'] = df_res['total'].rank(ascending=False, method='min').astype(int)
         df_res['value'] = df_res['total'].astype(int)
         final = df_res
         
@@ -567,7 +567,7 @@ async def obtener_incidencia_por_delito(
         if pop is not None and pop > 0:
             df_res['rate_value'] = (df_res['total'] / pop) * 100000
             df_res = df_res.sort_values('rate_value', ascending=False)
-            df_res['id'] = df_res['rate_value'].rank(ascending=False, method='dense').astype(int)
+            df_res['id'] = df_res['rate_value'].rank(ascending=False, method='min').astype(int)
             df_res['value'] = df_res['rate_value'].round(2)
         else:
             df_res['rate_value'] = None
@@ -576,7 +576,7 @@ async def obtener_incidencia_por_delito(
             df_res['value'] = "N/D"
     else:
         df_res = df_res.sort_values('total', ascending=False)
-        df_res['id'] = df_res['total'].rank(ascending=False, method='dense').astype(int)
+        df_res['id'] = df_res['total'].rank(ascending=False, method='min').astype(int)
         df_res['value'] = df_res['total'].astype(int)
         
     df_res['name'] = df_res[col].astype(str)
@@ -688,7 +688,7 @@ async def obtener_ranking_historico(
         )
 
     df_res = df_res.sort_values(['period', 'total'], ascending=[True, False])
-    df_res['rank'] = df_res.groupby('period')['total'].rank(method='dense', ascending=False).astype(int)
+    df_res['rank'] = df_res.groupby('period')['total'].rank(method='min', ascending=False).astype(int)
     
     if nivel == "municipio":
         is_sonora = df_res['name'].str.endswith(', Sonora')

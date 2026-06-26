@@ -5,7 +5,7 @@ import LoadingSpinner from './LoadingSpinner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
-import { downloadCSV } from '../utils/exportUtils';
+import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import DrillDownModal from './DrillDownModal';
 
 const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
@@ -109,26 +109,48 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
     return new Intl.NumberFormat('es-MX', { notation: "compact", compactDisplay: "short", maximumFractionDigits: 1 }).format(num);
   };
 
-  const handleDownloadCSV = () => {
+  const getExportData = () => {
     const valLabel = isVictimasBase ? "Víctimas" : "Incidencia";
     const actualValLabel = metricType === 'rate' ? `${valLabel} (Tasa por 100k hab.)` : valLabel;
     const headers = [isVictimasMun ? "Mes" : "Año", actualValLabel];
     const dataForExport = data.map(d => [d.label, d.value]);
+    return { headers, dataForExport };
+  };
+
+  const handleDownloadCSV = () => {
+    const { headers, dataForExport } = getExportData();
     downloadCSV(isVictimasMun ? "victimas_por_mes.csv" : (isVictimasBase ? "victimas_por_anio.csv" : "incidencia_por_anio.csv"), dataForExport, headers, { ...selectedFilters, metricType });
   };
 
-  // Drill-down: clic en una barra anual → desglose por subtipo de delito
+  const handleCopyData = () => {
+    const { headers, dataForExport } = getExportData();
+    copyTableToClipboard(dataForExport, headers);
+  };
+
+  // Drill-down: clic en una barra anual o mensual → desglose por subtipo de delito
   const handleBarClick = async (barData) => {
-    if (isVictimasMun || !barData) return; // solo barras anuales
-    const year = barData.year || String(barData.label);
-    if (!year) return;
-    setDrillModal({ title: `Año ${year}`, data: null, loading: true });
+    if (!barData) return;
+    const rawYear = barData.year || (barData.label ? String(barData.label).slice(-4) : null);
+    if (!rawYear) return;
+
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const monthName = isVictimasMun && barData.month ? monthNames[barData.month - 1] : null;
+    const periodDisplay = isVictimasMun ? barData.label : rawYear;
+
+    setDrillModal({ title: `Periodo ${periodDisplay}`, data: null, loading: true });
     try {
       const params = new URLSearchParams();
       params.append('categoria', 'subtipo_delito');
       params.append('dataset', dataset);
       params.append('metric_type', metricType);
-      params.append('anio', year);
+      params.append('anio', rawYear);
+
+      if (monthName) {
+        params.append('meses', monthName);
+      } else if (selectedFilters.meses && selectedFilters.meses.length > 0) {
+        params.append('meses', selectedFilters.meses.join(','));
+      }
+
       if (selectedFilters.entidad && selectedFilters.entidad !== 'All') params.append('entidad', selectedFilters.entidad);
       if (!isVictimas && selectedFilters.municipio && selectedFilters.municipio !== 'All') params.append('municipio', selectedFilters.municipio);
       const bj = Array.isArray(selectedFilters.bienJuridico) ? selectedFilters.bienJuridico : [];
@@ -143,7 +165,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
       if (mo.length > 0) params.append('modalidad', mo.join('|'));
       if (sx.length > 0) params.append('sexo', sx.join('|'));
       if (re.length > 0) params.append('rangoEdad', re.join('|'));
-      if (selectedFilters.meses && selectedFilters.meses.length > 0) params.append('meses', selectedFilters.meses.join(','));
+
       const res = await axios.get(`${API_URL}/api/incidencia_por_delito?${params.toString()}`);
       const rawData = res.data || [];
       const mappedData = rawData.map(d => ({
@@ -155,7 +177,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
       const locationLabel = selectedFilters.entidad && selectedFilters.entidad !== 'All'
         ? selectedFilters.entidad : 'Nacional';
       setDrillModal({
-        title: `Subtipo de delito · ${year}`,
+        title: `Subtipo de delito · ${periodDisplay}`,
         subtitle: `${dataLabel} · ${locationLabel}`,
         data: mappedData,
         loading: false,
@@ -194,6 +216,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
               elementRef={cardRef}
               imageFilename={isVictimasMun ? "victimas_por_mes.png" : (isVictimasBase ? "victimas_por_anio.png" : "incidencia_por_anio.png")}
               onDownloadCSV={handleDownloadCSV}
+              onCopyTable={handleCopyData}
             />
           }
         />
@@ -207,6 +230,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
               elementRef={cardRef}
               imageFilename={isVictimasMun ? "victimas_por_mes.png" : (isVictimasBase ? "victimas_por_anio.png" : "incidencia_por_anio.png")}
               onDownloadCSV={handleDownloadCSV}
+              onCopyTable={handleCopyData}
             />
             <button
               onClick={() => setIsFullScreen(true)}
@@ -261,8 +285,8 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
               formatter={(value) => [formatValue(value), tooltipLabel]}
             />
             <Bar dataKey="value" radius={[6, 6, 0, 0]} fill="url(#colorBarYears)"
-              onClick={!isVictimasMun ? handleBarClick : undefined}
-              style={{ cursor: !isVictimasMun ? 'pointer' : 'default' }}
+              onClick={handleBarClick}
+              style={{ cursor: 'pointer' }}
             >
               <LabelList
                 dataKey="value"

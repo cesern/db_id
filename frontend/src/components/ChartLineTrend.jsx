@@ -5,7 +5,7 @@ import LoadingSpinner from './LoadingSpinner';
 import { ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot, Line } from 'recharts';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
-import { downloadCSV } from '../utils/exportUtils';
+import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 
 const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [data, setData] = useState([]);
@@ -98,7 +98,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
     return new Intl.NumberFormat('es-MX').format(num);
   };
 
-  const handleDownloadCSV = () => {
+  const getExportData = () => {
     const valLabel = isVictimasBase ? "Víctimas" : "Incidencia";
     const actualValLabel = metricType === 'rate' ? `${valLabel} (Tasa por 100k hab.)` : valLabel;
     const maLabel = maWindow === 12
@@ -116,13 +116,22 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
       if (maLabel) row.push(d.maValue !== null && d.maValue !== undefined ? d.maValue : '');
       return row;
     });
+    return { headers, dataForExport };
+  };
 
+  const handleDownloadCSV = () => {
+    const { headers, dataForExport } = getExportData();
     downloadCSV(
       isVictimasBase ? "historico_victimas.csv" : "historico_incidencia.csv",
       dataForExport,
       headers,
       { ...selectedFilters, metricType }
     );
+  };
+
+  const handleCopyData = () => {
+    const { headers, dataForExport } = getExportData();
+    copyTableToClipboard(dataForExport, headers);
   };
 
   const chartTitle = isVictimasBase
@@ -372,6 +381,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
                 elementRef={cardRef}
                 imageFilename={isVictimasBase ? "historico_victimas.png" : "historico_incidencia.png"}
                 onDownloadCSV={handleDownloadCSV}
+                onCopyTable={handleCopyData}
               />
             </div>
           }
@@ -388,6 +398,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
                 elementRef={cardRef}
                 imageFilename={isVictimasBase ? "historico_victimas.png" : "historico_incidencia.png"}
                 onDownloadCSV={handleDownloadCSV}
+                onCopyTable={handleCopyData}
               />
               <button
                 onClick={() => setIsFullScreen(true)}

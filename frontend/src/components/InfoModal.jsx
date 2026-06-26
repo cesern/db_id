@@ -127,7 +127,7 @@ const InfoModal = ({ isOpen, onClose }) => {
               Los rankings muestran los estados y municipios ordenados por su nivel de incidencia delictiva para el periodo seleccionado.
             </p>
             <ul style={{ color: 'var(--text-secondary)', lineHeight: 1.6, paddingLeft: '1.5rem', marginTop: '0.5rem' }}>
-              <li><strong>Manejo de Empates:</strong> Se utiliza el método de <em>Ranking Denso (Dense Ranking)</em>. Si dos entidades tienen exactamente el mismo valor, comparten el mismo lugar (ej. 4º, 4º), y el siguiente en la lista continúa con el número inmediato siguiente sin saltar posiciones (5º).</li>
+              <li><strong>Manejo de Empates:</strong> Se utiliza el método de <em>Ranking Competitivo Estándar (Min Ranking)</em>. Si dos entidades tienen exactamente el mismo valor, comparten el mismo lugar (ej. 2º, 2º), y el siguiente en la lista salta a la posición real correspondiente (4º).</li>
             </ul>
           </section>
 

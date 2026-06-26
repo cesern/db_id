@@ -6,7 +6,7 @@ import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
-import { downloadCSV } from '../utils/exportUtils';
+import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import DrillDownModal from './DrillDownModal';
 
 // NOTA: El mapa solo soporta dos vistas:
@@ -50,7 +50,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
     if (selectedFilters.meses && selectedFilters.meses.length > 0) params.append('meses', selectedFilters.meses.join(','));
   };
 
-  // Clic en entidad (mapa nacional) → desglose de municipios
+  // Clic en entidad (mapa nacional) → desglose de municipios (o subtipos en Víctimas)
   const handleEntityClick = async (entidadName) => {
     if (!entidadName || entidadName === 'Desconocido') return;
     setDrillModal({ title: entidadName, data: null, loading: true });
@@ -61,18 +61,27 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
       params.append('entidad', entidadName);
       if (selectedFilters.anio) params.append('anio', selectedFilters.anio);
       buildFilterParams(params);
-      const res = await axios.get(`${API_URL}/api/incidencia_por_municipio?${params.toString()}`);
+
+      const endpoint = isVictimas ? 'api/incidencia_por_delito' : 'api/incidencia_por_municipio';
+      if (isVictimas) {
+        params.append('categoria', 'subtipo_delito');
+      }
+
+      const res = await axios.get(`${API_URL}/${endpoint}?${params.toString()}`);
       const rawData = res.data || [];
       const mappedData = rawData.map(d => ({
-        name: d.municipio || d.name,
+        name: isVictimas ? d.name : (d.municipio || d.name),
         value: typeof d.value === 'number' ? d.value : (parseFloat(d.value) || 0),
         rank: d.id,
       }));
       const anioLabel = selectedFilters.anio ? ` · ${selectedFilters.anio}` : ' · Todos los años';
       const dataLabel = isVictimasBase ? 'Víctimas' : 'Delitos';
+      const modalTitle = isVictimas ? `${entidadName}` : `Municipios — ${entidadName}`;
+      const modalSubtitle = isVictimas ? `Subtipo de delito${anioLabel}` : `Desglose por municipio${anioLabel} · ${dataLabel}`;
+
       setDrillModal({
-        title: `Municipios — ${entidadName}`,
-        subtitle: `Desglose por municipio${anioLabel} · ${dataLabel}`,
+        title: modalTitle,
+        subtitle: modalSubtitle,
         data: mappedData,
         loading: false,
         valueLabel: dataLabel,
@@ -80,7 +89,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
         showPct: true,
       });
     } catch (err) {
-      console.error('Error fetching municipio drill-down', err);
+      console.error('Error fetching entity drill-down', err);
       setDrillModal(prev => ({ ...prev, loading: false, data: [] }));
     }
   };
@@ -220,15 +229,25 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
     return num.toLocaleString('en-US');
   };
 
-  const handleDownloadCSV = () => {
+  const getExportData = () => {
     const valLabel = isVictimasBase ? "Víctimas" : "Incidencia";
     const csvValLabel = metricType === 'rate' ? `${valLabel} (Tasa por 100k hab.)` : valLabel;
     const headers = [isSonora ? "Municipio" : "Entidad", csvValLabel];
     const dataForExport = stateData.map(d => [d.name, d.value]);
+    return { headers, dataForExport };
+  };
+
+  const handleDownloadCSV = () => {
+    const { headers, dataForExport } = getExportData();
     const filename = isSonora 
       ? "datos_municipios_sonora.csv" 
       : (isVictimasBase ? "datos_entidades_victimas.csv" : "datos_entidades_incidencia.csv");
     downloadCSV(filename, dataForExport, headers, { ...selectedFilters, metricType });
+  };
+
+  const handleCopyData = () => {
+    const { headers, dataForExport } = getExportData();
+    copyTableToClipboard(dataForExport, headers);
   };
 
   const mapTitle = isSonora 
@@ -257,6 +276,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
               elementRef={cardRef}
               imageFilename={isSonora ? "mapa_sonora.png" : (isVictimasBase ? "mapa_victimas_mexico.png" : "mapa_delitos_mexico.png")}
               onDownloadCSV={handleDownloadCSV}
+              onCopyTable={handleCopyData}
             />
           }
         />
@@ -270,6 +290,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
               elementRef={cardRef}
               imageFilename={isSonora ? "mapa_sonora.png" : (isVictimasBase ? "mapa_victimas_mexico.png" : "mapa_delitos_mexico.png")}
               onDownloadCSV={handleDownloadCSV}
+              onCopyTable={handleCopyData}
             />
             <button
               onClick={() => setIsFullScreen(true)}

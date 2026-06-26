@@ -160,7 +160,7 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
             Exportar CSV
           </button>
           
-          {isTable ? (
+          {onCopyTable && (
             <button
               onClick={handleCopyTable}
               style={{
@@ -202,9 +202,11 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
               </svg>
-              Copiar Tabla
+              {isTable ? "Copiar Tabla" : "Copiar Datos"}
             </button>
-          ) : (
+          )}
+
+          {!isTable && (
             <button
               onClick={handleExportPNG}
               style={{
