@@ -227,6 +227,7 @@ sí se incluye en el repositorio debido a que:
 - funciona como catálogo base,
 - es necesario para cálculos de tasas poblacionales.
 
+
 ---
 
 # Notas
