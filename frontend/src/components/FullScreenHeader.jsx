@@ -1,4 +1,5 @@
 import React from 'react';
+import { parseCapsule } from '../utils/altoImpacto';
 
 const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraActions }) => {
   // Generar subtítulo contextual basado en los filtros (en formato de pastillas/badges)
@@ -35,7 +36,17 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
     if (selectedFilters.dataset) {
       badges.push({
         label: 'Dataset',
-        value: selectedFilters.dataset === 'delitos' ? 'Delitos' : 'Víctimas'
+        value: selectedFilters.dataset === 'delitos' ? 'Delitos' : selectedFilters.dataset === 'alto_impacto' ? 'Delitos Alto Impacto' : 'Víctimas'
+      });
+    }
+
+    // 4b2. Cápsulas de alto impacto
+    if (selectedFilters.dataset === 'alto_impacto' && Array.isArray(selectedFilters.altoImpacto) && selectedFilters.altoImpacto.length > 0) {
+      const names = selectedFilters.altoImpacto.map(t => parseCapsule(t).name);
+      badges.push({
+        label: `Alto Impacto (${names.length})`,
+        value: names.length <= 2 ? names.join(', ') : `${names.slice(0, 2).join(', ')} ... (+${names.length - 2})`,
+        fullValue: names.join(', ')
       });
     }
 
@@ -94,7 +105,7 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
               backgroundColor: 'var(--bg-main, #f8fafc)',
               border: '1px solid var(--border-color, #e2e8f0)',
               borderRadius: '6px',
-              fontSize: '0.72rem',
+              fontSize: '0.83rem',
               fontWeight: '600',
               color: 'var(--text-secondary, #475569)',
               lineHeight: 1.2,
@@ -123,7 +134,7 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
         <h2 style={{
-          fontSize: '1.6rem',
+          fontSize: '1.84rem',
           fontWeight: '700',
           color: 'var(--text-primary)',
           margin: 0,
@@ -147,7 +158,7 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
             border: '1px solid #fee2e2',
             borderRadius: '8px',
             color: '#ef4444',
-            fontSize: '0.875rem',
+            fontSize: '1rem',
             fontWeight: '600',
             cursor: 'pointer',
             transition: 'all 0.2s ease',

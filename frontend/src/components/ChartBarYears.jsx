@@ -7,6 +7,7 @@ import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import DrillDownModal from './DrillDownModal';
+import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
 
 const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [data, setData] = useState([]);
@@ -37,10 +38,15 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
     const isVictimas = dataset === 'victimas';
   const isVictimasMun = dataset === 'victimas_mun';
   const isVictimasBase = isVictimas || isVictimasMun;
+  const isAltoImpacto = dataset === 'alto_impacto';
 
     const params = new URLSearchParams();
-    params.append("dataset", dataset);
+    params.append("dataset", isAltoImpacto ? "delitos" : dataset);
     params.append("metric_type", metricType);
+    if (isAltoImpacto) {
+      const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
+      params.append("altoImpacto", ai.join('|'));
+    }
     if (selectedFilters.entidad && selectedFilters.entidad !== "All") params.append("entidad", selectedFilters.entidad);
     if (!isVictimas && selectedFilters.municipio && selectedFilters.municipio !== "All") params.append("municipio", selectedFilters.municipio);
     const bj = Array.isArray(selectedFilters.bienJuridico) ? selectedFilters.bienJuridico : [];
@@ -88,6 +94,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
   const isVictimas = dataset === 'victimas';
   const isVictimasMun = dataset === 'victimas_mun';
   const isVictimasBase = isVictimas || isVictimasMun;
+  const isAltoImpacto = dataset === 'alto_impacto';
 
   const formatValue = (val) => {
     if (val === 'N/D' || val === undefined || val === null) return 'N/D';
@@ -119,7 +126,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
 
   const handleDownloadCSV = () => {
     const { headers, dataForExport } = getExportData();
-    downloadCSV(isVictimasMun ? "victimas_por_mes.csv" : (isVictimasBase ? "victimas_por_anio.csv" : "incidencia_por_anio.csv"), dataForExport, headers, { ...selectedFilters, metricType });
+    downloadCSV(isVictimasMun ? "victimas_por_mes.csv" : (isVictimasBase ? "victimas_por_anio.csv" : (isAltoImpacto ? "alto_impacto_por_anio.csv" : "incidencia_por_anio.csv")), dataForExport, headers, { ...selectedFilters, metricType });
   };
 
   const handleCopyData = () => {
@@ -141,9 +148,13 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
     try {
       const params = new URLSearchParams();
       params.append('categoria', 'subtipo_delito');
-      params.append('dataset', dataset);
+      params.append('dataset', isAltoImpacto ? 'delitos' : dataset);
       params.append('metric_type', metricType);
       params.append('anio', rawYear);
+      if (isAltoImpacto) {
+        const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
+        params.append('altoImpacto', ai.join('|'));
+      }
 
       if (monthName) {
         params.append('meses', monthName);
@@ -191,13 +202,19 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
     }
   };
 
-  const chartTitle = isVictimasMun 
+  const chartTitle = isVictimasMun
     ? (metricType === 'rate' ? 'Tasa de víctimas por mes' : 'Víctimas por mes')
-    : isVictimasBase 
-      ? (metricType === 'rate' ? 'Tasa de víctimas por año' : 'Víctimas por año') 
-      : (metricType === 'rate' ? 'Tasa de incidencia por año' : 'Incidencia por año');
+    : isVictimasBase
+      ? (metricType === 'rate' ? 'Tasa de víctimas por año' : 'Víctimas por año')
+      : isAltoImpacto
+        ? (metricType === 'rate' ? 'Tasa de alto impacto por año' : 'Alto impacto por año')
+        : (metricType === 'rate' ? 'Tasa de incidencia por año' : 'Incidencia por año');
 
   const tooltipLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
+
+  // Factor de escala fullscreen (1 en vista normal): tipografías y márgenes crecen con la ventana
+  const fsScale = useFullscreenScale(isFullScreen);
+  const F = (base) => scaleSize(base, fsScale);
 
   return (
     <div 
@@ -261,7 +278,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}
-            margin={{ top: 30, right: 10, left: 0, bottom: 20 }}
+            margin={{ top: F(30), right: 10, left: 0, bottom: F(20) }}
           >
             <defs>
               <linearGradient id="colorBarYears" x1="0" y1="0" x2="0" y2="1">
@@ -272,19 +289,19 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 11, fill: 'var(--text-secondary)' }}
+              tick={{ fontSize: F(11), fill: 'var(--text-secondary)' }}
               axisLine={false}
               tickLine={false}
-              tickMargin={10}
+              tickMargin={F(10)}
               minTickGap={-200}
             />
             <YAxis hide={true} />
             <Tooltip
               cursor={{ fill: 'var(--bg-main)' }}
-              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow-md)' }}
+              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow-md)', fontSize: F(12) }}
               formatter={(value) => [formatValue(value), tooltipLabel]}
             />
-            <Bar dataKey="value" radius={[6, 6, 0, 0]} fill="url(#colorBarYears)"
+            <Bar dataKey="value" radius={[F(6), F(6), 0, 0]} fill="url(#colorBarYears)"
               onClick={handleBarClick}
               style={{ cursor: 'pointer' }}
             >
@@ -294,15 +311,15 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
                 content={(props) => {
                   const { x, y, width, value, index } = props;
                   // Si la barra es muy delgada, saltamos las etiquetas impares
-                  if (width < 45 && index % 2 !== 0) return null;
+                  if (width < F(45) && index % 2 !== 0) return null;
                   return (
-                    <text 
-                      x={x + width / 2} 
-                      y={y - 8} 
-                      fill="var(--text-primary)" 
-                      textAnchor="middle" 
-                      dominantBaseline="middle" 
-                      fontSize="10" 
+                    <text
+                      x={x + width / 2}
+                      y={y - F(8)}
+                      fill="var(--text-primary)"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize={F(10)}
                       fontWeight="700"
                     >
                       {formatValue(value)}

@@ -6,10 +6,11 @@ import { ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveCo
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
+import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
 
 // Slider de rango con doble manija. Mientras se arrastra solo mueve el
 // borrador (onDraft); la gráfica se actualiza al soltar (onCommit).
-const RangeSlider = ({ count, start, end, names, pending, onDraft, onCommit }) => {
+const RangeSlider = ({ count, start, end, names, pending, onDraft, onCommit, labelScale = 1 }) => {
   const trackRef = useRef(null);
   const dragWhich = useRef(null);
 
@@ -116,11 +117,11 @@ const RangeSlider = ({ count, start, end, names, pending, onDraft, onCommit }) =
   return (
     <div style={{ padding: '0.35rem 0.6rem 0.15rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.25rem', gap: '0.5rem' }}>
-        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-primary)', whiteSpace: 'nowrap' }}>{names[start]}</span>
-        <span style={{ fontSize: '0.7rem', color: pending ? 'var(--color-accent)' : 'var(--text-secondary)', fontWeight: pending ? 700 : 400, whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: `${0.72 * labelScale}rem`, fontWeight: 700, color: 'var(--color-primary)', whiteSpace: 'nowrap' }}>{names[start]}</span>
+        <span style={{ fontSize: `${0.7 * labelScale}rem`, color: pending ? 'var(--color-accent)' : 'var(--text-secondary)', fontWeight: pending ? 700 : 400, whiteSpace: 'nowrap' }}>
           {`${end - start + 1} meses${pending ? ' · suelta para aplicar' : ''}`}
         </span>
-        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-primary)', whiteSpace: 'nowrap' }}>{names[end]}</span>
+        <span style={{ fontSize: `${0.72 * labelScale}rem`, fontWeight: 700, color: 'var(--color-primary)', whiteSpace: 'nowrap' }}>{names[end]}</span>
       </div>
       <div
         ref={trackRef}
@@ -193,10 +194,15 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
     const dataset = selectedFilters.dataset || 'delitos';
     const isVictimas = dataset === 'victimas';
   const isVictimasMun = dataset === 'victimas_mun';
+  const isAltoImpacto = dataset === 'alto_impacto';
 
     const params = new URLSearchParams();
-    params.append("dataset", dataset);
+    params.append("dataset", isAltoImpacto ? "delitos" : dataset);
     params.append("metric_type", metricType);
+    if (isAltoImpacto) {
+      const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
+      params.append("altoImpacto", ai.join('|'));
+    }
     if (selectedFilters.entidad && selectedFilters.entidad !== "All") params.append("entidad", selectedFilters.entidad);
     if (!isVictimas && selectedFilters.municipio && selectedFilters.municipio !== "All") params.append("municipio", selectedFilters.municipio);
     const bj = Array.isArray(selectedFilters.bienJuridico) ? selectedFilters.bienJuridico : [];
@@ -236,6 +242,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
   const isVictimas = dataset === 'victimas';
   const isVictimasMun = dataset === 'victimas_mun';
   const isVictimasBase = isVictimas || isVictimasMun;
+  const isAltoImpacto = dataset === 'alto_impacto';
 
   const formatValue = (val) => {
     if (val === 'N/D' || val === undefined || val === null) return 'N/D';
@@ -289,7 +296,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
   };
 
   const getExportFilename = () => {
-    const base = isVictimasBase ? "historico_victimas" : "historico_incidencia";
+    const base = isVictimasBase ? "historico_victimas" : (isAltoImpacto ? "historico_alto_impacto" : "historico_incidencia");
     if (!visibleChartData || visibleChartData.length === 0 || visibleChartData.length === data.length) {
       return `${base}.csv`;
     }
@@ -314,7 +321,9 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
 
   const chartTitle = isVictimasBase
     ? (metricType === 'rate' ? 'Histórico mensual de tasa de víctimas' : 'Histórico mensual de víctimas')
-    : (metricType === 'rate' ? 'Histórico mensual de tasa de incidencia' : 'Histórico mensual de incidencia');
+    : isAltoImpacto
+      ? (metricType === 'rate' ? 'Histórico mensual de tasa de alto impacto' : 'Histórico mensual de alto impacto')
+      : (metricType === 'rate' ? 'Histórico mensual de tasa de incidencia' : 'Histórico mensual de incidencia');
 
   const tooltipLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
 
@@ -404,6 +413,10 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
 
   // Lo que realmente pinta la gráfica: el rango confirmado
   const displayData = visibleChartData && visibleChartData.length > 0 ? visibleChartData : chartData;
+
+  // Factor de escala fullscreen (1 en vista normal)
+  const fsScale = useFullscreenScale(isFullScreen);
+  const F = (base) => scaleSize(base, fsScale);
 
   const trendColor = slope >= 0 ? '#ef4444' : '#10b981';
 
@@ -739,10 +752,10 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
             <XAxis
               dataKey="name"
-              tick={{ fontSize: 11, fill: 'var(--text-secondary)' }}
+              tick={{ fontSize: F(11), fill: 'var(--text-secondary)' }}
               axisLine={false}
               tickLine={false}
-              tickMargin={10}
+              tickMargin={F(10)}
               ticks={displayData.length <= 24 ? undefined : displayData
                 .filter((d, i, arr) => i === arr.findIndex(x => x.year === d.year))
                 .map(d => d.name)}
@@ -753,11 +766,11 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
               }}
             />
             <YAxis
-              tick={{ fontSize: 11, fill: 'var(--text-secondary)' }}
+              tick={{ fontSize: F(11), fill: 'var(--text-secondary)' }}
               axisLine={false}
               tickLine={false}
-              tickMargin={6}
-              width={52}
+              tickMargin={F(6)}
+              width={F(52)}
               tickFormatter={(val) => {
                 if (metricType === 'rate') return val.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
                 if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}M`;
@@ -766,7 +779,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
               }}
             />
             <Tooltip
-              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow-md)' }}
+              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow-md)', fontSize: F(12) }}
               formatter={(value, name) => {
                 if (name === 'value') return [formatValue(value), tooltipLabel];
                 if (name === 'maValue') return [formatValue(value), maLabel];
@@ -812,7 +825,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
                   value: `Promedio: ${formatValue(averageValue)}`,
                   position: 'top',
                   fill: 'var(--text-secondary)',
-                  fontSize: 10,
+                  fontSize: F(10),
                   fontWeight: 600
                 }}
               />
@@ -838,7 +851,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
                     value: `Máx: ${formatValue(maxItem.numericVal)} (${maxItem.name})`,
                     position: 'top',
                     fill: '#ef4444',
-                    fontSize: 9,
+                    fontSize: F(9),
                     fontWeight: 700
                   }}
                 />
@@ -865,7 +878,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
                     value: `Mín: ${formatValue(minItem.numericVal)} (${minItem.name})`,
                     position: 'bottom',
                     fill: '#22c55e',
-                    fontSize: 9,
+                    fontSize: F(9),
                     fontWeight: 700
                   }}
                 />
@@ -898,6 +911,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
           end={draftEnd}
           names={data.map(d => d.name)}
           pending={isRangePending}
+          labelScale={fsScale}
           onDraft={(s, e) => setDraftRange({ startIndex: s, endIndex: e })}
           onCommit={(s, e) => setBrushRange({ startIndex: s, endIndex: e })}
         />

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { API_URL } from '../api';
+import { ALTO_IMPACTO_PRESETS, parseCapsule } from '../utils/altoImpacto';
+import AltoImpactoModal from './AltoImpactoModal';
 
 const MONTHS = [
   { id: 1, label: 'Ene', name: 'Enero' }, { id: 2, label: 'Feb', name: 'Febrero' }, { id: 3, label: 'Mar', name: 'Marzo' },
@@ -192,7 +194,7 @@ function countPendingChanges(selected, applied) {
   if (selected.entidad !== applied.entidad) count++;
   if (selected.municipio !== applied.municipio) count++;
 
-  const arrayFields = ['bienJuridico', 'tipoDelito', 'subtipoDelito', 'modalidad', 'meses', 'sexo', 'rangoEdad'];
+  const arrayFields = ['bienJuridico', 'tipoDelito', 'subtipoDelito', 'modalidad', 'meses', 'sexo', 'rangoEdad', 'altoImpacto'];
   for (const field of arrayFields) {
     const a = Array.isArray(selected[field]) ? selected[field] : [];
     const b = Array.isArray(applied[field]) ? applied[field] : [];
@@ -202,7 +204,10 @@ function countPendingChanges(selected, applied) {
 }
 
 // ── Filters Component ──────────────────────────────────────────────────────────
-const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelectedFilters, appliedFilters, onApply, onClear, onInitialLoadComplete }) => {
+const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelectedFilters, appliedFilters, onApply, onClear, onInitialLoadComplete, customCapsules, onAddCustomCapsule, onRemoveCustomCapsule }) => {
+  const isAltoImpacto = dataset === 'alto_impacto';
+  const wireDataset = isAltoImpacto ? 'delitos' : dataset;
+  const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
   const [filtrosOpciones, setFiltrosOpciones] = useState({
     anios: [],
     entidades: [],
@@ -222,7 +227,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
   useEffect(() => {
     const controller = new AbortController();
 
-    const params = { dataset };
+    const params = { dataset: wireDataset };
     if (appliedFilters.anio !== null) params.anio = appliedFilters.anio;
     if (appliedFilters.entidad !== "All") params.entidad = appliedFilters.entidad;
     if (appliedFilters.sexo && appliedFilters.sexo.length > 0) params.sexo = appliedFilters.sexo.join('|');
@@ -270,7 +275,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
   useEffect(() => {
     const controller = new AbortController();
 
-    const params = { dataset };
+    const params = { dataset: wireDataset };
     if (selectedFilters.anio !== null) params.anio = selectedFilters.anio;
     if (selectedFilters.entidad !== "All") params.entidad = selectedFilters.entidad;
 
@@ -424,7 +429,72 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
             )}
           </div>
 
-          {/* Fila 2: Filtros Categóricos y Dependientes */}
+          {/* Fila 2: Filtros Categóricos y Dependientes (o cápsulas en alto impacto) */}
+          {isAltoImpacto ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <label className="label-sm">Delitos de alto impacto</label>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                {(() => {
+                  const active = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
+                  const customs = Array.isArray(customCapsules) ? customCapsules : [];
+                  const tokens = [...ALTO_IMPACTO_PRESETS, ...customs.filter(t => !ALTO_IMPACTO_PRESETS.includes(t))];
+                  return tokens.map(token => {
+                    const parsed = parseCapsule(token);
+                    const isActive = active.includes(token);
+                    return (
+                      <button
+                        key={token}
+                        onClick={() => {
+                          setSelectedFilters(prev => {
+                            const cur = Array.isArray(prev.altoImpacto) ? prev.altoImpacto : [];
+                            return {
+                              ...prev,
+                              altoImpacto: cur.includes(token) ? cur.filter(t => t !== token) : [...cur, token]
+                            };
+                          });
+                        }}
+                        title={parsed.isCustom ? `Personalizado: ${token.slice(0, 120)}` : token}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                          padding: '0.35rem 0.75rem', fontSize: '0.8rem', fontWeight: isActive ? 700 : 500,
+                          borderRadius: '999px', cursor: 'pointer', transition: 'all 0.15s ease',
+                          border: isActive ? '1px solid var(--color-accent)' : '1px solid var(--border-color)',
+                          background: isActive ? 'var(--color-accent)' : '#ffffff',
+                          color: isActive ? '#ffffff' : 'var(--text-secondary)'
+                        }}
+                      >
+                        {parsed.name}
+                        {parsed.isCustom && (
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onRemoveCustomCapsule) onRemoveCustomCapsule(token);
+                            }}
+                            title="Eliminar cápsula"
+                            style={{ fontWeight: 700, marginLeft: '0.15rem', lineHeight: 1 }}
+                          >
+                            ×
+                          </span>
+                        )}
+                      </button>
+                    );
+                  });
+                })()}
+                <button
+                  onClick={() => setIsCustomModalOpen(true)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                    padding: '0.35rem 0.75rem', fontSize: '0.8rem', fontWeight: 600,
+                    borderRadius: '999px', cursor: 'pointer',
+                    border: '1px dashed var(--color-accent)', background: 'transparent',
+                    color: 'var(--color-accent)'
+                  }}
+                >
+                  + Agregar delito
+                </button>
+              </div>
+            </div>
+          ) : (
           <div style={{ display: 'flex', gap: 'var(--filters-select-gap, 1rem)', flexWrap: 'wrap' }}>
             <MultiSelectDropdown
               label="Bien jurídico afectado"
@@ -467,6 +537,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
               </>
             )}
           </div>
+          )}
         </div>
 
         {/* Controles de Acción (Alineados a la derecha) */}
@@ -568,6 +639,17 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
           );
         })}
       </div>
+
+      {isCustomModalOpen && (
+        <AltoImpactoModal
+          onClose={() => setIsCustomModalOpen(false)}
+          onConfirm={(token) => {
+            if (onAddCustomCapsule) onAddCustomCapsule(token);
+            setIsCustomModalOpen(false);
+          }}
+          customCapsules={customCapsules}
+        />
+      )}
     </div>
   );
 };

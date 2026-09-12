@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
 import { scaleLinear } from 'd3-scale';
 import axios from 'axios';
@@ -8,6 +8,7 @@ import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import DrillDownModal from './DrillDownModal';
+import { useFullscreenScale } from '../utils/fullscreenScale';
 
 // NOTA: El mapa solo soporta dos vistas:
 //   1. Vista Nacional (entidad = "All")  → muestra todas las entidades usando /mexico_geo.json
@@ -20,6 +21,8 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
   const isVictimas = dataset === 'victimas';
   const isVictimasMun = dataset === 'victimas_mun';
   const isVictimasBase = isVictimas || isVictimasMun;
+  const isAltoImpacto = dataset === 'alto_impacto';
+  const wireDataset = isAltoImpacto ? 'delitos' : dataset;
   const isSonora = !isVictimas && selectedFilters?.entidad === "Sonora";
   const geoUrl = isSonora ? "/sonora_geo.json" : "/mexico_geo.json";
   
@@ -32,6 +35,33 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [drillModal, setDrillModal] = useState(null);
   const initialLoadCalled = useRef(false);
   const cardRef = useRef(null);
+  const mapWrapRef = useRef(null);
+  const [mapSize, setMapSize] = useState({ w: 0, h: 0 });
+
+  // Medir el contenedor del mapa para auto-ajustar en fullscreen
+  useEffect(() => {
+    const el = mapWrapRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver((entries) => {
+      const r = entries[0].contentRect;
+      setMapSize({ w: r.width, h: r.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // En fullscreen la escala se calcula del tamaño medido para que el geo
+  // se vea completo y centrado; en vista normal se conservan las constantes.
+  const fitScale = useMemo(() => {
+    const { w, h } = mapSize;
+    if (!isFullScreen || w < 10 || h < 10) return null;
+    const s = isSonora ? Math.min(8.9 * w, 8.7 * h) : Math.min(1.9 * w, 2.5 * h);
+    return Math.round(s * 0.96);
+  }, [mapSize, isFullScreen, isSonora]);
+  const mapScale = fitScale || (isSonora ? 4000 : 1200);
+
+  // Factor de escala fullscreen (1 en vista normal) para el tooltip
+  const fsScale = useFullscreenScale(isFullScreen);
 
   // Builds shared filter query params from selectedFilters
   const buildFilterParams = (params) => {
@@ -48,6 +78,10 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
     if (sx.length > 0) params.append('sexo', sx.join('|'));
     if (re.length > 0) params.append('rangoEdad', re.join('|'));
     if (selectedFilters.meses && selectedFilters.meses.length > 0) params.append('meses', selectedFilters.meses.join(','));
+    if (isAltoImpacto) {
+      const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
+      params.append('altoImpacto', ai.join('|'));
+    }
   };
 
   // Clic en entidad (mapa nacional) → desglose de municipios (o subtipos en Víctimas)
@@ -56,7 +90,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
     setDrillModal({ title: entidadName, data: null, loading: true });
     try {
       const params = new URLSearchParams();
-      params.append('dataset', dataset);
+      params.append('dataset', wireDataset);
       params.append('metric_type', metricType);
       params.append('entidad', entidadName);
       if (selectedFilters.anio) params.append('anio', selectedFilters.anio);
@@ -101,7 +135,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
     try {
       const params = new URLSearchParams();
       params.append('categoria', 'subtipo_delito');
-      params.append('dataset', dataset);
+      params.append('dataset', wireDataset);
       params.append('metric_type', metricType);
       params.append('entidad', 'Sonora');
       params.append('municipio', municipioName);
@@ -148,9 +182,13 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
     setLoading(true);
 
     const params = new URLSearchParams();
-    params.append("dataset", dataset);
+    params.append("dataset", wireDataset);
     params.append("metric_type", metricType);
     if (selectedFilters.anio) params.append("anio", selectedFilters.anio);
+    if (isAltoImpacto) {
+      const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
+      params.append("altoImpacto", ai.join('|'));
+    }
 
     // Para el mapa de Sonora pasamos la entidad para obtener sus municipios.
     // Para el mapa nacional NO pasamos entidad (mostramos todas).
@@ -239,9 +277,9 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
 
   const handleDownloadCSV = () => {
     const { headers, dataForExport } = getExportData();
-    const filename = isSonora 
-      ? "datos_municipios_sonora.csv" 
-      : (isVictimasBase ? "datos_entidades_victimas.csv" : "datos_entidades_incidencia.csv");
+    const filename = isSonora
+      ? (isAltoImpacto ? "datos_municipios_sonora_alto_impacto.csv" : "datos_municipios_sonora.csv")
+      : (isVictimasBase ? "datos_entidades_victimas.csv" : (isAltoImpacto ? "datos_entidades_alto_impacto.csv" : "datos_entidades_incidencia.csv"));
     downloadCSV(filename, dataForExport, headers, { ...selectedFilters, metricType });
   };
 
@@ -251,10 +289,10 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
   };
 
   const mapTitle = isSonora 
-    ? (metricType === 'rate' ? 'Tasa de Incidencia por Municipio (Sonora)' : 'Incidencia por Municipio (Sonora)') 
+    ? (metricType === 'rate' ? (isAltoImpacto ? 'Tasa de Alto Impacto por Municipio (Sonora)' : 'Tasa de Incidencia por Municipio (Sonora)') : (isAltoImpacto ? 'Alto Impacto por Municipio (Sonora)' : 'Incidencia por Municipio (Sonora)')) 
     : (isVictimas 
         ? (metricType === 'rate' ? 'Tasa de Víctimas por Entidad (México)' : 'Víctimas por Entidad (México)') 
-        : (metricType === 'rate' ? 'Tasa de Incidencia por Entidad (México)' : 'Incidencia por Entidad (México)')
+        : (metricType === 'rate' ? (isAltoImpacto ? 'Tasa de Alto Impacto por Entidad (México)' : 'Tasa de Incidencia por Entidad (México)') : (isAltoImpacto ? 'Alto Impacto por Entidad (México)' : 'Incidencia por Entidad (México)'))
       );
 
   const tooltipLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
@@ -316,7 +354,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
         </div>
       )}
 
-      <div style={{ flex: 1, position: 'relative', width: '100%', minHeight: 0 }}>
+      <div ref={mapWrapRef} style={{ flex: 1, position: 'relative', width: '100%', minHeight: 0 }}>
         {loading && <LoadingSpinner size="md" />}
 
         {/* Custom Tooltip Overlay */}
@@ -333,10 +371,10 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
             pointerEvents: 'none',
             zIndex: 10
           }}>
-            <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+            <div style={{ fontWeight: 600, fontSize: `${0.875 * fsScale}rem`, marginBottom: '0.25rem' }}>
               {tooltipData.name}
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            <div style={{ fontSize: `${0.75 * fsScale}rem`, color: 'var(--text-secondary)' }}>
               {tooltipLabel}: <strong style={{ color: 'var(--text-primary)' }}>{formatValue(tooltipData.value)}</strong>
             </div>
           </div>
@@ -345,7 +383,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
         <ComposableMap
           projection="geoMercator"
           projectionConfig={{
-            scale: isFullScreen ? (isSonora ? 8000 : 2500) : (isSonora ? 4000 : 1200),
+            scale: mapScale,
             center: isSonora ? [-111.5, 29.5] : [-102, 24]
           }}
           style={{ width: "100%", height: "100%" }}

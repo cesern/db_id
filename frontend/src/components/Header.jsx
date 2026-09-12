@@ -42,7 +42,7 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
               display: 'inline-block',
             }}
           />
-          Incidencia Delictiva - {activeTab === 'rankings' ? 'Evolución Ranking' : (dataset === 'delitos' ? 'Delitos' : dataset === 'victimas' ? 'Víctimas' : 'Víctimas Municipios')}
+          Incidencia Delictiva - {activeTab === 'rankings' ? 'Evolución Ranking' : (dataset === 'delitos' ? 'Delitos' : dataset === 'alto_impacto' ? 'Delitos Alto Impacto' : dataset === 'victimas' ? 'Víctimas' : 'Víctimas Municipios')}
         </h1>
       </div>
 
@@ -87,6 +87,7 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
         }}>
           {[
             { id: 'delitos', label: 'Delitos' },
+            { id: 'alto_impacto', label: 'Delitos Alto Impacto' },
             { id: 'victimas', label: 'Víctimas' },
             { id: 'victimas_mun', label: 'Víctimas Municipios' },
             { id: 'rankings', label: 'Rankings' }

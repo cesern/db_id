@@ -1,5 +1,6 @@
 import { toPng } from 'html-to-image';
 import { toast } from 'sonner';
+import { parseCapsule } from './altoImpacto';
 
 export const downloadCSV = (filename, data, headers, filters) => {
   let csvContent = "";
@@ -8,7 +9,11 @@ export const downloadCSV = (filename, data, headers, filters) => {
   csvContent += "=== FILTROS APLICADOS ===\n";
   if (filters) {
     const dataset = filters.dataset || 'delitos';
-    csvContent += `Dataset,${dataset === 'victimas' ? 'Víctimas' : 'Delitos'}\n`;
+    csvContent += `Dataset,${dataset === 'victimas' ? 'Víctimas' : dataset === 'alto_impacto' ? 'Delitos de Alto Impacto' : 'Delitos'}\n`;
+    if (dataset === 'alto_impacto' && Array.isArray(filters.altoImpacto) && filters.altoImpacto.length > 0) {
+      const names = filters.altoImpacto.map(t => parseCapsule(t).name);
+      csvContent += `Cápsulas,${names.join(' | ')}\n`;
+    }
     csvContent += `Año,${filters.anio || 'Todos'}\n`;
     csvContent += `Métrica,${filters.metricType === 'rate' ? 'Tasa por 100,000 habitantes' : 'Absoluta'}\n`;
     csvContent += `Entidad,${filters.entidad === 'All' ? 'Nacional' : filters.entidad}\n`;

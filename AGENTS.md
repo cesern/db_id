@@ -182,6 +182,30 @@ convertir_datos.bat / python convertir_datos.py [--delitos --victimas --victimas
 - `index.html lang="en"` para app española; `build_output.txt` fallo histórico `prop-types` ya resuelto en `package.json` pero exige `npm install` limpio.
 - Archivos muertos con rutas `d:\dev\Dashboard`: `fix_quotes.py, refactor.py, generate_pdf_analysis.py, check_pob.py (ruta data/... obsoleta), INSTRUCCIONES.md, README.md` (rutas ejemplo desactualizadas), `setup_backend.bat py -3.12` vs `render.yaml 3.11.0`.
 
+## 14b. Sección Delitos Alto Impacto (2026-09-12, implementada; el spec de diseño ya se retiró)
+
+- Modo solo-UI `dataset='alto_impacto'` (selector en `Header.jsx`, color `#b91c1c` en `DATASET_COLORS`). Al cable siempre sale `dataset=delitos&altoImpacto=a|b|CUSTOM:json` (`DatasetEnum` rechazaría `alto_impacto` con 422).
+- Backend: `PRESET_ALTO_IMPACTO` + `_build_alto_impacto_clause()` en `main.py`; `build_where(..., altoImpacto=...)` une bloques con OR (AND dentro), todo parametrizado `?`. `CUSTOM:{b,t,s,m}` dinámico; token malformado se ignora; param `""` o sin bloques válidos fuerza `1=0` (vacío=vacío). Los 8 endpoints reenvían el param.
+- Frontend: `INITIAL_FILTERS.altoImpacto`, `ALTO_IMPACTO_DEFAULT` (7 presets activas al entrar), customs `CUSTOM:` en estado `PublicDashboard` (persisten entre datasets). Cada componente que consulta mapea a `wireDataset` y anexa el param, incluidos drills (`ChartBarYears`, `MapMexico` vía `buildFilterParams`). `Filters.jsx` muestra chips + `+ Agregar delito` (conserva año/entidad/municipio/meses/métrica); modal nuevo `AltoImpactoModal.jsx` en cascada vía `/api/filtros?dataset=delitos`, dedup por config exacta (`utils/altoImpacto.js`), prohíbe `|` en nombres. Export con etiqueta `Delitos de Alto Impacto` + filenames `*alto_impacto*`.
+- `HistoryRankings` y `TableTopCrimes` fuera de alcance (no envían ni aceptan `altoImpacto`).
+
+## 14c. Pulido visual (2026-09-12)
+
+- Tokens: `--color-accent-dark #38487a` (hovers), `--font-display Montserrat` (import real en `index.css`; Header/splash/KPI lo usan), sin `#2563eb` en renders (sombras con `rgba(69,89,147,*)`).
+- `App.css` eliminado (colisionaba `.card`); `index.html lang="es"` + theme-color/description.
+- Números siempre `toLocaleString('es-MX', ...)`; CSV `Suavizado (MA12)` en español.
+- `:focus-visible` global con outline accent; transitions específicas (no `all`).
+- `ChartTooltip.jsx` compartido (Barras/Línea, mismo lenguaje que rankings); `EmptyState.jsx` en Sidebar/Bar/Línea/Mapa (+ fullscreen); `toast.error` en todos los fetch públicos.
+- KPI hero: cifra principal con display font + regla dorada; badges fullscreen monocromos pill; meses colapsables en `Filters` (default expandido).
+
+## 14c. Fullscreen con escala (2026-09-12)
+
+- Hook compartido `src/utils/fullscreenScale.js`: `useFullscreenScale(isFullScreen)` → factor `clamp(min(vw/1280, vh/720), 1.25, 1.75)` con listener `resize` (~1.5 a 1080p; mínimo 1.25 para que siempre se note); `scaleSize(base, s)`. En vista normal siempre 1 (sin cambios visuales).
+- Barras/Líneas/Rankings: ticks, etiquetas y tooltips vía `F(n)`; slider de rango con prop `labelScale`; tooltip de rankings con prop `fs`.
+- Tabla Sidebar: bloque fullscreen (variante `40px/120px`) escala fuentes y columnas; la variante compacta normal (`30px/80px`) intacta.
+- Mapa: `mapWrapRef` + `ResizeObserver`; en fullscreen `scale = min(1.9w, 2.5h)` nacional o `min(8.9w, 8.7h)` Sonora (×0.96 margen), centros fijos; en normal se conservan constantes 1200/4000.
+- `FullScreenHeader` solo existe en overlay: bump fijo (título 1.84rem, badges 0.83rem).
+
 ## 14. Dependencias importantes
 
 - No quitar: `duckdb, pandas, pyarrow, fastapi, uvicorn, pydantic-settings, python-multipart, PyJWT` (backend runtime); `axios, react-router-dom, recharts, react-simple-maps, d3-scale, html-to-image, sonner` (frontend runtime).

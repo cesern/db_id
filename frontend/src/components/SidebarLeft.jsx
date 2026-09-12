@@ -5,6 +5,7 @@ import LoadingSpinner from './LoadingSpinner';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
+import { useFullscreenScale } from '../utils/fullscreenScale';
 
 const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [totalIncidencia, setTotalIncidencia] = useState(0);
@@ -16,6 +17,9 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
 
   const initialLoadCalled = useRef(false);
   const tableCardRef = useRef(null);
+
+  // Factor de escala fullscreen (1 en vista normal): solo afecta al overlay
+  const fsScale = useFullscreenScale(isFullScreen);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -38,6 +42,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
   const isVictimas = dataset === 'victimas';
   const isVictimasMun = dataset === 'victimas_mun';
   const isVictimasBase = isVictimas || isVictimasMun;
+  const isAltoImpacto = dataset === 'alto_impacto';
+  const wireDataset = isAltoImpacto ? 'delitos' : dataset;
 
   // Force table view to entidades when on victimas dataset
   useEffect(() => {
@@ -52,9 +58,13 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
     const controller = new AbortController();
     setLoading(true);
 
-    const params = { dataset };
+    const params = { dataset: wireDataset };
     params.anio = selectedFilters.anio;
     params.metric_type = metricType;
+    if (isAltoImpacto) {
+      const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
+      params.altoImpacto = ai.join('|');
+    }
     if (selectedFilters.entidad !== 'All') params.entidad = selectedFilters.entidad;
     const bj = Array.isArray(selectedFilters.bienJuridico) ? selectedFilters.bienJuridico : [];
     const td = Array.isArray(selectedFilters.tipoDelito) ? selectedFilters.tipoDelito : [];
@@ -145,6 +155,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
   const getExportFilename = (ext) => {
     if (isVictimas) return `tabla_victimas_entidad.${ext}`;
     if (isVictimasMun) return `tabla_victimas_mun_${tableView}.${ext}`;
+    if (isAltoImpacto) return `tabla_alto_impacto_${tableView}.${ext}`;
     return `tabla_delitos_${tableView}.${ext}`;
   };
 
@@ -169,7 +180,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
         className="fullscreen-immersive-overlay"
       >
         <FullScreenHeader
-          title={isVictimas ? "Víctimas por Entidad" : `Ranking de Incidencia por ${tableView === 'entidades' ? 'Entidad' : 'Municipio'}`}
+          title={isVictimas ? "Víctimas por Entidad" : isAltoImpacto ? `Ranking de Alto Impacto por ${tableView === 'entidades' ? 'Entidad' : 'Municipio'}` : `Ranking de Incidencia por ${tableView === 'entidades' ? 'Entidad' : 'Municipio'}`}
           selectedFilters={selectedFilters}
           metricType={metricType}
           onClose={() => setIsFullScreen(false)}
@@ -241,8 +252,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
           {loading && <LoadingSpinner size="md" />}
           
           {/* Table Header */}
-          <div style={{ padding: '1rem', borderBottom: '2px solid var(--border-color)', backgroundColor: 'var(--bg-main)' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 120px', gap: '1rem', fontWeight: 700, color: 'var(--color-primary)', fontSize: '0.95rem' }}>
+            <div style={{ padding: '1rem', borderBottom: '2px solid var(--border-color)', backgroundColor: 'var(--bg-main)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `${Math.round(40 * fsScale)}px 1fr ${Math.round(120 * fsScale)}px`, gap: '1rem', fontWeight: 700, color: 'var(--color-primary)', fontSize: `${0.95 * fsScale}rem` }}>
               <span>#</span>
               <span>{colLabel}</span>
               <span style={{ textAlign: 'right' }}>{valLabel}</span>
@@ -261,10 +272,10 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
                   key={`${tableView}-${m.name}-${m.id}`}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '40px 1fr 120px',
+                    gridTemplateColumns: `${Math.round(40 * fsScale)}px 1fr ${Math.round(120 * fsScale)}px`,
                     gap: '1rem',
-                    padding: '0.75rem 1rem',
-                    fontSize: '0.9rem',
+                    padding: `${0.75 * fsScale}rem 1rem`,
+                    fontSize: `${0.9 * fsScale}rem`,
                     backgroundColor: isSonora
                       ? 'var(--color-accent)'
                       : (i % 2 === 0 ? 'white' : 'var(--color-accent-light)'),

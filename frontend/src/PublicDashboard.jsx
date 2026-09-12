@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import Filters from './components/Filters';
 import SidebarLeft from './components/SidebarLeft';
@@ -11,7 +11,8 @@ import HistoryRankings from './components/HistoryRankings';
 const DATASET_COLORS = {
   delitos: "#455993",
   victimas: "#ef4444",
-  victimas_mun: "#7c3aed"
+  victimas_mun: "#7c3aed",
+  alto_impacto: "#b91c1c"
 };
 
 const INITIAL_FILTERS = {
@@ -25,8 +26,20 @@ const INITIAL_FILTERS = {
   modalidad: [],
   meses: [],
   sexo: [],
-  rangoEdad: []
+  rangoEdad: [],
+  altoImpacto: []
 };
+
+// Cápsulas predeterminadas de la sección Delitos Alto Impacto (nombres = backend PRESET_ALTO_IMPACTO)
+const ALTO_IMPACTO_DEFAULT = [
+  "Homicidio doloso",
+  "Feminicidio",
+  "Secuestro",
+  "Extorsión",
+  "Robo de vehículo",
+  "Robo con violencia",
+  "Violación"
+];
 
 function PublicDashboard() {
   const [metricType, setMetricType] = useState('absolute');
@@ -53,6 +66,9 @@ function PublicDashboard() {
   // Solo se actualiza cuando el usuario presiona "Aplicar Filtros".
   const [appliedFilters, setAppliedFilters] = useState(INITIAL_FILTERS);
 
+  // Cápsulas personalizadas (CUSTOM:...) creadas en alto_impacto; persisten al cambiar de dataset
+  const [customCapsules, setCustomCapsules] = useState([]);
+
   // Mecanismo de seguridad: quitar pantalla de carga máximo en 10s pase lo que pase
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -77,7 +93,10 @@ function PublicDashboard() {
       modalidad: [],
       meses: [],
       sexo: [],
-      rangoEdad: []
+      rangoEdad: [],
+      altoImpacto: selectedFilters.dataset === 'alto_impacto'
+        ? [...ALTO_IMPACTO_DEFAULT, ...customCapsules]
+        : []
     };
     setSelectedFilters(cleared);
     setAppliedFilters(cleared);
@@ -94,11 +113,40 @@ function PublicDashboard() {
         bienJuridico: [],
         tipoDelito: [],
         subtipoDelito: [],
-        modalidad: []
+        modalidad: [],
+        altoImpacto: newDataset === 'alto_impacto'
+          ? [...ALTO_IMPACTO_DEFAULT, ...customCapsulesRef.current]
+          : []
       };
       setAppliedFilters(next);
       return next;
     });
+  };
+
+  // Ref para usar customCapsules dentro del setState funcional de handleDatasetChange
+  const customCapsulesRef = useRef(customCapsules);
+  useEffect(() => { customCapsulesRef.current = customCapsules; }, [customCapsules]);
+
+  // Alta de cápsula personalizada: activa de inmediato en selected y applied
+  const handleAddCustomCapsule = (token) => {
+    setCustomCapsules(prev => (prev.includes(token) ? prev : [...prev, token]));
+    const add = (prev) => {
+      const cur = Array.isArray(prev.altoImpacto) ? prev.altoImpacto : [];
+      return cur.includes(token) ? prev : { ...prev, altoImpacto: [...cur, token] };
+    };
+    setSelectedFilters(add);
+    setAppliedFilters(add);
+  };
+
+  // Baja de cápsula personalizada: se elimina de todo el estado de inmediato
+  const handleRemoveCustomCapsule = (token) => {
+    setCustomCapsules(prev => prev.filter(t => t !== token));
+    const rm = (prev) => ({
+      ...prev,
+      altoImpacto: (Array.isArray(prev.altoImpacto) ? prev.altoImpacto : []).filter(t => t !== token)
+    });
+    setSelectedFilters(rm);
+    setAppliedFilters(rm);
   };
 
   const handleInitialLoadComplete = () => {
@@ -201,6 +249,9 @@ function PublicDashboard() {
             onApply={handleApply}
             onClear={handleClear}
             onInitialLoadComplete={() => handleComponentLoaded('filters')}
+            customCapsules={customCapsules}
+            onAddCustomCapsule={handleAddCustomCapsule}
+            onRemoveCustomCapsule={handleRemoveCustomCapsule}
           />
 
           <main className="dashboard-grid" style={{ flex: 1, minHeight: 0 }}>

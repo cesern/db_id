@@ -5,6 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
+import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
 
 const MultiSelectDropdown = ({ label, options, selected, onChange, maxSelection }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -187,7 +188,7 @@ const MultiSelectDropdown = ({ label, options, selected, onChange, maxSelection 
   );
 };
 
-const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, dataset }) => {
+const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, dataset, fs = 1 }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const top3 = data._top3 || [];
@@ -208,26 +209,26 @@ const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, da
 
     return (
       <div style={{ background: 'rgba(255, 255, 255, 0.95)', border: '1px solid rgba(0,0,0,0.1)', padding: '12px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', minWidth: '220px' }}>
-        <p style={{ fontWeight: '700', margin: '0 0 10px 0', fontSize: '14px', color: '#1e293b', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px', textTransform: 'capitalize' }}>
+        <p style={{ fontWeight: '700', margin: '0 0 10px 0', fontSize: `${14 * fs}px`, color: '#1e293b', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px', textTransform: 'capitalize' }}>
           {displayLabel}
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
           {toShow.length === 0 && (
-            <span style={{ fontSize: '13px', color: '#64748b' }}>Sin datos para {selectedEntidad}</span>
+            <span style={{ fontSize: `${13 * fs}px`, color: '#64748b' }}>Sin datos para {selectedEntidad}</span>
           )}
           {toShow.map((entry, index) => {
             const total = data[entry.name + '_total'];
             return (
               <div key={index}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: `${13 * fs}px` }}>
                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: entry.color }}></span>
                   <span style={{ color: '#0f172a', fontWeight: '700' }}>
                     {entry.name}
                   </span>
                   <span style={{ fontWeight: '700', color: '#3b82f6', marginLeft: 'auto' }}>#{entry.value}</span>
                 </div>
-                <div style={{ fontSize: '12px', color: '#64748b', marginLeft: '14px' }}>
+                <div style={{ fontSize: `${12 * fs}px`, color: '#64748b', marginLeft: '14px' }}>
                   Incidencia: <span style={{ fontWeight: '600' }}>{formatVal(total)}</span>
                 </div>
               </div>
@@ -237,10 +238,10 @@ const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, da
 
         {top3.length > 0 && (
           <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '8px' }}>
-            <p style={{ fontSize: '11px', fontWeight: '700', color: '#475569', margin: '0 0 6px 0', textTransform: 'uppercase' }}>Top 3 Nacional</p>
+            <p style={{ fontSize: `${11 * fs}px`, fontWeight: '700', color: '#475569', margin: '0 0 6px 0', textTransform: 'uppercase' }}>Top 3 Nacional</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {top3.map((t, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: `${12 * fs}px` }}>
                   <span style={{ color: '#475569', display: 'flex', gap: '4px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', maxWidth: '120px' }}>
                     <span style={{ fontWeight: '700' }}>#{t.rank}</span>
                     <span title={t.name.split(',')[0]}>{t.name.split(',')[0]}</span>
@@ -268,6 +269,10 @@ const HistoryRankings = ({ tempColor }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const headerRef = useRef(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
+
+  // Factor de escala fullscreen (1 en vista normal)
+  const fsScale = useFullscreenScale(isFullScreen);
+  const F = (base) => scaleSize(base, fsScale);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -475,7 +480,7 @@ const HistoryRankings = ({ tempColor }) => {
     const { x, y, value, index } = props;
     if (index === chartData.length - 1) {
       return (
-        <text x={x + 10} y={y + 4} fill={primaryColor} fontSize={14} fontWeight={700} textAnchor="start">
+        <text x={x + 10} y={y + 4} fill={primaryColor} fontSize={F(14)} fontWeight={700} textAnchor="start">
           {selectedEntidad} #{value}
         </text>
       );
@@ -680,7 +685,7 @@ const HistoryRankings = ({ tempColor }) => {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis
                   dataKey="period"
-                  tick={{ fill: '#475569', fontSize: 12, fontWeight: 600 }}
+                  tick={{ fill: '#475569', fontSize: F(12), fontWeight: 600 }}
                   axisLine={false}
                   tickLine={false}
                   dy={10}
@@ -704,12 +709,12 @@ const HistoryRankings = ({ tempColor }) => {
                   reversed={true}
                   domain={[1, 32]}
                   ticks={[1, 10, 20, 30, 32]}
-                  tick={{ fill: '#64748b', fontSize: 11, fontWeight: 500 }}
+                  tick={{ fill: '#64748b', fontSize: F(11), fontWeight: 500 }}
                   axisLine={false}
                   tickLine={false}
                   dx={-5}
                 />
-                <Tooltip content={<CustomTooltip metricType={applied.metricType} selectedEntidad={selectedEntidad} dataset={applied.dataset} />} wrapperStyle={{ zIndex: 1000 }} />
+                <Tooltip content={<CustomTooltip metricType={applied.metricType} selectedEntidad={selectedEntidad} dataset={applied.dataset} fs={fsScale} />} wrapperStyle={{ zIndex: 1000 }} />
 
                 <ReferenceArea y1={1} y2={10} fill="#ef4444" fillOpacity={0.06} strokeOpacity={0} />
                 <ReferenceArea y1={11} y2={20} fill="#f59e0b" fillOpacity={0.06} strokeOpacity={0} />

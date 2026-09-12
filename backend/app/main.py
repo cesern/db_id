@@ -3,6 +3,7 @@ from enum import Enum
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
+import json
 import time
 import duckdb
 import pandas as pd
@@ -157,7 +158,62 @@ def get_poblacion_valor(anio: int, entidad: Optional[str] = "All", municipio: Op
         if pop_res and pop_res[0]: return int(pop_res[0])
         return 0
 
-def build_where(dataset: DatasetEnum, anio=None, entidad=None, meses=None, bienJuridico=None, tipoDelito=None, subtipoDelito=None, modalidad=None, municipio=None, sexo=None, rangoEdad=None, additional_clause=None):
+# --- Delitos de Alto Impacto (sección alto_impacto del dashboard, sobre dataset delitos) ---
+# Cada preset es una lista de bloques; cada bloque, lista de (columna, operador, valor).
+# Los bloques se unen con OR; las condiciones dentro de un bloque, con AND.
+PRESET_ALTO_IMPACTO = {
+    "Homicidio doloso": [[("Subtipo de delito", "=", "Homicidio doloso")]],
+    "Feminicidio": [[("Subtipo de delito", "=", "Feminicidio")]],
+    "Secuestro": [[("Tipo de delito", "=", "Secuestro")]],
+    "Extorsión": [[("Tipo de delito", "=", "Extorsión")]],
+    "Robo de vehículo": [[("Subtipo de delito", "=", "Robo de vehículo automotor - Coche de 4 ruedas")]],
+    "Robo con violencia": [[("Tipo de delito", "=", "Robo"),
+                             ("Subtipo de delito", "<>", "Robo de vehículo automotor - Coche de 4 ruedas"),
+                             ("Modalidad", "=", "Con violencia")]],
+    "Violación": [[("Tipo de delito", "=", "Violación")]],
+}
+
+# Claves del JSON CUSTOM:{...} -> columna Parquet
+CUSTOM_COLUMNAS = {
+    "b": "Bien jurídico afectado",
+    "t": "Tipo de delito",
+    "s": "Subtipo de delito",
+    "m": "Modalidad",
+}
+
+def _build_alto_impacto_clause(altoImpacto: str, valid_cols: list) -> tuple:
+    """Traduce cápsulas (presets o CUSTOM:json) a (sql, params) parametrizados."""
+    blocks_sql, blocks_params = [], []
+    for token in [t.strip() for t in altoImpacto.split('|')]:
+        if not token:
+            continue
+        if token.startswith("CUSTOM:"):
+            try:
+                cfg = json.loads(token[len("CUSTOM:"):])
+            except Exception:
+                continue
+            conds = [(CUSTOM_COLUMNAS[k], "=", str(cfg.get(k)).strip())
+                     for k in ("b", "t", "s", "m")
+                     if isinstance(cfg, dict) and str(cfg.get(k) or "").strip()]
+            blocks = [conds] if conds else []
+        else:
+            blocks = PRESET_ALTO_IMPACTO.get(token, [])
+        for conds in blocks:
+            parts, ps = [], []
+            for col, op, val in conds:
+                if col not in valid_cols or op not in ("=", "<>"):
+                    continue
+                parts.append(f'"{col}" {op} ?')
+                ps.append(val)
+            if parts:
+                blocks_sql.append("(" + " AND ".join(parts) + ")")
+                blocks_params.extend(ps)
+    if not blocks_sql:
+        # Parámetro presente pero sin bloques válidos: no devolver todo (vacío=vacío)
+        return "1=0", []
+    return "(" + " OR ".join(blocks_sql) + ")", blocks_params
+
+def build_where(dataset: DatasetEnum, anio=None, entidad=None, meses=None, bienJuridico=None, tipoDelito=None, subtipoDelito=None, modalidad=None, municipio=None, sexo=None, rangoEdad=None, altoImpacto=None, additional_clause=None):
     valid_cols = get_columns(dataset.value)
     where_clauses = []
     params = []
@@ -206,7 +262,15 @@ def build_where(dataset: DatasetEnum, anio=None, entidad=None, meses=None, bienJ
         if lista:
             where_clauses.append('"Rango de edad" IN (' + ','.join(['?']*len(lista)) + ')')
             params.extend(lista)
-            
+    if altoImpacto is not None and altoImpacto != "All":
+        if altoImpacto == "":
+            # Modo alto_impacto sin cápsulas activas: no devolver todo (vacío=vacío)
+            where_clauses.append("1=0")
+        else:
+            ai_sql, ai_params = _build_alto_impacto_clause(altoImpacto, valid_cols)
+            where_clauses.append(ai_sql)
+            params.extend(ai_params)
+
     if additional_clause:
         where_clauses.append(additional_clause)
         
@@ -224,7 +288,8 @@ async def obtener_filtros(
     subtipoDelito: Optional[str] = None,
     modalidad: Optional[str] = None,
     sexo: Optional[str] = None,
-    rangoEdad: Optional[str] = None
+    rangoEdad: Optional[str] = None,
+    altoImpacto: Optional[str] = None
 ):
     valid_cols = get_columns(dataset.value)
     
@@ -237,23 +302,23 @@ async def obtener_filtros(
     anios_raw = get_distinct("Año", "", [])
     anios = sorted([int(a) for a in anios_raw])
     
-    w_ent, p_ent = build_where(dataset, anio=anio, sexo=sexo, rangoEdad=rangoEdad)
+    w_ent, p_ent = build_where(dataset, anio=anio, sexo=sexo, rangoEdad=rangoEdad, altoImpacto=altoImpacto)
     entidades = get_distinct("Entidad", w_ent, p_ent)
     
-    w_bien, p_bien = build_where(dataset, anio=anio, sexo=sexo, rangoEdad=rangoEdad, entidad=entidad)
+    w_bien, p_bien = build_where(dataset, anio=anio, sexo=sexo, rangoEdad=rangoEdad, entidad=entidad, altoImpacto=altoImpacto)
     bienes = get_distinct("Bien jurídico afectado", w_bien, p_bien)
     
     municipios = []
     if entidad is not None and entidad != "All" and "Municipio" in valid_cols:
         municipios = get_distinct("Municipio", w_bien, p_bien)
         
-    w_tipo, p_tipo = build_where(dataset, anio=anio, sexo=sexo, rangoEdad=rangoEdad, entidad=entidad, bienJuridico=bienJuridico)
+    w_tipo, p_tipo = build_where(dataset, anio=anio, sexo=sexo, rangoEdad=rangoEdad, entidad=entidad, bienJuridico=bienJuridico, altoImpacto=altoImpacto)
     tipos = get_distinct("Tipo de delito", w_tipo, p_tipo)
     
-    w_sub, p_sub = build_where(dataset, anio=anio, sexo=sexo, rangoEdad=rangoEdad, entidad=entidad, bienJuridico=bienJuridico, tipoDelito=tipoDelito)
+    w_sub, p_sub = build_where(dataset, anio=anio, sexo=sexo, rangoEdad=rangoEdad, entidad=entidad, bienJuridico=bienJuridico, tipoDelito=tipoDelito, altoImpacto=altoImpacto)
     subtipos = get_distinct("Subtipo de delito", w_sub, p_sub)
     
-    w_mod, p_mod = build_where(dataset, anio=anio, sexo=sexo, rangoEdad=rangoEdad, entidad=entidad, bienJuridico=bienJuridico, tipoDelito=tipoDelito, subtipoDelito=subtipoDelito)
+    w_mod, p_mod = build_where(dataset, anio=anio, sexo=sexo, rangoEdad=rangoEdad, entidad=entidad, bienJuridico=bienJuridico, tipoDelito=tipoDelito, subtipoDelito=subtipoDelito, altoImpacto=altoImpacto)
     modalidades = get_distinct("Modalidad", w_mod, p_mod)
     
     sexos = get_distinct("Sexo", "", [])
@@ -284,11 +349,12 @@ async def obtener_total_incidencia(
     municipio: Optional[str] = None,
     sexo: Optional[str] = None,
     rangoEdad: Optional[str] = None,
+    altoImpacto: Optional[str] = None,
     metric_type: Optional[str] = "absolute"
 ):
-    w_sql, params = build_where(dataset, anio, entidad, meses, bienJuridico, tipoDelito, subtipoDelito, modalidad, municipio, sexo, rangoEdad)
+    w_sql, params = build_where(dataset, anio, entidad, meses, bienJuridico, tipoDelito, subtipoDelito, modalidad, municipio, sexo, rangoEdad, altoImpacto=altoImpacto)
     val_col = 'Víctimas' if 'victimas' in dataset.value else 'Incidencia'
-    
+
     query = f'SELECT SUM("{val_col}") FROM {dataset.value} {w_sql}'
     res = db.cursor().execute(query, params).fetchone()
     total = float(res[0]) if res and res[0] is not None else 0.0
@@ -314,9 +380,10 @@ async def obtener_incidencia_por_entidad(
     modalidad: Optional[str] = None,
     sexo: Optional[str] = None,
     rangoEdad: Optional[str] = None,
+    altoImpacto: Optional[str] = None,
     metric_type: Optional[str] = "absolute"
 ):
-    w_sql, params = build_where(dataset, anio, None, meses, bienJuridico, tipoDelito, subtipoDelito, modalidad, None, sexo, rangoEdad, additional_clause="Entidad IS NOT NULL")
+    w_sql, params = build_where(dataset, anio, None, meses, bienJuridico, tipoDelito, subtipoDelito, modalidad, None, sexo, rangoEdad, altoImpacto=altoImpacto, additional_clause="Entidad IS NOT NULL")
     val_col = 'Víctimas' if 'victimas' in dataset.value else 'Incidencia'
     
     query = f'SELECT Entidad, SUM("{val_col}") as total FROM {dataset.value} {w_sql} GROUP BY Entidad'
@@ -376,9 +443,10 @@ async def obtener_incidencia_por_municipio(
     modalidad: Optional[str] = None,
     sexo: Optional[str] = None,
     rangoEdad: Optional[str] = None,
+    altoImpacto: Optional[str] = None,
     metric_type: Optional[str] = "absolute"
 ):
-    w_sql, params = build_where(dataset, anio, entidad, meses, bienJuridico, tipoDelito, subtipoDelito, modalidad, None, sexo, rangoEdad, additional_clause="Municipio IS NOT NULL")
+    w_sql, params = build_where(dataset, anio, entidad, meses, bienJuridico, tipoDelito, subtipoDelito, modalidad, None, sexo, rangoEdad, altoImpacto=altoImpacto, additional_clause="Municipio IS NOT NULL")
     valid_cols = get_columns(dataset.value)
     if 'Municipio' not in valid_cols: return []
         
@@ -449,9 +517,10 @@ async def obtener_incidencia_por_anio(
     municipio: Optional[str] = None,
     sexo: Optional[str] = None,
     rangoEdad: Optional[str] = None,
+    altoImpacto: Optional[str] = None,
     metric_type: Optional[str] = "absolute"
 ):
-    w_sql, params = build_where(dataset, None, entidad, meses, bienJuridico, tipoDelito, subtipoDelito, modalidad, municipio, sexo, rangoEdad, additional_clause='"Año" IS NOT NULL')
+    w_sql, params = build_where(dataset, None, entidad, meses, bienJuridico, tipoDelito, subtipoDelito, modalidad, municipio, sexo, rangoEdad, altoImpacto=altoImpacto, additional_clause='"Año" IS NOT NULL')
     val_col = 'Víctimas' if 'victimas' in dataset.value else 'Incidencia'
     
     query = f'SELECT "Año", SUM("{val_col}") as total FROM {dataset.value} {w_sql} GROUP BY "Año" ORDER BY "Año"'
@@ -483,9 +552,10 @@ async def obtener_incidencia_por_mes_historico(
     municipio: Optional[str] = None,
     sexo: Optional[str] = None,
     rangoEdad: Optional[str] = None,
+    altoImpacto: Optional[str] = None,
     metric_type: Optional[str] = "absolute"
 ):
-    w_sql, params = build_where(dataset, None, entidad, meses, bienJuridico, tipoDelito, subtipoDelito, modalidad, municipio, sexo, rangoEdad, additional_clause='"Año" IS NOT NULL AND Mes IS NOT NULL')
+    w_sql, params = build_where(dataset, None, entidad, meses, bienJuridico, tipoDelito, subtipoDelito, modalidad, municipio, sexo, rangoEdad, altoImpacto=altoImpacto, additional_clause='"Año" IS NOT NULL AND Mes IS NOT NULL')
     val_col = 'Víctimas' if 'victimas' in dataset.value else 'Incidencia'
     
     query = f'SELECT "Año", Mes, SUM("{val_col}") as total FROM {dataset.value} {w_sql} GROUP BY "Año", Mes'
@@ -544,6 +614,7 @@ async def obtener_incidencia_por_delito(
     municipio: Optional[str] = None,
     sexo: Optional[str] = None,
     rangoEdad: Optional[str] = None,
+    altoImpacto: Optional[str] = None,
     metric_type: Optional[str] = "absolute"
 ):
     if categoria == "bien_juridico": col = 'Bien jurídico afectado'
@@ -554,7 +625,7 @@ async def obtener_incidencia_por_delito(
     valid_cols = get_columns(dataset.value)
     if col not in valid_cols: return []
     
-    w_sql, params = build_where(dataset, anio, entidad, meses, bienJuridico, tipoDelito, subtipoDelito, modalidad, municipio, sexo, rangoEdad, additional_clause=f'"{col}" IS NOT NULL')
+    w_sql, params = build_where(dataset, anio, entidad, meses, bienJuridico, tipoDelito, subtipoDelito, modalidad, municipio, sexo, rangoEdad, altoImpacto=altoImpacto, additional_clause=f'"{col}" IS NOT NULL')
     val_col = 'Víctimas' if 'victimas' in dataset.value else 'Incidencia'
     
     query = f'SELECT "{col}", SUM("{val_col}") as total FROM {dataset.value} {w_sql} GROUP BY "{col}"'
@@ -595,6 +666,7 @@ async def obtener_ranking_historico(
     modalidad: Optional[str] = None,
     sexo: Optional[str] = None,
     rangoEdad: Optional[str] = None,
+    altoImpacto: Optional[str] = None,
     metric_type: Optional[str] = "absolute",
     municipios_sonora: Optional[str] = None,
     target_state: Optional[str] = "Sonora"
@@ -611,6 +683,7 @@ async def obtener_ranking_historico(
         municipio=None,
         sexo=sexo,
         rangoEdad=rangoEdad,
+        altoImpacto=altoImpacto,
         additional_clause='"Año" IS NOT NULL'
     )
     
