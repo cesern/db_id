@@ -8,7 +8,7 @@ echo ======================================
 cd frontend
 
 echo Instalando dependencias de Node...
-npm install
+npm install --legacy-peer-deps
 
 echo.
 echo ======================================

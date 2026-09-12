@@ -687,6 +687,14 @@ async def obtener_ranking_historico(
             lambda r: (r['total'] / r['population']) * 100000 if r['population'] > 0 else 0.0, axis=1
         )
 
+    # Recortar la cola de periodos sin datos (ej. meses futuros del año en
+    # curso con total 0, que empatarían a todos en #1). Misma regla que
+    # incidencia_por_mes_historico: conservar hasta el último periodo con total > 0.
+    df_nonzero = df_res[df_res['total'] > 0]
+    if df_nonzero.empty:
+        return []
+    df_res = df_res[df_res['period'] <= df_nonzero['period'].max()]
+
     df_res = df_res.sort_values(['period', 'total'], ascending=[True, False])
     df_res['rank'] = df_res.groupby('period')['total'].rank(method='min', ascending=False).astype(int)
     

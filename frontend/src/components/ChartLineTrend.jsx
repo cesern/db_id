@@ -7,6 +7,138 @@ import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 
+// Slider de rango con doble manija. Mientras se arrastra solo mueve el
+// borrador (onDraft); la gráfica se actualiza al soltar (onCommit).
+const RangeSlider = ({ count, start, end, names, pending, onDraft, onCommit }) => {
+  const trackRef = useRef(null);
+  const dragWhich = useRef(null);
+
+  if (!count || count < 5) return null;
+
+  const last = count - 1;
+  const pct = (i) => (last <= 0 ? 0 : (i / last) * 100);
+
+  const indexFromClientX = (clientX) => {
+    const rect = trackRef.current.getBoundingClientRect();
+    const ratio = (clientX - rect.left) / rect.width;
+    return Math.max(0, Math.min(last, Math.round(ratio * last)));
+  };
+
+  const handlePointerDown = (e) => {
+    const thumb = e.target.closest('[data-thumb]');
+    if (thumb) {
+      dragWhich.current = thumb.dataset.thumb; // 'start' | 'end'
+    } else {
+      // Clic en la pista: mueve la manija más cercana y confirma al instante
+      const idx = indexFromClientX(e.clientX);
+      if (Math.abs(idx - start) <= Math.abs(idx - end)) {
+        const s = Math.max(0, Math.min(idx, end));
+        onDraft(s, end);
+        onCommit(s, end);
+        return;
+      }
+      const en = Math.max(start, Math.min(idx, last));
+      onDraft(start, en);
+      onCommit(start, en);
+      return;
+    }
+    e.preventDefault();
+    try { trackRef.current.setPointerCapture(e.pointerId); } catch { /* noop */ }
+  };
+
+  const handlePointerMove = (e) => {
+    if (!dragWhich.current) return;
+    const idx = indexFromClientX(e.clientX);
+    if (dragWhich.current === 'start') {
+      onDraft(Math.max(0, Math.min(idx, end)), end);
+    } else {
+      onDraft(start, Math.max(start, Math.min(idx, last)));
+    }
+  };
+
+  const handlePointerUp = () => {
+    if (!dragWhich.current) return;
+    dragWhich.current = null;
+    onCommit(start, end); // confirma al soltar
+  };
+
+  const handleKey = (which) => (e) => {
+    let ns = start;
+    let ne = end;
+    if (e.key === 'ArrowLeft') {
+      if (which === 'start') ns = Math.max(0, start - 1);
+      else ne = Math.max(start, end - 1);
+    } else if (e.key === 'ArrowRight') {
+      if (which === 'start') ns = Math.min(end, start + 1);
+      else ne = Math.min(last, end + 1);
+    } else if (e.key === 'Home') {
+      if (which === 'start') ns = 0;
+      else ne = start;
+    } else if (e.key === 'End') {
+      if (which === 'start') ns = end;
+      else ne = last;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    if (which === 'start') { onDraft(ns, end); onCommit(ns, end); }
+    else { onDraft(start, ne); onCommit(start, ne); }
+  };
+
+  const thumbBase = {
+    position: 'absolute',
+    top: '50%',
+    width: '16px',
+    height: '16px',
+    borderRadius: '50%',
+    background: '#ffffff',
+    border: '2px solid var(--color-accent)',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+    cursor: 'ew-resize',
+    transform: 'translate(-50%, -50%)',
+    zIndex: 2,
+    padding: 0,
+  };
+
+  const thumbProps = (which, index) => ({
+    'data-thumb': which,
+    role: 'slider',
+    tabIndex: 0,
+    'aria-label': which === 'start' ? 'Inicio del periodo' : 'Fin del periodo',
+    'aria-valuemin': 0,
+    'aria-valuemax': last,
+    'aria-valuenow': index,
+    'aria-valuetext': names[index],
+    onKeyDown: handleKey(which),
+    style: { ...thumbBase, left: `${pct(index)}%` },
+  });
+
+  return (
+    <div style={{ padding: '0.35rem 0.6rem 0.15rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.25rem', gap: '0.5rem' }}>
+        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-primary)', whiteSpace: 'nowrap' }}>{names[start]}</span>
+        <span style={{ fontSize: '0.7rem', color: pending ? 'var(--color-accent)' : 'var(--text-secondary)', fontWeight: pending ? 700 : 400, whiteSpace: 'nowrap' }}>
+          {`${end - start + 1} meses${pending ? ' · suelta para aplicar' : ''}`}
+        </span>
+        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-primary)', whiteSpace: 'nowrap' }}>{names[end]}</span>
+      </div>
+      <div
+        ref={trackRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        style={{ position: 'relative', height: '22px', cursor: 'pointer', touchAction: 'none', userSelect: 'none' }}
+      >
+        <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '6px', transform: 'translateY(-50%)', borderRadius: '999px', background: 'var(--border-color)' }} />
+        <div style={{ position: 'absolute', top: '50%', height: '6px', transform: 'translateY(-50%)', borderRadius: '999px', background: 'var(--color-accent)', left: `${pct(start)}%`, width: `${Math.max(pct(end) - pct(start), 0)}%` }} />
+        <div {...thumbProps('start', start)} />
+        <div {...thumbProps('end', end)} />
+      </div>
+    </div>
+  );
+};
+
 const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -21,6 +153,23 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
 
   // null | 3 | 6 | 12
   const [maWindow, setMAWindow] = useState(null);
+
+  // Rango confirmado del histórico (lo que ve la gráfica). null = periodo completo.
+  const [brushRange, setBrushRange] = useState(null);
+  // Borrador del slider: se mueve al arrastrar, se confirma al soltar.
+  const [draftRange, setDraftRange] = useState(null);
+
+  // Al llegar datos nuevos (filtros/dataset), volver al periodo completo.
+  useEffect(() => {
+    if (data.length > 0) {
+      const full = { startIndex: 0, endIndex: data.length - 1 };
+      setBrushRange(full);
+      setDraftRange(full);
+    } else {
+      setBrushRange(null);
+      setDraftRange(null);
+    }
+  }, [data]);
 
   const initialLoadCalled = useRef(false);
   const cardRef = useRef(null);
@@ -98,6 +247,25 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
     return new Intl.NumberFormat('es-MX').format(num);
   };
 
+  // Índices confirmados clamped al tamaño actual de datos
+  const brushStart = brushRange && data.length > 0
+    ? Math.max(0, Math.min(brushRange.startIndex ?? 0, data.length - 1))
+    : 0;
+  const brushEnd = brushRange && data.length > 0
+    ? Math.max(0, Math.min(brushRange.endIndex ?? data.length - 1, data.length - 1))
+    : Math.max(0, data.length - 1);
+
+  // Posición del borrador del slider (no toca la gráfica hasta confirmar)
+  const draftStart = draftRange && data.length > 0
+    ? Math.max(0, Math.min(draftRange.startIndex ?? 0, data.length - 1))
+    : brushStart;
+  const draftEnd = draftRange && data.length > 0
+    ? Math.max(0, Math.min(draftRange.endIndex ?? data.length - 1, data.length - 1))
+    : brushEnd;
+
+  const isRangePending = draftRange && brushRange &&
+    (draftRange.startIndex !== brushRange.startIndex || draftRange.endIndex !== brushRange.endIndex);
+
   const getExportData = () => {
     const valLabel = isVictimasBase ? "Víctimas" : "Incidencia";
     const actualValLabel = metricType === 'rate' ? `${valLabel} (Tasa por 100k hab.)` : valLabel;
@@ -111,7 +279,8 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
       ? ["Año-Mes", actualValLabel, maLabel]
       : ["Año-Mes", actualValLabel];
 
-    const dataForExport = chartData.map(d => {
+    // Exporta solo el rango visible del slider
+    const dataForExport = visibleChartData.map(d => {
       const row = [d.name, d.value];
       if (maLabel) row.push(d.maValue !== null && d.maValue !== undefined ? d.maValue : '');
       return row;
@@ -119,10 +288,19 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
     return { headers, dataForExport };
   };
 
+  const getExportFilename = () => {
+    const base = isVictimasBase ? "historico_victimas" : "historico_incidencia";
+    if (!visibleChartData || visibleChartData.length === 0 || visibleChartData.length === data.length) {
+      return `${base}.csv`;
+    }
+    const clean = (s) => String(s).replace(/\s+/g, '-');
+    return `${base}_${clean(visibleChartData[0].name)}_a_${clean(visibleChartData[visibleChartData.length - 1].name)}.csv`;
+  };
+
   const handleDownloadCSV = () => {
     const { headers, dataForExport } = getExportData();
     downloadCSV(
-      isVictimasBase ? "historico_victimas.csv" : "historico_incidencia.csv",
+      getExportFilename(),
       dataForExport,
       headers,
       { ...selectedFilters, metricType }
@@ -140,50 +318,56 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
 
   const tooltipLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
 
-  // Compute statistics + MA in one memoized pass
-  const { chartData, averageValue, maxItem, minItem, slope } = useMemo(() => {
-    const numericData = data
+  // Compute statistics + MA over the slider-visible range.
+  // chartData = serie completa enriquecida; visibleChartData = recorte
+  // [brushStart, brushEnd] usado en gráfica, stats y export.
+  const { chartData, visibleChartData, averageValue, maxItem, minItem, slope } = useMemo(() => {
+    const endIdx = data.length > 0 ? Math.min(brushEnd, data.length - 1) : -1;
+    const startIdx = data.length > 0 ? Math.min(brushStart, Math.max(endIdx, 0)) : 0;
+    const visibleRaw = endIdx >= 0 ? data.slice(startIdx, endIdx + 1) : [];
+
+    const numericVisible = visibleRaw
       .map(d => ({ ...d, numericVal: typeof d.value === 'number' ? d.value : parseFloat(d.value) }))
       .filter(d => !isNaN(d.numericVal));
 
-    if (numericData.length === 0) {
-      return { chartData: data, averageValue: 0, maxItem: null, minItem: null, slope: 0 };
+    if (numericVisible.length === 0) {
+      return { chartData: data, visibleChartData: visibleRaw, averageValue: 0, maxItem: null, minItem: null, slope: 0 };
     }
 
-    // 1. Promedio global
-    const totalSum = numericData.reduce((sum, d) => sum + d.numericVal, 0);
-    const averageValue = totalSum / numericData.length;
+    // 1. Promedio del rango visible
+    const totalSum = numericVisible.reduce((sum, d) => sum + d.numericVal, 0);
+    const averageValue = totalSum / numericVisible.length;
 
-    // 2. Máximo
-    let maxItem = numericData[0];
-    for (let i = 1; i < numericData.length; i++) {
-      if (numericData[i].numericVal > maxItem.numericVal) maxItem = numericData[i];
+    // 2. Máximo del rango visible
+    let maxItem = numericVisible[0];
+    for (let i = 1; i < numericVisible.length; i++) {
+      if (numericVisible[i].numericVal > maxItem.numericVal) maxItem = numericVisible[i];
     }
 
-    // 3. Mínimo
-    let minItem = numericData[0];
-    for (let i = 1; i < numericData.length; i++) {
-      if (numericData[i].numericVal < minItem.numericVal) minItem = numericData[i];
+    // 3. Mínimo del rango visible
+    let minItem = numericVisible[0];
+    for (let i = 1; i < numericVisible.length; i++) {
+      if (numericVisible[i].numericVal < minItem.numericVal) minItem = numericVisible[i];
     }
 
-    // 4. Regresión lineal para Tendencia
-    const n = numericData.length;
+    // 4. Regresión lineal del rango visible para Tendencia
+    const n = numericVisible.length;
     let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
     for (let i = 0; i < n; i++) {
       sumX += i;
-      sumY += numericData[i].numericVal;
-      sumXY += i * numericData[i].numericVal;
+      sumY += numericVisible[i].numericVal;
+      sumXY += i * numericVisible[i].numericVal;
       sumXX += i * i;
     }
     const denom = n * sumXX - sumX * sumX;
     const slope = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
     const intercept = (sumY - slope * sumX) / n;
 
-    // 5. Promedio Móvil (calculado sobre numericData con el window actual)
+    // 5. Promedio Móvil calculado sobre el rango visible
     const computeMA = (windowSize) => {
-      return numericData.map((d, i) => {
+      return numericVisible.map((d, i) => {
         if (i < windowSize - 1) return null;
-        const slice = numericData.slice(i - windowSize + 1, i + 1);
+        const slice = numericVisible.slice(i - windowSize + 1, i + 1);
         const avg = slice.reduce((s, x) => s + x.numericVal, 0) / windowSize;
         return { name: d.name, maValue: parseFloat(avg.toFixed(4)) };
       });
@@ -196,21 +380,30 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
         if (entry) maMap[entry.name] = entry.maValue;
       });
     }
+    const trendMap = {};
+    numericVisible.forEach((d, i) => {
+      trendMap[d.name] = parseFloat((slope * i + intercept).toFixed(4));
+    });
 
-    const chartData = data.map(d => {
-      const numIndex = numericData.findIndex(nd => nd.name === d.name);
+    const enrich = (d) => {
       const result = { ...d };
-      if (numIndex !== -1) {
-        result.trendValue = parseFloat((slope * numIndex + intercept).toFixed(4));
+      if (trendMap[d.name] !== undefined) {
+        result.trendValue = trendMap[d.name];
       }
       if (maWindow) {
         result.maValue = maMap[d.name] !== undefined ? maMap[d.name] : null;
       }
       return result;
-    });
+    };
 
-    return { chartData, averageValue, maxItem, minItem, slope };
-  }, [data, maWindow]);
+    const chartData = data.map(enrich);
+    const visibleChartData = visibleRaw.map(enrich);
+
+    return { chartData, visibleChartData, averageValue, maxItem, minItem, slope };
+  }, [data, maWindow, brushStart, brushEnd]);
+
+  // Lo que realmente pinta la gráfica: el rango confirmado
+  const displayData = visibleChartData && visibleChartData.length > 0 ? visibleChartData : chartData;
 
   const trendColor = slope >= 0 ? '#ef4444' : '#10b981';
 
@@ -534,7 +727,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
         {loading && <LoadingSpinner size="md" />}
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
-            data={chartData}
+            data={displayData}
             margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
           >
             <defs>
@@ -550,11 +743,11 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
               axisLine={false}
               tickLine={false}
               tickMargin={10}
-              ticks={chartData.length <= 24 ? undefined : chartData
+              ticks={displayData.length <= 24 ? undefined : displayData
                 .filter((d, i, arr) => i === arr.findIndex(x => x.year === d.year))
                 .map(d => d.name)}
               tickFormatter={(name) => {
-                if (chartData.length <= 24) return name.replace(' ', '-');
+                if (displayData.length <= 24) return name.replace(' ', '-');
                 const parts = name.split(' ');
                 return parts[parts.length - 1];
               }}
@@ -692,9 +885,23 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
                 name="trendValue"
               />
             )}
+
           </ComposedChart>
         </ResponsiveContainer>
       </div>
+
+      {/* Slider de rango: actualiza la gráfica al soltar */}
+      {data.length >= 5 && (
+        <RangeSlider
+          count={data.length}
+          start={draftStart}
+          end={draftEnd}
+          names={data.map(d => d.name)}
+          pending={isRangePending}
+          onDraft={(s, e) => setDraftRange({ startIndex: s, endIndex: e })}
+          onCommit={(s, e) => setBrushRange({ startIndex: s, endIndex: e })}
+        />
+      )}
     </div>
   );
 };
