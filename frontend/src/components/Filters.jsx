@@ -648,6 +648,8 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
             setIsCustomModalOpen(false);
           }}
           customCapsules={customCapsules}
+          scope={selectedFilters}
+          activeTokens={Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : []}
         />
       )}
     </div>

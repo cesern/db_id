@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API_URL } from '../api';
-import { findDuplicateCapsule } from '../utils/altoImpacto';
+import { findDuplicateCapsule, parseCapsule } from '../utils/altoImpacto';
 
 const selectStyle = {
   width: '100%',
@@ -15,7 +15,7 @@ const selectStyle = {
 
 // Modal para crear una cápsula personalizada de alto impacto.
 // Cascada Bien -> Tipo -> Subtipo -> Modalidad vía /api/filtros (dataset=delitos).
-const AltoImpactoModal = ({ onClose, onConfirm, customCapsules }) => {
+const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTokens }) => {
   const [bien, setBien] = useState('');
   const [tipo, setTipo] = useState('');
   const [subtipo, setSubtipo] = useState('');
@@ -77,15 +77,65 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules }) => {
   const duplicate = hasLevels ? findDuplicateCapsule(cfg, customCapsules) : null;
   const canConfirm = hasLevels && !badName && !duplicate;
 
-  const handleConfirm = () => {
-    if (!canConfirm || !onConfirm) return;
-    const payload = { n: cleanName };
+  const buildToken = () => {
+    const payload = { n: cleanName || 'Personalizado' };
     if (cfg.b) payload.b = cfg.b;
     if (cfg.t) payload.t = cfg.t;
     if (cfg.s) payload.s = cfg.s;
     if (cfg.m) payload.m = cfg.m;
-    onConfirm(`CUSTOM:${JSON.stringify(payload)}`);
+    return `CUSTOM:${JSON.stringify(payload)}`;
   };
+
+  const handleConfirm = () => {
+    if (!canConfirm || !onConfirm) return;
+    onConfirm(buildToken());
+  };
+
+  // Aviso de solapamiento (solo informa, nunca bloquea): compara conteos reales
+  // del backend. Si C ∪ activas == activas, C no aporta nada. Si C ∪ Eᵢ == C,
+  // la cápsula Eᵢ está contenida en la candidata y se nombra.
+  const [overlap, setOverlap] = useState({ checking: false, redundant: false, contained: [] });
+
+  useEffect(() => {
+    if (!hasLevels) {
+      setOverlap({ checking: false, redundant: false, contained: [] });
+      return undefined;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setOverlap({ checking: true, redundant: false, contained: [] });
+      try {
+        const token = buildToken();
+        const base = { dataset: 'delitos', metric_type: 'absolute' };
+        if (scope?.anio) base.anio = scope.anio;
+        if (scope?.entidad && scope.entidad !== 'All') base.entidad = scope.entidad;
+        if (scope?.municipio && scope.municipio !== 'All') base.municipio = scope.municipio;
+        if (Array.isArray(scope?.meses) && scope.meses.length > 0) base.meses = scope.meses.join(',');
+        const getTotal = async (ai) => {
+          const res = await axios.get(`${API_URL}/api/total_incidencia`, {
+            params: { ...base, altoImpacto: ai },
+            signal: controller.signal
+          });
+          const v = res.data?.total_incidencia;
+          return typeof v === 'number' ? v : 0;
+        };
+        const actives = (Array.isArray(activeTokens) ? activeTokens : []).filter(t => t !== token);
+        const [cTotal, aTotal, uTotal, ...unions] = await Promise.all([
+          getTotal(token),
+          getTotal(actives.join('|')),
+          getTotal([...actives, token].join('|')),
+          ...actives.map(e => getTotal([token, e].join('|')))
+        ]);
+        const contained = actives.filter((e, i) => cTotal > 0 && unions[i] === cTotal).map(e => parseCapsule(e).name);
+        setOverlap({ checking: false, redundant: aTotal > 0 && uTotal === aTotal, contained });
+      } catch (err) {
+        if (axios.isCancel(err)) return;
+        setOverlap({ checking: false, redundant: false, contained: [] });
+      }
+    }, 400);
+    return () => { clearTimeout(timer); controller.abort(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bien, tipo, subtipo, modalidad, JSON.stringify(activeTokens)]);
 
   return (
     <div
@@ -152,6 +202,22 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules }) => {
           {duplicate && (
             <p style={{ fontSize: '0.8rem', color: '#b45309', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
               Ya existe la cápsula "{duplicate}" con esta configuración.
+            </p>
+          )}
+
+          {overlap.checking && (
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+              Comprobando solapamiento con las cápsulas activas…
+            </p>
+          )}
+          {!overlap.checking && overlap.contained.length > 0 && (
+            <p style={{ fontSize: '0.8rem', color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
+              Incluye por completo a: {overlap.contained.join(', ')}. Pueden convivir; los delitos no se cuentan dos veces.
+            </p>
+          )}
+          {!overlap.checking && overlap.redundant && (
+            <p style={{ fontSize: '0.8rem', color: '#b45309', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
+              Con los filtros actuales esta cápsula no aporta registros nuevos respecto a las activas.
             </p>
           )}
         </div>
