@@ -40,7 +40,7 @@
   --grid-gap: 1.5rem;
   --grid-padding: 1rem;
   
-  --chart-card-min-height: 300px;
+  --chart-card-min-height: 250px;
   --chart-trend-card-min-height: 250px;
 }
 
@@ -235,13 +235,22 @@ body {
 
 @media (min-width: 768px) {
   .dashboard-grid {
-    padding: 1.5rem;
+    padding: var(--grid-padding);
     grid-template-columns: 1fr 1fr;
   }
   /* En tablet, sidebar ocupa todo el ancho arriba */
   .dashboard-col:nth-child(1) { grid-column: span 2; }
   .dashboard-col:nth-child(2) { grid-column: span 1; }
   .dashboard-col:nth-child(3) { grid-column: span 1; }
+}
+
+@media (min-width: 768px) {
+  /* En tablet y escritorio se compacta la separación entre las 6 tarjetas del dashboard */
+  :root {
+    --grid-gap: 0.9rem;
+    --card-padding: 1rem;
+    --grid-padding: 0.5rem;
+  }
 }
 
 @media (min-width: 1024px) {
@@ -336,7 +345,7 @@ body {
 
     --card-padding: 0.75rem;
     --grid-gap: 0.75rem;
-    --grid-padding: 0.75rem;
+    --grid-padding: 0.5rem;
     
     --chart-card-min-height: 240px;
     --chart-trend-card-min-height: 220px;

@@ -278,7 +278,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}
-            margin={{ top: F(30), right: 10, left: 0, bottom: F(20) }}
+            margin={{ top: F(30), right: 10, left: 0, bottom: F(6) }}
           >
             <defs>
               <linearGradient id="colorBarYears" x1="0" y1="0" x2="0" y2="1">
@@ -292,7 +292,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
               tick={{ fontSize: F(11), fill: 'var(--text-secondary)' }}
               axisLine={false}
               tickLine={false}
-              tickMargin={F(10)}
+              tickMargin={F(6)}
               minTickGap={-200}
             />
             <YAxis hide={true} />

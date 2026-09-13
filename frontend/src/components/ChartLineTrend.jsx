@@ -8,6 +8,114 @@ import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
 
+// Savitzky-Golay: ajuste polinómico local por mínimos cuadrados sobre una
+// ventana deslizante (default 7 puntos, orden 2). Suaviza conservando mejor
+// picos y valles que el promedio móvil. Bordes con espejo para cubrir toda
+// la serie sin generar meses nuevos.
+const solveLinear = (A, b) => {
+  const n = b.length;
+  const M = A.map((row, i) => [...row, b[i]]);
+  for (let col = 0; col < n; col++) {
+    let piv = col;
+    for (let r = col + 1; r < n; r++) {
+      if (Math.abs(M[r][col]) > Math.abs(M[piv][col])) piv = r;
+    }
+    if (Math.abs(M[piv][col]) < 1e-12) continue;
+    [M[col], M[piv]] = [M[piv], M[col]];
+    for (let r = 0; r < n; r++) {
+      if (r === col) continue;
+      const f = M[r][col] / M[col][col];
+      for (let c = col; c <= n; c++) M[r][c] -= f * M[col][c];
+    }
+  }
+  return M.map((row, i) => (Math.abs(row[i]) < 1e-12 ? 0 : row[n] / row[i]));
+};
+
+const computeSavitzkyGolay = (points, windowSize = 7, order = 2) => {
+  const n = points.length;
+  const y = points.map(p => p.numericVal);
+  if (n === 0) return [];
+  if (n <= order + 1) {
+    return points.map(d => ({ name: d.name, maValue: parseFloat(d.numericVal.toFixed(4)) }));
+  }
+  const w = Math.min(windowSize % 2 === 1 ? windowSize : windowSize + 1, n);
+  const half = Math.floor(w / 2);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    // Ventana completa más cercana (asimétrica en bordes): solo datos reales
+    const s = Math.max(0, Math.min(i - half, n - w));
+    const rows = [];
+    const rhs = [];
+    for (let j = 0; j < w; j++) {
+      const k = (s + j) - i;
+      const row = [];
+      for (let p = 0; p <= order; p++) row.push(Math.pow(k, p));
+      rows.push(row);
+      rhs.push(y[s + j]);
+    }
+    // Ecuaciones normales (AᵀA)c = Aᵀb; el valor suavizado es c₀
+    const dim = order + 1;
+    const ATA = Array.from({ length: dim }, () => new Array(dim).fill(0));
+    const ATb = new Array(dim).fill(0);
+    for (let r = 0; r < rows.length; r++) {
+      for (let a = 0; a < dim; a++) {
+        ATb[a] += rows[r][a] * rhs[r];
+        for (let b = 0; b < dim; b++) ATA[a][b] += rows[r][a] * rows[r][b];
+      }
+    }
+    const coef = solveLinear(ATA, ATb);
+    out.push({ name: points[i].name, maValue: parseFloat(coef[0].toFixed(4)) });
+  }
+  return out;
+};
+
+// LOWESS (Locally Weighted Scatterplot Smoothing): regresión lineal local
+// ponderada con núcleo tricúbico + 2 iteraciones de robustez (Cleveland).
+// Opera sobre los índices de la serie visible y conserva cada {name} original:
+// no genera meses ni valores fuera de la serie.
+const computeLowess = (points, frac = 0.2) => {
+  const n = points.length;
+  const y = points.map(p => p.numericVal);
+  if (n < 4) {
+    return points.map(d => ({ name: d.name, maValue: parseFloat(d.numericVal.toFixed(4)) }));
+  }
+  const tricube = (d) => {
+    const t = Math.max(0, 1 - d * d * d);
+    return t * t * t;
+  };
+  const r = Math.max(2, Math.floor(frac * n));
+  const robust = new Array(n).fill(1);
+  let smooth = new Array(n).fill(0);
+  for (let iter = 0; iter <= 2; iter++) {
+    for (let i = 0; i < n; i++) {
+      // Ancho de banda: distancia al r-ésimo vecino más cercano
+      const dists = [];
+      for (let j = 0; j < n; j++) dists.push(Math.abs(j - i));
+      dists.sort((a, b) => a - b);
+      const band = dists[Math.min(r, n - 1)] || h;
+      let sw = 0, swx = 0, swy = 0, swxx = 0, swxy = 0;
+      for (let j = 0; j < n; j++) {
+        const w = tricube(Math.abs(j - i) / (band || 1)) * robust[j];
+        sw += w; swx += w * j; swy += w * y[j]; swxx += w * j * j; swxy += w * j * y[j];
+      }
+      const denom = sw * swxx - swx * swx;
+      const beta = denom !== 0 ? (sw * swxy - swx * swy) / denom : 0;
+      const alpha = (swy - beta * swx) / (sw || 1);
+      smooth[i] = alpha + beta * i;
+    }
+    if (iter < 2) {
+      const resid = y.map((v, i) => Math.abs(v - smooth[i]));
+      const med = [...resid].sort((a, b) => a - b)[Math.floor(n / 2)] || 1;
+      for (let i = 0; i < n; i++) {
+        const u = resid[i] / (6 * med);
+        const b = Math.max(0, 1 - u * u);
+        robust[i] = b * b;
+      }
+    }
+  }
+  return points.map((d, i) => ({ name: d.name, maValue: parseFloat(smooth[i].toFixed(4)) }));
+};
+
 // Slider de rango con doble manija. Mientras se arrastra solo mueve el
 // borrador (onDraft); la gráfica se actualiza al soltar (onCommit).
 const RangeSlider = ({ count, start, end, names, pending, onDraft, onCommit, labelScale = 1 }) => {
@@ -140,6 +248,103 @@ const RangeSlider = ({ count, start, end, names, pending, onDraft, onCommit, lab
   );
 };
 
+// Métodos de suavizado con su descripción (fuente única del menú).
+const SMOOTHING_METHODS = [
+  { win: null, label: 'Ninguno', desc: 'Serie original sin suavizado.' },
+  { win: 3, label: '3M', desc: 'Promedio de los últimos 3 meses. Reduce el ruido mensual conservando el detalle de corto plazo.' },
+  { win: 6, label: '6M', desc: 'Promedio de los últimos 6 meses. Elimina la variación estacional semestral y muestra la tendencia media.' },
+  { win: 12, label: '12M', desc: 'Promedio anual de 12 meses. Elimina la estacionalidad y revela la tendencia estructural de largo plazo.' },
+  { win: 'lowess', label: 'LOWESS', desc: 'Suavizado local que muestra la tendencia general de los datos dando mayor peso a los valores cercanos.' },
+  { win: 'sg', label: 'Savitzky-Golay', desc: 'Ajuste polinómico local (ventana 7, orden 2) que suaviza conservando picos y valles mejor que el promedio.' },
+];
+
+// Modal de suavizado: un botón con el método activo abre la lista de métodos
+// con descripciones; al pulsar uno se aplica de inmediato y se cierra.
+const SmoothingMenu = ({ maWindow, onSelect, btnStyle }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const active = SMOOTHING_METHODS.find(m => m.win === maWindow) || SMOOTHING_METHODS[0];
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const handleKey = (e) => { if (e.key === 'Escape') setIsOpen(false); };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [isOpen]);
+
+  return (
+    <>
+      <button
+        onClick={() => setIsOpen(true)}
+        style={btnStyle(maWindow !== null)}
+        title="Método de suavizado"
+        aria-haspopup="dialog"
+      >
+        {`Suavizado: ${active.label} ▾`}
+      </button>
+      {isOpen && (
+        <div
+          role="dialog"
+          aria-label="Método de suavizado"
+          onClick={() => setIsOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)',
+            zIndex: 9999, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', padding: '1rem'
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+              borderRadius: '12px', boxShadow: 'var(--shadow-lg)',
+              padding: '1.1rem 1.1rem 0.9rem', width: '100%', maxWidth: '430px'
+            }}
+          >
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-primary)', margin: '0 0 0.6rem' }}>
+              Método de suavizado
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              {SMOOTHING_METHODS.map(m => {
+                const selected = m.win === maWindow;
+                return (
+                  <button
+                    key={String(m.win)}
+                    onClick={() => { onSelect(m.win); setIsOpen(false); }}
+                    style={{
+                      display: 'flex', width: '100%', textAlign: 'left', gap: '0.6rem',
+                      alignItems: 'flex-start', padding: '0.55rem 0.65rem', border: 'none',
+                      borderRadius: '8px', cursor: 'pointer',
+                      background: selected ? 'var(--color-accent-light, #eceef5)' : 'transparent'
+                    }}
+                    onMouseEnter={e => { if (!selected) e.currentTarget.style.backgroundColor = 'var(--bg-main)'; }}
+                    onMouseLeave={e => { if (!selected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                  >
+                    <span style={{ fontSize: '0.82rem', fontWeight: 800, color: selected ? 'var(--color-accent)' : 'var(--text-primary)', minWidth: '110px' }}>
+                      {selected ? `✓ ${m.label}` : m.label}
+                    </span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                      {m.desc}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.7rem' }}>
+              <button
+                className="btn"
+                onClick={() => setIsOpen(false)}
+                style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', fontWeight: 600 }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
 const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -152,7 +357,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
     tendencia: false
   });
 
-  // null | 3 | 6 | 12
+  // null | 3 | 6 | 12 | 'lowess' | 'sg'
   const [maWindow, setMAWindow] = useState(null);
 
   // Rango confirmado del histórico (lo que ve la gráfica). null = periodo completo.
@@ -276,11 +481,15 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
   const getExportData = () => {
     const valLabel = isVictimasBase ? "Víctimas" : "Incidencia";
     const actualValLabel = metricType === 'rate' ? `${valLabel} (Tasa por 100k hab.)` : valLabel;
-    const maLabel = maWindow === 12
-      ? `Smoothing (MA12)`
-      : maWindow
-        ? `Prom. Móvil ${maWindow}M`
-        : null;
+    const maLabel = maWindow === 'lowess'
+      ? `LOWESS`
+      : maWindow === 'sg'
+        ? `Savitzky-Golay`
+        : maWindow === 12
+          ? `Smoothing (MA12)`
+          : maWindow
+            ? `Prom. Móvil ${maWindow}M`
+            : null;
 
     const headers = maLabel
       ? ["Año-Mes", actualValLabel, maLabel]
@@ -382,7 +591,13 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
       });
     };
 
-    const maEntries = maWindow ? computeMA(maWindow) : null;
+    const maEntries = !maWindow
+      ? null
+      : maWindow === 'lowess'
+        ? computeLowess(numericVisible)
+        : maWindow === 'sg'
+          ? computeSavitzkyGolay(numericVisible)
+          : computeMA(maWindow);
     const maMap = {};
     if (maEntries) {
       maEntries.forEach(entry => {
@@ -424,26 +639,12 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
     setActiveToggles(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleMAToggle = (win) => {
-    setMAWindow(prev => prev === win ? null : win);
-  };
-
   const toggleButtons = [
     { key: 'promedio', label: 'Promedio' },
     { key: 'maximo', label: 'Máximo' },
     { key: 'minimo', label: 'Mínimo' },
     { key: 'tendencia', label: 'Tendencia' }
   ];
-
-  const maButtons = [
-    { win: 3,  label: '3M' },
-    { win: 6,  label: '6M' },
-    { win: 12, label: 'Suavizado' }
-  ];
-
-  const [showMAInfo, setShowMAInfo] = useState(false);
-  const infoRef = useRef(null);
-  const [infoPos, setInfoPos] = useState({ top: 0, right: 0 });
 
   const btnStyle = (active) => ({
     padding: '0.25rem 0.55rem',
@@ -462,7 +663,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
   const originalOpacity = maWindow ? 0.3 : 1;
   const originalFillOpacity = maWindow ? 0.08 : 1;
 
-  const maLabel = maWindow === 12 ? 'Suavizado (MA 12M)' : maWindow ? `MA ${maWindow}M` : '';
+  const maLabel = maWindow === 'lowess' ? 'LOWESS' : maWindow === 'sg' ? 'Savitzky-Golay' : maWindow === 12 ? 'MA 12M' : maWindow ? `MA ${maWindow}M` : '';
 
   return (
     <div 
@@ -494,91 +695,8 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
               {/* Separador visual */}
               <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
 
-              {/* Botones de Promedio Móvil + Info */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
-                {maButtons.map(({ win, label }) => (
-                  <button
-                    key={win}
-                    onClick={() => handleMAToggle(win)}
-                    style={btnStyle(maWindow === win)}
-                  >
-                    {label}
-                  </button>
-                ))}
-
-                {/* Botón de info */}
-                <button
-                  ref={infoRef}
-                  onMouseEnter={() => {
-                    if (infoRef.current) {
-                      const rect = infoRef.current.getBoundingClientRect();
-                      setInfoPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
-                    }
-                    setShowMAInfo(true);
-                  }}
-                  onMouseLeave={() => setShowMAInfo(false)}
-                  style={{
-                    width: '18px',
-                    height: '18px',
-                    borderRadius: '50%',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-main)',
-                    color: 'var(--text-secondary)',
-                    fontSize: '0.65rem',
-                    fontWeight: 700,
-                    cursor: 'default',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    lineHeight: 1,
-                    marginLeft: '2px',
-                  }}
-                >
-                  ?
-                </button>
-
-                {/* Popover de explicación */}
-                {showMAInfo && (
-                  <div style={{
-                    position: 'fixed',
-                    top: `${infoPos.top}px`,
-                    right: `${infoPos.right}px`,
-                    width: '280px',
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '10px',
-                    boxShadow: 'var(--shadow-lg)',
-                    padding: '0.85rem 1rem',
-                    zIndex: 9999,
-                    pointerEvents: 'none',
-                  }}>
-                    <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-primary)', marginBottom: '0.5rem' }}>
-                      Promedio Móvil (PM)
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                      <div>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-accent)' }}>3M — </span>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                          Promedio de los últimos 3 meses. Reduce el ruido mensual conservando el detalle de corto plazo.
-                        </span>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-accent)' }}>6M — </span>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                          Promedio de los últimos 6 meses. Elimina la variación estacional semestral y muestra la tendencia media.
-                        </span>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-accent)' }}>Suavizado — </span>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                          Promedio anual de 12 meses. Elimina la estacionalidad y revela la tendencia estructural de largo plazo.
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              {/* Menú de suavizado */}
+              <SmoothingMenu maWindow={maWindow} onSelect={(win) => setMAWindow(win)} btnStyle={btnStyle} />
 
               {/* Separador visual */}
               <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
@@ -647,91 +765,8 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
             {/* Separador visual */}
             <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
 
-            {/* Botones de Promedio Móvil + Info */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
-              {maButtons.map(({ win, label }) => (
-                <button
-                  key={win}
-                  onClick={() => handleMAToggle(win)}
-                  style={btnStyle(maWindow === win)}
-                >
-                  {label}
-                </button>
-              ))}
-
-              {/* Botón de info */}
-              <button
-                ref={infoRef}
-                onMouseEnter={() => {
-                  if (infoRef.current) {
-                    const rect = infoRef.current.getBoundingClientRect();
-                    setInfoPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
-                  }
-                  setShowMAInfo(true);
-                }}
-                onMouseLeave={() => setShowMAInfo(false)}
-                style={{
-                  width: '18px',
-                  height: '18px',
-                  borderRadius: '50%',
-                  border: '1px solid var(--border-color)',
-                  background: 'var(--bg-main)',
-                  color: 'var(--text-secondary)',
-                  fontSize: '0.65rem',
-                  fontWeight: 700,
-                  cursor: 'default',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  lineHeight: 1,
-                  marginLeft: '2px',
-                }}
-              >
-                ?
-              </button>
-
-              {/* Popover de explicación */}
-              {showMAInfo && (
-                <div style={{
-                  position: 'fixed',
-                  top: `${infoPos.top}px`,
-                  right: `${infoPos.right}px`,
-                  width: '280px',
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '10px',
-                  boxShadow: 'var(--shadow-lg)',
-                  padding: '0.85rem 1rem',
-                  zIndex: 9999,
-                  pointerEvents: 'none',
-                }}>
-                  <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-primary)', marginBottom: '0.5rem' }}>
-                    Promedio Móvil (PM)
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                    <div>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-accent)' }}>3M — </span>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                        Promedio de los últimos 3 meses. Reduce el ruido mensual conservando el detalle de corto plazo.
-                      </span>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-accent)' }}>6M — </span>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                        Promedio de los últimos 6 meses. Elimina la variación estacional semestral y muestra la tendencia media.
-                      </span>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-accent)' }}>Suavizado — </span>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                        Promedio anual de 12 meses. Elimina la estacionalidad y revela la tendencia estructural de largo plazo.
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Menú de suavizado */}
+            <SmoothingMenu maWindow={maWindow} onSelect={(win) => setMAWindow(win)} btnStyle={btnStyle} />
           </div>
         </div>
       )}
