@@ -9,6 +9,90 @@ import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import DrillDownModal from './DrillDownModal';
 import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
 
+// Selector de tamaño de letra (solo barras): compone con la escala fullscreen.
+// Se persiste en localStorage para que sobreviva recargas.
+const FONT_BOOST_KEY = 'barChartFontScale';
+const FONT_OPTIONS = [
+  { value: 0.85, label: 'Letra chica' },
+  { value: 1, label: 'Letra normal' },
+  { value: 1.3, label: 'Letra grande' }
+];
+
+const FontSizeSelect = ({ value, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef(null);
+  const active = FONT_OPTIONS.find(o => o.value === value) || FONT_OPTIONS[1];
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) setIsOpen(false);
+    };
+    const handleKey = (e) => { if (e.key === 'Escape') setIsOpen(false); };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [isOpen]);
+
+  return (
+    <div style={{ position: 'relative' }} ref={containerRef}>
+      <button
+        onClick={() => setIsOpen(v => !v)}
+        title="Tamaño de letra de la gráfica"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+          padding: '0.4rem 0.75rem', fontSize: '0.75rem', fontWeight: 600,
+          borderRadius: '8px', border: '1px solid var(--border-color)',
+          background: '#ffffff', color: 'var(--text-secondary)', cursor: 'pointer',
+          boxShadow: 'var(--shadow-sm)', whiteSpace: 'nowrap'
+        }}
+      >
+        {active.label}
+        <span style={{ fontSize: '0.6rem', color: 'var(--color-accent)' }}>▾</span>
+      </button>
+      {isOpen && (
+        <div
+          role="menu"
+          style={{
+            position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: '150px',
+            background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+            borderRadius: '10px', boxShadow: 'var(--shadow-lg)', padding: '0.35rem', zIndex: 9999
+          }}
+        >
+          {FONT_OPTIONS.map(o => {
+            const selected = o.value === value;
+            return (
+              <button
+                key={o.value}
+                role="menuitemradio"
+                aria-checked={selected}
+                onClick={() => { onChange(o.value); setIsOpen(false); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%',
+                  padding: '0.45rem 0.6rem', border: 'none', borderRadius: '7px',
+                  cursor: 'pointer', fontSize: '0.8rem', fontWeight: selected ? 700 : 500,
+                  color: selected ? 'var(--color-accent)' : 'var(--text-primary)',
+                  background: selected ? 'var(--color-accent-light, #eceef5)' : 'transparent'
+                }}
+                onMouseEnter={e => { if (!selected) e.currentTarget.style.backgroundColor = 'var(--bg-main)'; }}
+                onMouseLeave={e => { if (!selected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+              >
+                <span style={{ width: '1rem', fontWeight: 800 }}>{selected ? '✓' : ''}</span>
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -216,6 +300,22 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
   const fsScale = useFullscreenScale(isFullScreen);
   const F = (base) => scaleSize(base, fsScale);
 
+  // Multiplicador de letra elegido por el usuario (persiste en localStorage)
+  const [fontBoost, setFontBoost] = useState(() => {
+    try {
+      const v = parseFloat(localStorage.getItem(FONT_BOOST_KEY));
+      return FONT_OPTIONS.some(o => o.value === v) ? v : 1;
+    } catch {
+      return 1;
+    }
+  });
+  const handleFontBoost = (v) => {
+    setFontBoost(v);
+    try { localStorage.setItem(FONT_BOOST_KEY, String(v)); } catch { /* noop */ }
+  };
+  // El multiplicador de letra solo rige en fullscreen; la vista normal queda intacta
+  const FF = (base) => (isFullScreen ? Math.max(1, Math.round(F(base) * fontBoost)) : F(base));
+
   return (
     <div 
       ref={cardRef} 
@@ -229,12 +329,15 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
           metricType={metricType}
           onClose={() => setIsFullScreen(false)}
           extraActions={
-            <ExportMenu
-              elementRef={cardRef}
-              imageFilename={isVictimasMun ? "victimas_por_mes.png" : (isVictimasBase ? "victimas_por_anio.png" : "incidencia_por_anio.png")}
-              onDownloadCSV={handleDownloadCSV}
-              onCopyTable={handleCopyData}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <FontSizeSelect value={fontBoost} onChange={handleFontBoost} />
+              <ExportMenu
+                elementRef={cardRef}
+                imageFilename={isVictimasMun ? "victimas_por_mes.png" : (isVictimasBase ? "victimas_por_anio.png" : "incidencia_por_anio.png")}
+                onDownloadCSV={handleDownloadCSV}
+                onCopyTable={handleCopyData}
+              />
+            </div>
           }
         />
       ) : (
@@ -278,7 +381,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}
-            margin={{ top: F(30), right: 10, left: 0, bottom: F(6) }}
+            margin={{ top: F(30), right: 10, left: 0, bottom: FF(6) }}
           >
             <defs>
               <linearGradient id="colorBarYears" x1="0" y1="0" x2="0" y2="1">
@@ -289,16 +392,16 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: F(11), fill: 'var(--text-secondary)' }}
+              tick={{ fontSize: FF(13), fill: 'var(--text-secondary)' }}
               axisLine={false}
               tickLine={false}
-              tickMargin={F(6)}
+              tickMargin={FF(6)}
               minTickGap={-200}
             />
             <YAxis hide={true} />
             <Tooltip
               cursor={{ fill: 'var(--bg-main)' }}
-              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow-md)', fontSize: F(12) }}
+              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow-md)', fontSize: FF(12) }}
               formatter={(value) => [formatValue(value), tooltipLabel]}
             />
             <Bar dataKey="value" radius={[F(6), F(6), 0, 0]} fill="url(#colorBarYears)"
@@ -311,15 +414,15 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
                 content={(props) => {
                   const { x, y, width, value, index } = props;
                   // Si la barra es muy delgada, saltamos las etiquetas impares
-                  if (width < F(45) && index % 2 !== 0) return null;
+                  if (width < FF(45) && index % 2 !== 0) return null;
                   return (
                     <text
                       x={x + width / 2}
-                      y={y - F(8)}
+                      y={y - FF(8)}
                       fill="var(--text-primary)"
                       textAnchor="middle"
                       dominantBaseline="middle"
-                      fontSize={F(10)}
+                      fontSize={FF(13)}
                       fontWeight="700"
                     >
                       {formatValue(value)}

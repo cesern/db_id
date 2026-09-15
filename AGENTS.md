@@ -205,6 +205,7 @@ convertir_datos.bat / python convertir_datos.py [--delitos --victimas --victimas
 - Tabla Sidebar: bloque fullscreen (variante `40px/120px`) escala fuentes y columnas; la variante compacta normal (`30px/80px`) intacta.
 - Mapa: `mapWrapRef` + `ResizeObserver`; en fullscreen `scale = min(1.9w, 2.5h)` nacional o `min(8.9w, 8.7h)` Sonora (×0.96 margen), centros fijos; en normal se conservan constantes 1200/4000.
 - `FullScreenHeader` solo existe en overlay: bump fijo (título 1.84rem, badges 0.83rem).
+- Barra de filtros en navy `#081C3A` (clase `.filters-bar-dark` en `Filters.jsx` + overrides en `index.css`): labels `#9fb0cc`, inputs blancos con borde `#33507c` (foco dorado `#C8A96B`), toggle métrica translúcido, `+ Agregar delito` dorado. Zona de mando oscura vs zona de datos clara.
 
 ## 14. Dependencias importantes
 
