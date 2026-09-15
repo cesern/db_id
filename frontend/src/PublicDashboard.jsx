@@ -18,7 +18,7 @@ const DATASET_COLORS = {
 const INITIAL_FILTERS = {
   dataset: "delitos",
   anio: 2026,
-  entidad: "All",
+  entidad: "Sonora",
   municipio: "All",
   bienJuridico: [],
   tipoDelito: [],
@@ -85,7 +85,7 @@ function PublicDashboard() {
     const cleared = {
       dataset: selectedFilters.dataset,
       anio: selectedFilters.anio,
-      entidad: 'All',
+      entidad: 'Sonora',
       municipio: 'All',
       bienJuridico: [],
       tipoDelito: [],
@@ -266,7 +266,7 @@ function PublicDashboard() {
 
             {/* Center Column */}
             <div className="dashboard-col">
-              <div className="card" style={{ minHeight: 'var(--chart-card-min-height, 300px)', display: 'flex', flexDirection: 'column', padding: 'var(--card-padding, 1rem)' }}>
+              <div className="card" style={{ flex: 1, minHeight: 'var(--chart-card-min-height, 300px)', display: 'flex', flexDirection: 'column', padding: 'var(--card-padding, 1rem)' }}>
                 <ChartBarYears
                   selectedFilters={appliedFilters}
                   metricType={metricType}
@@ -274,7 +274,7 @@ function PublicDashboard() {
                 />
               </div>
 
-              <div className="card" style={{ minHeight: 'var(--chart-trend-card-min-height, 250px)', display: 'flex', flexDirection: 'column', padding: 'var(--card-padding, 1rem)' }}>
+              <div className="card" style={{ flex: 1, minHeight: 'var(--chart-trend-card-min-height, 250px)', display: 'flex', flexDirection: 'column', padding: 'var(--card-padding, 1rem)' }}>
                 <ChartLineTrend
                   selectedFilters={appliedFilters}
                   metricType={metricType}

@@ -381,7 +381,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}
-            margin={{ top: F(30), right: 10, left: 0, bottom: FF(6) }}
+            margin={{ top: F(30), right: FF(10), left: FF(10), bottom: FF(6) }}
           >
             <defs>
               <linearGradient id="colorBarYears" x1="0" y1="0" x2="0" y2="1">
@@ -413,8 +413,11 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
                 position="top"
                 content={(props) => {
                   const { x, y, width, value, index } = props;
-                  // Si la barra es muy delgada, saltamos las etiquetas impares
-                  if (width < FF(45) && index % 2 !== 0) return null;
+                  const fs = FF(13);
+                  const text = formatValue(value);
+                  // Solo se oculta en el caso extremo (texto 2x más ancho que la barra)
+                  const textW = String(text).length * fs * 0.6;
+                  if (textW > width * 2) return null;
                   return (
                     <text
                       x={x + width / 2}
@@ -422,10 +425,10 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
                       fill="var(--text-primary)"
                       textAnchor="middle"
                       dominantBaseline="middle"
-                      fontSize={FF(13)}
+                      fontSize={fs}
                       fontWeight="700"
                     >
-                      {formatValue(value)}
+                      {text}
                     </text>
                   );
                 }}
