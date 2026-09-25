@@ -93,7 +93,7 @@ Consultas principales (todas GET sin auth en `main.py`):
 
 - Entrada `index.html -> /src/main.jsx -> App.jsx`. Rutas en `App.jsx:19-31`: `/ -> PublicDashboard`, `/admin,/admin/login -> Login`, `/admin/dashboard -> AdminDashboard` (envuelto en `ProtectedRoute` que es no-op, retorna `children`), `* -> /`.
 - `src/api.js:11`: `export const API_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000'`. Excepciones: `admin/Login.jsx` usa `VITE_API_URL` sin fallback, `admin/AdminDashboard.jsx` usa `|| 'http://localhost:8000'` (host distinto).
-- `PublicDashboard.jsx`: `INITIAL_FILTERS={dataset:"delitos", anio:2026, entidad:"All", municipio:"All", resto []}`, `DATASET_COLORS={delitos:#455993, victimas:#ef4444, victimas_mun:#7c3aed}`. Patrón central `selectedFilters` (edición) vs `appliedFilters` (consultas) + `handleApply/handleClear/handleDatasetChange` (este último aplica inmediato). Splash `#081C3A/#C8A96B` con timeout 10s + `componentsLoading {filters,sidebar,barChart,lineChart,map:true, topCrimes:false}`.
+- `PublicDashboard.jsx`: `INITIAL_FILTERS={dataset:"delitos", anio:null (se fija al año más reciente vía /api/filtros), entidad:"Sonora", municipio:"All", resto []}`, `DATASET_COLORS={delitos:#455993, victimas:#ef4444, victimas_mun:#7c3aed, alto_impacto:#b91c1c}`. Patrón central `selectedFilters` (edición) vs `appliedFilters` (consultas) + `handleApply/handleClear/handleDatasetChange` (este último aplica inmediato). Splash `#081C3A/#C8A96B` con timeout 10s + `componentsLoading {filters,sidebar,barChart,lineChart,map:true, topCrimes:false}`.
 - Componentes y endpoints:
   - `Filters.jsx`: 2 llamadas a `/api/filtros` (base por `applied`, cascada por `selected` + purga inválidos). `MultiSelectDropdown` con buscador + master checkbox indeterminate. Meses `MONTHS[12]` nombres completos. Municipio oculto si `dataset==victimas`, deshabilitado si `entidad==All`.
   - `SidebarLeft.jsx`: `Promise.all([/api/total_incidencia, /api/incidencia_por_entidad, +/api/incidencia_por_municipio si entidad!=All y no victimas])` con `AbortController`. KPI default `Sonora` si `Nacional`. Tabla entidades/municipios con rank `method=min`.
@@ -171,12 +171,13 @@ convertir_datos.bat / python convertir_datos.py [--delitos --victimas --victimas
 
 - `main.py:18-24` CORS `*` + `allow_credentials=True` ignora `settings.get_cors_origins_list`. Intencional en dev, inválido en spec prod.
 - `main.py:81-82` `CACHE_MERGED_POP` se calcula pero nunca se usa.
-- `main.py:328,392,98` default año `2026` hardcodeado en 3 sitios + `PublicDashboard.jsx:19` `anio:2026`. Cambiar en uno rompe tasas.
+- Año por defecto (resuelto 2026-09-24): backend usa `anio_por_defecto()` en `main.py` (= `CACHE_ANIO_RECIENTE`, `MAX("Año")` de delitos calculado en `reload_duckdb_views`; fallback año en curso) cuando `anio` es None. Frontend arranca con `INITIAL_FILTERS.anio=null`; `PublicDashboard` pide `/api/filtros?dataset=delitos` y fija `max(anios)` (fallback año en curso) en selected+applied; Filters y grid no se renderizan hasta tener año (splash lo cubre). No reintroducir años fijos.
+- Rate con `anio=None` suma todos los años y divide por la población de un solo año (cifra inflada). El frontend siempre manda `anio` en KPI/entidad/municipio, así que no se nota; no llamar esos endpoints en modo rate sin `anio`.
 - `convertir_datos.py:444-465` `convertir_poblacion_csv` referencia `BARRA,nfc,reparar_encoding` definidos solo dentro de `convertir_csv` + `import chardet` no declarado -> `NameError/ImportError` seguro al procesar población. No tocar sin mover helpers a scope global y agregar `chardet` a requirements.
 - `admin.py:70` `uploads_dir / file.filename` sin sanitizar (path traversal `../../`) + sin límite tamaño + validación solo headers `nrows=0`.
 - `db` DuckDB global sin pool, `etl_status` dict global sin lock (raza en `run-etl` concurrente, mitigado parcialmente con check `processing`).
 - `"N/D"` string en respuestas numéricas (`total_incidencia`, `incidencia_por_*` rate) — frontend ya hace passthrough en `formatNumber`, pero rompe si se asume number.
-- `ranking_historico`: param `target_state="Sonora"` nunca usado; `entidad` filtro ignorado por diseño.
+- `ranking_historico`: param `target_state="Sonora"` nunca usado; `entidad` filtro ignorado por diseño. Siempre devuelve lista plana `[{period,name,rank,total}]` (vacía = `[]`; antes devolvía `{"series":[],"target_data":[]}` si no había filas y rompía `HistoryRankings`). El frontend además valida con `Array.isArray`.
 - `App.jsx:10-12` `ProtectedRoute` no protege; auth real en `AdminDashboard` vía `/api/admin/me -> navigate('/admin/login')`.
 - `App.css` `.card{padding:2em}` colisiona con `.card` de `index.css`. Orden de import (`App.jsx:7` importa `App.css` después de `main.jsx:index.css`) define ganador.
 - `index.html lang="en"` para app española; `build_output.txt` fallo histórico `prop-types` ya resuelto en `package.json` pero exige `npm install` limpio.
@@ -189,23 +190,25 @@ convertir_datos.bat / python convertir_datos.py [--delitos --victimas --victimas
 - Frontend: `INITIAL_FILTERS.altoImpacto`, `ALTO_IMPACTO_DEFAULT` (7 presets activas al entrar), customs `CUSTOM:` en estado `PublicDashboard` (persisten entre datasets). Cada componente que consulta mapea a `wireDataset` y anexa el param, incluidos drills (`ChartBarYears`, `MapMexico` vía `buildFilterParams`). `Filters.jsx` muestra chips + `+ Agregar delito` (conserva año/entidad/municipio/meses/métrica); modal nuevo `AltoImpactoModal.jsx` en cascada vía `/api/filtros?dataset=delitos`, dedup por config exacta (`utils/altoImpacto.js`), prohíbe `|` en nombres. Export con etiqueta `Delitos de Alto Impacto` + filenames `*alto_impacto*`.
 - `HistoryRankings` y `TableTopCrimes` fuera de alcance (no envían ni aceptan `altoImpacto`).
 
-## 14c. Pulido visual (2026-09-12)
+## 14c. Pulido visual — PENDIENTE, NO IMPLEMENTADO (verificado 2026-09-24)
 
-- Tokens: `--color-accent-dark #38487a` (hovers), `--font-display Montserrat` (import real en `index.css`; Header/splash/KPI lo usan), sin `#2563eb` en renders (sombras con `rgba(69,89,147,*)`).
-- `App.css` eliminado (colisionaba `.card`); `index.html lang="es"` + theme-color/description.
-- Números siempre `toLocaleString('es-MX', ...)`; CSV `Suavizado (MA12)` en español.
-- `:focus-visible` global con outline accent; transitions específicas (no `all`).
-- `ChartTooltip.jsx` compartido (Barras/Línea, mismo lenguaje que rankings); `EmptyState.jsx` en Sidebar/Bar/Línea/Mapa (+ fullscreen); `toast.error` en todos los fetch públicos.
-- KPI hero: cifra principal con display font + regla dorada; badges fullscreen monocromos pill; meses colapsables en `Filters` (default expandido).
+Esta sección describía cambios que nunca llegaron a ningún commit. Estado real del código:
+- NO existen `ChartTooltip.jsx` ni `EmptyState.jsx`; `toast.error` solo en `AdminDashboard` y `exportUtils`.
+- `App.css` sigue existiendo e importado en `App.jsx:7` (colisión `.card`); `index.html` sigue `lang="en"`, sin theme-color/description.
+- NO hay `--color-accent-dark`, `--font-display` ni import de Montserrat en `index.css` (solo Inter); Montserrat se pide inline en `Header.jsx` y splash de `PublicDashboard.jsx` sin cargarse.
+- `#2563eb` sigue en `index.css`, `ExportMenu`, `Filters`, `Header`, `LoadingSpinner`, `SidebarLeft`, `TableTopCrimes`.
+- Sin `:focus-visible`; `toLocaleString('es-MX')` solo parcial; CSV de línea aún exporta `Smoothing (MA12)` en inglés (`ChartLineTrend.jsx:489`).
+- Sin KPI hero con regla dorada, sin meses colapsables en `Filters`, sin barra de filtros navy (`.filters-bar-dark`).
+Si se retoma, tratarlo como trabajo nuevo.
 
-## 14c. Fullscreen con escala (2026-09-12)
+## 14d. Fullscreen con escala (2026-09-12, implementado)
 
 - Hook compartido `src/utils/fullscreenScale.js`: `useFullscreenScale(isFullScreen)` → factor `clamp(min(vw/1280, vh/720), 1.25, 1.75)` con listener `resize` (~1.5 a 1080p; mínimo 1.25 para que siempre se note); `scaleSize(base, s)`. En vista normal siempre 1 (sin cambios visuales).
 - Barras/Líneas/Rankings: ticks, etiquetas y tooltips vía `F(n)`; slider de rango con prop `labelScale`; tooltip de rankings con prop `fs`.
 - Tabla Sidebar: bloque fullscreen (variante `40px/120px`) escala fuentes y columnas; la variante compacta normal (`30px/80px`) intacta.
 - Mapa: `mapWrapRef` + `ResizeObserver`; en fullscreen `scale = min(1.9w, 2.5h)` nacional o `min(8.9w, 8.7h)` Sonora (×0.96 margen), centros fijos; en normal se conservan constantes 1200/4000.
 - `FullScreenHeader` solo existe en overlay: bump fijo (título 1.84rem, badges 0.83rem).
-- Barra de filtros en navy `#081C3A` (clase `.filters-bar-dark` en `Filters.jsx` + overrides en `index.css`): labels `#9fb0cc`, inputs blancos con borde `#33507c` (foco dorado `#C8A96B`), toggle métrica translúcido, `+ Agregar delito` dorado. Zona de mando oscura vs zona de datos clara.
+- (No implementado) Barra de filtros en navy `.filters-bar-dark`: no existe en el código; ver 14c.
 
 ## 14. Dependencias importantes
 

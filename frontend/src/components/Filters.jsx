@@ -245,7 +245,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
             rangosEdad: res.data.rangosEdad || []
           }));
 
-          // Solo inicializar el año si está en null (no sobreescribir 2026)
+          // Solo inicializar el año si está en null (PublicDashboard ya lo fija al año más reciente)
           setSelectedFilters(prev => {
             if (prev.anio === null && res.data.anios && res.data.anios.length > 0) {
               return { ...prev, anio: Math.max(...res.data.anios) };

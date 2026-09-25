@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import json
 import time
+from datetime import datetime
 import duckdb
 import pandas as pd
 from app.config import settings
@@ -39,9 +40,10 @@ CACHE_ENT_MAP = None
 CACHE_MERGED_POP = None
 CACHE_MUN_MAP = None
 CACHE_MUN_POB_DF = None
+CACHE_ANIO_RECIENTE = None
 
 def reload_duckdb_views():
-    global CACHE_POB_DF, CACHE_ENT_MAP, CACHE_MERGED_POP, CACHE_MUN_MAP, CACHE_MUN_POB_DF
+    global CACHE_POB_DF, CACHE_ENT_MAP, CACHE_MERGED_POP, CACHE_MUN_MAP, CACHE_MUN_POB_DF, CACHE_ANIO_RECIENTE
     # Drop existing views to recreate them
     views_to_drop = ["delitos", "victimas", "victimas_mun", "poblacion"]
     for v in views_to_drop:
@@ -79,6 +81,9 @@ def reload_duckdb_views():
             if 'Cve. Municipio' in CACHE_MUN_MAP.columns:
                 CACHE_MUN_MAP['Cve. Municipio'] = CACHE_MUN_MAP['Cve. Municipio'].astype(int)
 
+            res = db.cursor().execute('SELECT MAX("Año") FROM delitos').fetchone()
+            CACHE_ANIO_RECIENTE = int(res[0]) if res and res[0] is not None else None
+
         if CACHE_ENT_MAP is not None and CACHE_POB_DF is not None:
             CACHE_MERGED_POP = pd.merge(CACHE_ENT_MAP, CACHE_POB_DF, left_on='Clave_Ent', right_on='CLAVE_ENT')
     except Exception as e:
@@ -95,8 +100,12 @@ def get_columns(dataset_name: str) -> list[str]:
     except Exception:
         return []
 
+def anio_por_defecto() -> int:
+    """Año más reciente con datos (delitos); si no hay datos, el año en curso."""
+    return CACHE_ANIO_RECIENTE if CACHE_ANIO_RECIENTE is not None else datetime.now().year
+
 def get_poblacion_valor(anio: int, entidad: Optional[str] = "All", municipio: Optional[str] = "All") -> int:
-    y = int(anio) if anio is not None else 2026
+    y = int(anio) if anio is not None else anio_por_defecto()
     
     # 1. Resolve closest year using cached years if available
     if CACHE_POB_DF is not None:
@@ -392,7 +401,7 @@ async def obtener_incidencia_por_entidad(
     if df_res.empty: return []
     
     if metric_type == "rate":
-        y = int(anio) if anio is not None else 2026
+        y = int(anio) if anio is not None else anio_por_defecto()
         try:
             if CACHE_ENT_MAP is not None and CACHE_POB_DF is not None:
                 ent_map = CACHE_ENT_MAP
@@ -457,7 +466,7 @@ async def obtener_incidencia_por_municipio(
     if df_res.empty: return []
     
     if metric_type == "rate":
-        y = int(anio) if anio is not None else 2026
+        y = int(anio) if anio is not None else anio_por_defecto()
         try:
             if CACHE_MUN_MAP is not None and CACHE_MUN_POB_DF is not None:
                 mun_map = CACHE_MUN_MAP
@@ -745,7 +754,7 @@ async def obtener_ranking_historico(
 
     df_res = db.cursor().execute(query, params).df()
     if df_res.empty:
-        return {"series": [], "target_data": []}
+        return []
 
     if temporalidad == "mensual":
         mes_map = {

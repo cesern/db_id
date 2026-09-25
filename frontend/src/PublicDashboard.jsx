@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
+import { API_URL } from './api';
 import Header from './components/Header';
 import Filters from './components/Filters';
 import SidebarLeft from './components/SidebarLeft';
@@ -15,9 +17,10 @@ const DATASET_COLORS = {
   alto_impacto: "#b91c1c"
 };
 
+// anio: null hasta conocer el año más reciente con datos (ver efecto de año inicial)
 const INITIAL_FILTERS = {
   dataset: "delitos",
-  anio: 2026,
+  anio: null,
   entidad: "Sonora",
   municipio: "All",
   bienJuridico: [],
@@ -68,6 +71,26 @@ function PublicDashboard() {
 
   // Cápsulas personalizadas (CUSTOM:...) creadas en alto_impacto; persisten al cambiar de dataset
   const [customCapsules, setCustomCapsules] = useState([]);
+
+  // Año inicial = año más reciente disponible en delitos (fallback: año en curso)
+  useEffect(() => {
+    const controller = new AbortController();
+    const setAnio = (anio) => {
+      setSelectedFilters(prev => (prev.anio === null ? { ...prev, anio } : prev));
+      setAppliedFilters(prev => (prev.anio === null ? { ...prev, anio } : prev));
+    };
+    axios.get(`${API_URL}/api/filtros`, { params: { dataset: 'delitos' }, signal: controller.signal })
+      .then(res => {
+        const anios = res.data?.anios || [];
+        setAnio(anios.length > 0 ? Math.max(...anios) : new Date().getFullYear());
+      })
+      .catch(err => {
+        if (axios.isCancel(err)) return;
+        console.error("Error obteniendo año inicial", err);
+        setAnio(new Date().getFullYear());
+      });
+    return () => controller.abort();
+  }, []);
 
   // Mecanismo de seguridad: quitar pantalla de carga máximo en 10s pase lo que pase
   useEffect(() => {
@@ -238,6 +261,7 @@ function PublicDashboard() {
       />
 
       {activeTab === 'dashboard' ? (
+        appliedFilters.anio === null ? null : (
         <>
           <Filters
             dataset={selectedFilters.dataset}
@@ -295,6 +319,7 @@ function PublicDashboard() {
             </div>
           </main>
         </>
+        )
       ) : (
         <HistoryRankings tempColor={DATASET_COLORS[appliedFilters.dataset] || "#455993"} />
       )}

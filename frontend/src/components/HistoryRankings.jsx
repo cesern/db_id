@@ -351,7 +351,7 @@ const HistoryRankings = ({ tempColor }) => {
         if (applied.filters.rangoEdad.length > 0) params.rangoEdad = applied.filters.rangoEdad.join('|');
 
         const res = await axios.get(`${API_URL}/api/ranking_historico`, { params });
-        setRankingData(res.data || []);
+        setRankingData(Array.isArray(res.data) ? res.data : []);
       } catch (err) {
         console.error("Error fetching ranking", err);
       } finally {
