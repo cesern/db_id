@@ -5,3 +5,4 @@ __pycache__/
 .opencode/
 skills-lock.json
 AGENTS.MD
+.claude/
