@@ -87,7 +87,7 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
     if (badges.length === 0) return null;
 
     return (
-      <div style={{
+      <div className="fs-badges" style={{
         display: 'flex',
         alignItems: 'center',
         gap: '0.4rem',
@@ -123,7 +123,7 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
   };
 
   return (
-    <div style={{
+    <div className="fs-header" style={{
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
@@ -133,7 +133,7 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
       backgroundColor: '#ffffff'
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-        <h2 style={{
+        <h2 className="fs-title" style={{
           fontSize: '1.84rem',
           fontWeight: '700',
           color: 'var(--text-primary)',
@@ -148,6 +148,7 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
         {extraActions}
         <button
+          className="fs-close"
           onClick={onClose}
           style={{
             display: 'flex',

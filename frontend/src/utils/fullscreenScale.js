@@ -12,6 +12,8 @@ export function useFullscreenScale(isFullScreen) {
   const compute = () => {
     if (typeof window === 'undefined') return 1;
     if (!isFullScreen) return 1;
+    // Pantallas chicas (celular, incluso horizontal): sin aumento, el espacio es escaso
+    if (window.innerWidth < 1024 || window.innerHeight < 600) return 1;
     const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
     return Math.min(1.75, Math.max(1.25, Math.round(s * 20) / 20));
   };
