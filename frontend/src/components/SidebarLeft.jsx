@@ -23,12 +23,38 @@ const rowHighlight = (m, isEntidades, activeEntityName, selectedMunicipio, entid
   return m.entidad === activeEntityName ? 'soft' : null;
 };
 
+// Filas que no son un municipio real ("No especificado", "Otros Municipios"): se muestran con su
+// cifra para que cuadren los totales, pero sin lugar (#) y al final; el resto se re-clasifica
+// (rank 'min': empates comparten lugar).
+const NO_MUNICIPIO = /^(no especificado|otros municipios)$/i;
+const rankMunicipios = (list) => {
+  const isReal = (m) => !NO_MUNICIPIO.test(String(m.municipio || m.name.split(',')[0]).trim());
+  const real = list.filter(isReal);
+  const rest = list.filter(m => !isReal(m)).map(m => ({ ...m, id: '—' }));
+  // Conserva el orden del backend; empate numérico con la fila anterior = mismo lugar
+  const ranked = real.map((m, i) => ({ ...m, id: i + 1 }));
+  for (let i = 1; i < ranked.length; i++) {
+    if (typeof ranked[i].value === 'number' && ranked[i].value === ranked[i - 1].value) ranked[i].id = ranked[i - 1].id;
+  }
+  return [...ranked, ...rest];
+};
+
 const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
-  const [totalIncidencia, setTotalIncidencia] = useState(0);
+  const [totalIncidencia, setTotalIncidencia] = useState(null); // null = aún sin respuesta → "—"
   const [entidades, setEntidades] = useState([]);
   const [municipios, setMunicipios] = useState([]);
   const [tableView, setTableView] = useState('entidades'); // 'entidades' | 'municipios'
-  const [loading, setLoading] = useState(false);
+  // <1024px: la tabla crece con la página (sin scroll propio) y muestra top 10 + "Ver todos"
+  const [isNarrow, setIsNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches);
+  const [showAllRows, setShowAllRows] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const onChange = (e) => setIsNarrow(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  // true desde el inicio: antes de la primera respuesta no se muestra un "sin datos" falso
+  const [loading, setLoading] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [error, setError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -123,7 +149,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
         }
         if (resEntidades.data) setEntidades(resEntidades.data);
         if (!isVictimas && resMunicipios?.data) {
-          setMunicipios(resMunicipios.data);
+          setMunicipios(rankMunicipios(resMunicipios.data));
         } else {
           setMunicipios([]);
         }
@@ -232,6 +258,13 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
   const rows = isEntidades ? entidades : municipios;
   const colLabel = isEntidades ? 'Entidad' : 'Municipio';
   
+  // Móvil: top 10 (más la fila resaltada si queda fuera) hasta pulsar "Ver todos"
+  const MOBILE_ROWS = 10;
+  const visibleRows = (isNarrow && !showAllRows)
+    ? rows.filter((m, i) => i < MOBILE_ROWS || rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio, entidadFiltrada) === 'strong')
+    : rows;
+  const hiddenCount = rows.length - visibleRows.length;
+
   const maxVal = rows.reduce((mx, r) => (typeof r.value === 'number' && r.value > mx ? r.value : mx), 0);
 
   const baseValLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
@@ -463,6 +496,9 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
               <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>de {totalEntidades}</span>
             )}
           </span>
+          {!error && activeEntityRank !== null && (
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{periodLabel}</span>
+          )}
         </div>
         {/* El total lleva la cifra larga: tarjeta más ancha que la del lugar (siempre corta) */}
         <div className="card kpi-card" style={{ flex: 1.6, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.2rem', padding: '0.85rem 1rem', position: 'relative', minWidth: 0 }}>
@@ -473,9 +509,9 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
           <span
             title={totalIsND ? 'Sin población CONAPO para calcular la tasa en este periodo' : undefined}
             className="tabular kpi-value"
-            style={{ '--chars': String(error ? '—' : formatNumber(totalIncidencia)).length, fontWeight: 700, color: 'var(--color-primary)', lineHeight: 1.1, letterSpacing: '-0.02em' }}
+            style={{ '--chars': String(error || totalIncidencia === null ? '—' : formatNumber(totalIncidencia)).length, fontWeight: 700, color: 'var(--color-primary)', lineHeight: 1.1, letterSpacing: '-0.02em' }}
           >
-            {error ? '—' : formatNumber(totalIncidencia)}
+            {error || totalIncidencia === null ? '—' : formatNumber(totalIncidencia)}
           </span>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
             {totalIsND && !error ? 'Sin población CONAPO para la tasa' : periodLabel}
@@ -577,12 +613,12 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
         </div>
 
         {/* Table Rows */}
-        <div style={{ overflowY: 'auto', flex: 1, padding: '0.25rem 0', position: 'relative', minHeight: '140px' }}>
+        <div className="sidebar-table-rows" style={{ overflowY: 'auto', flex: 1, padding: '0.25rem 0', position: 'relative', minHeight: '140px' }}>
           {error ? (
             <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />
           ) : (rows.length === 0 && !loading) ? (
             <EmptyState />
-          ) : rows.map((m) => {
+          ) : visibleRows.map((m) => {
             const level = rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio, entidadFiltrada);
               const hl = level === 'strong';
             const pct = maxVal > 0 && typeof m.value === 'number' ? Math.max(2, (m.value / maxVal) * 100) : 0;
@@ -628,6 +664,16 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
             );
           })}
         </div>
+        {hiddenCount > 0 && !error && (
+          <button type="button" className="table-more-btn" onClick={() => setShowAllRows(true)}>
+            Ver todos ({rows.length})
+          </button>
+        )}
+        {isNarrow && showAllRows && rows.length > MOBILE_ROWS && !error && (
+          <button type="button" className="table-more-btn" onClick={() => setShowAllRows(false)}>
+            Ver solo los primeros {MOBILE_ROWS}
+          </button>
+        )}
       </div>
     </>
   );

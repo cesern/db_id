@@ -35,7 +35,8 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [tooltipData, setTooltipData] = useState(null);
   const [stateData, setStateData] = useState([]);
   const [maxVal, setMaxVal] = useState(100);
-  const [loading, setLoading] = useState(false);
+  // true desde el inicio: antes de la primera respuesta no se muestra un "sin datos" falso
+  const [loading, setLoading] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
   const [drillModal, setDrillModal] = useState(null);

@@ -100,7 +100,8 @@ const FontSizeSelect = ({ value, onChange }) => {
 
 const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // true desde el inicio: antes de la primera respuesta no se muestra un "sin datos" falso
+  const [loading, setLoading] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [drillModal, setDrillModal] = useState(null);
   const [error, setError] = useState(false);

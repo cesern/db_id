@@ -35,8 +35,10 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
     // 4b. Dataset
     if (selectedFilters.dataset) {
       badges.push({
-        label: 'Dataset',
-        value: selectedFilters.dataset === 'delitos' ? 'Delitos' : selectedFilters.dataset === 'alto_impacto' ? 'Delitos Alto Impacto' : 'Víctimas'
+        label: 'Conjunto de datos',
+        value: selectedFilters.dataset === 'delitos' ? 'Delitos'
+          : selectedFilters.dataset === 'alto_impacto' ? 'Delitos Alto Impacto'
+          : selectedFilters.dataset === 'victimas_mun' ? 'Víctimas Municipios' : 'Víctimas'
       });
     }
 

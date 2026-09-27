@@ -322,7 +322,7 @@ const MorePeriods = ({ items, formatPeriodLabel, formatCardValue }) => {
 const HistoryRankings = ({ tempColor }) => {
   const [selectedEntidad, setSelectedEntidad] = useState('Sonora');
   const [dataset, setDataset] = useState('delitos');
-  const [temporalidad, setTemporalidad] = useState('mensual');
+  const [temporalidad, setTemporalidad] = useState('anual');
   const [mesAcumulado, setMesAcumulado] = useState('Agosto');
   const [metricType, setMetricType] = useState('absolute');
   const [isFading, setIsFading] = useState(false);
@@ -350,7 +350,7 @@ const HistoryRankings = ({ tempColor }) => {
   });
 
   const [applied, setApplied] = useState({
-    dataset: 'delitos', temporalidad: 'mensual', metricType: 'absolute', mesAcumulado: 'Agosto',
+    dataset: 'delitos', temporalidad: 'anual', metricType: 'absolute', mesAcumulado: 'Agosto',
     filters: { bienJuridico: [], tipoDelito: [], subtipoDelito: [], modalidad: [], sexo: [], rangoEdad: [] }
   });
 
@@ -704,8 +704,8 @@ const HistoryRankings = ({ tempColor }) => {
           <div style={{ display: 'flex', gap: '0.5rem 1rem', flex: '1 1 300px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
             {summaryEntidad && (
               <>
-                {renderPositionCard('Posición con menor incidencia', summaryEntidad.mejor, summaryEntidad.mejorItems)}
-                {renderPositionCard('Posición con mayor incidencia', summaryEntidad.peor, summaryEntidad.peorItems)}
+                {renderPositionCard('Mejor posición', summaryEntidad.mejor, summaryEntidad.mejorItems)}
+                {renderPositionCard('Peor posición', summaryEntidad.peor, summaryEntidad.peorItems)}
               </>
             )}
             {summaryEntidad && (

@@ -602,7 +602,7 @@ button:not(:disabled):active { transform: scale(0.97); }
   .dataset-tabs {
     -webkit-mask-image: linear-gradient(to right, transparent 0, #000 12px);
     mask-image: linear-gradient(to right, transparent 0, #000 12px);
-    padding-inline: 10px 4px;
+    padding-inline: 10px 0;
     scroll-padding-inline: 12px 110px;
   }
   /* Rankings es un modo: siempre visible, fijo a la derecha mientras los datasets se desplazan */
@@ -611,7 +611,8 @@ button:not(:disabled):active { transform: scale(0.97); }
     right: 0;
     z-index: 1;
     background: var(--bg-main);
-    box-shadow: -10px 0 10px -4px var(--bg-main);
+    /* opaco hasta el borde: el relleno derecho del carril ya no deja asomar la pestaña vecina */
+    box-shadow: -10px 0 10px -4px var(--bg-main), 4px 0 0 0 var(--bg-main);
   }
   .dataset-tabs button[role="tab"]:last-child[aria-selected="true"] { background: var(--color-accent); }
   .dataset-tabs-divider { display: none; }
@@ -644,7 +645,7 @@ button:not(:disabled):active { transform: scale(0.97); }
 
 /* Indicador de cambio de lugar en el KPI (▲ rojo subió hacia el 1, ▼ verde bajó, = gris igual) */
 .rank-change {
-  position: relative;
+  position: static; /* el tooltip se ancla a la tarjeta del lugar: abre debajo de ella, sin tapar el total */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -661,8 +662,8 @@ button:not(:disabled):active { transform: scale(0.97); }
 .rank-change[data-dir="same"] { color: var(--text-secondary); font-weight: 700; } /* 6.2:1 sobre blanco */
 .rank-tip {
   position: absolute;
-  top: calc(100% + 8px);
-  left: -12px; /* se abre hacia la derecha: la tarjeta está pegada al borde izquierdo */
+  top: calc(100% + 6px);
+  left: 0; /* debajo de la tarjeta del lugar, sobre la tabla; no cubre la cifra del total */
   z-index: 500; /* sobre los menús de exportar (90) y tooltips de gráficas; debajo de modales/pantalla completa */
   display: flex;
   flex-direction: column;
@@ -715,4 +716,25 @@ button:not(:disabled):active { transform: scale(0.97); }
   .fs-header > div:first-child { min-width: 0; flex: 1; }
   .fs-header > div:last-child { gap: 0.5rem !important; flex-shrink: 0; }
   .fs-close { padding: 0.35rem 0.6rem !important; font-size: 0.85rem !important; background-color: transparent !important; border-color: var(--border-color) !important; color: var(--text-secondary) !important; }
+}
+
+/* Tabla de entidades/municipios: en <1024px crece con la página (sin scroll anidado) */
+.table-more-btn {
+  display: none;
+  margin: 0.5rem 1rem 0.25rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-accent-dark);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 160ms var(--ease-out), transform 120ms var(--ease-out);
+}
+.table-more-btn:active { transform: scale(0.97); }
+@media (max-width: 1023px) {
+  .sidebar-table-rows { overflow-y: visible !important; flex: none !important; }
+  .table-more-btn { display: block; }
 }
