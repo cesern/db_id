@@ -9,7 +9,7 @@ import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
-import { chartTitle } from '../utils/labels';
+import { chartTitle, periodLabel } from '../utils/labels';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
@@ -22,7 +22,7 @@ import { useFullscreenScale } from '../utils/fullscreenScale';
 // Para cualquier otra entidad seleccionada, el mapa nacional se mantiene visible
 // con el filtro activo (los datos se filtran) pero sin cambio de zoom ni de región.
 
-const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
+const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => {
   const dataset = selectedFilters?.dataset || 'delitos';
   const isVictimas = dataset === 'victimas';
   const isVictimasMun = dataset === 'victimas_mun';
@@ -357,9 +357,12 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
         />
       ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', paddingRight: '0.5rem' }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0, minWidth: 0 }}>
-            {mapTitle}
-          </h2>
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0 }}>
+              {mapTitle}
+            </h2>
+            <div className="card-period">{periodLabel(selectedFilters?.anio ?? '', selectedFilters?.meses, mesFinal)}</div>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <ExportMenu
               elementRef={cardRef}

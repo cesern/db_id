@@ -47,6 +47,8 @@ const ALTO_IMPACTO_DEFAULT = [
 function PublicDashboard() {
   const [metricType, setMetricType] = useState('absolute');
   const [activeTab, setActiveTab] = useState('dashboard');
+  // Último mes con datos del año aplicado (lo reporta SidebarLeft): rotula periodos parciales en el mapa
+  const [mesFinal, setMesFinal] = useState(null);
 
   // Estado de carga inicial y animación
   const [initialLoading, setInitialLoading] = useState(true);
@@ -285,6 +287,7 @@ function PublicDashboard() {
                 selectedFilters={appliedFilters}
                 metricType={metricType}
                 onInitialLoad={() => handleComponentLoaded('sidebar')}
+                onMesFinal={setMesFinal}
               />
             </div>
 
@@ -314,6 +317,7 @@ function PublicDashboard() {
                   selectedFilters={appliedFilters}
                   metricType={metricType}
                   onInitialLoad={() => handleComponentLoaded('map')}
+                  mesFinal={mesFinal}
                 />
               </div>
             </div>

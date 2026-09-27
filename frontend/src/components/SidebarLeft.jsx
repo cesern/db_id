@@ -5,7 +5,7 @@ import LoadingSpinner from './LoadingSpinner';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import EmptyState from './EmptyState';
-import { metricPhrase } from '../utils/labels';
+import { metricPhrase, periodLabel as formatPeriod } from '../utils/labels';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import { useFullscreenScale } from '../utils/fullscreenScale';
 
@@ -39,7 +39,7 @@ const rankMunicipios = (list) => {
   return [...ranked, ...rest];
 };
 
-const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
+const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal }) => {
   const [totalIncidencia, setTotalIncidencia] = useState(null); // null = aún sin respuesta → "—"
   const [entidades, setEntidades] = useState([]);
   const [municipios, setMunicipios] = useState([]);
@@ -197,7 +197,9 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
         const years = await axios.get(`${API_URL}/api/incidencia_por_anio`, { params: base, signal });
         const rows = Array.isArray(years.data) ? years.data : [];
         const cur = rows.find(d => Number(d.year) === anio);
-        setCurMesFinal(cur && typeof cur.mes_final === 'number' ? cur.mes_final : null);
+        const mf = cur && typeof cur.mes_final === 'number' ? cur.mes_final : null;
+        setCurMesFinal(mf);
+        if (onMesFinal) onMesFinal(mf);
         if (!cur || !rows.some(d => Number(d.year) === anio - 1)) { setPrevRank(null); return; }
         if (meses.length === 0 && cur.mes_final && cur.mes_final < 12) meses = MESES.slice(0, cur.mes_final);
         const params = { ...base, anio: anio - 1 };
@@ -235,24 +237,13 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
   const rankCriterion = metricType === 'rate' ? 'mayor tasa' : (isVictimasBase ? 'más víctimas' : 'mayor incidencia');
 
   // Periodo explícito del KPI: meses seleccionados (o todos) + año
-  const periodLabel = (() => {
-    const anio = selectedFilters?.anio ?? '';
-    const sel = Array.isArray(selectedFilters?.meses) ? selectedFilters.meses : [];
-    const idx = sel.map(m => MESES.indexOf(m)).filter(i => i >= 0).sort((a, b) => a - b);
-    // Sin meses elegidos: si el año está incompleto se rotula el periodo real (Ene–Ago 2026)
-    if (idx.length === 0 && curMesFinal && curMesFinal < 12) return `Ene–${MESES_CORTOS[curMesFinal - 1]} ${anio}`;
-    if (idx.length === 0 || idx.length === 12) return `Año ${anio}`;
-    const contiguous = idx.every((v, i) => i === 0 || v === idx[i - 1] + 1);
-    if (idx.length === 1) return `${MESES_CORTOS[idx[0]]} ${anio}`;
-    if (contiguous) return `${MESES_CORTOS[idx[0]]}–${MESES_CORTOS[idx[idx.length - 1]]} ${anio}`;
-    return `${idx.map(i => MESES_CORTOS[i]).join(', ')} ${anio}`;
-  })();
+  const periodLabel = formatPeriod(selectedFilters?.anio ?? '', selectedFilters?.meses, curMesFinal);
   const totalIsND = totalIncidencia === 'N/D';
   const entidadFiltrada = !!(selectedFilters?.entidad && selectedFilters.entidad !== 'All');
   const selectedMunicipio = (!isVictimas && selectedFilters?.municipio && selectedFilters.municipio !== 'All') ? selectedFilters.municipio : null;
   const activeIncidenceLabel = (selectedFilters?.municipio && selectedFilters.municipio !== 'All')
     ? selectedFilters.municipio
-    : (isVictimasBase ? 'Víctimas' : 'Incidencia');
+    : (isVictimasBase ? 'Víctimas' : isAltoImpacto ? 'Incidencia de alto impacto' : 'Incidencia');
 
   const isEntidades = tableView === 'entidades' || isVictimas;
   const rows = isEntidades ? entidades : municipios;
@@ -603,6 +594,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
           </div>
         </div>
 
+        <div className="card-period" style={{ padding: '0 1rem 0.35rem' }}>{periodLabel}</div>
         {/* Table Header */}
         <div style={{ padding: isVictimas ? '1rem 1rem 0.5rem' : '0 1rem 0.5rem', borderBottom: '2px solid var(--border-color)' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '30px 1fr 80px', gap: '0.5rem', fontWeight: 600, color: 'var(--color-primary)', fontSize: '0.875rem' }}>

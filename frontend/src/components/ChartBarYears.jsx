@@ -3,7 +3,7 @@ import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
-import { chartTitle as buildTitle } from '../utils/labels';
+import { chartTitle as buildTitle, monthsLabel } from '../utils/labels';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
@@ -380,9 +380,15 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
         />
       ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingRight: '0.5rem' }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0 }}>
-            {chartTitle}
-          </h2>
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0 }}>
+              {chartTitle}
+            </h2>
+            {/* Con meses filtrados cada barra suma solo esos meses: se declara (el año parcial ya se marca en su barra) */}
+            {!isVictimasMun && monthsLabel(selectedFilters?.meses) && (
+              <div className="card-period">Solo {monthsLabel(selectedFilters.meses)} de cada año</div>
+            )}
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <ExportMenu
               elementRef={cardRef}

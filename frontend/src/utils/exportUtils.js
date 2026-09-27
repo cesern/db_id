@@ -9,15 +9,18 @@ export const downloadCSV = (filename, data, headers, filters) => {
   csvContent += "=== FILTROS APLICADOS ===\n";
   if (filters) {
     const dataset = filters.dataset || 'delitos';
-    csvContent += `Dataset,${dataset === 'victimas' ? 'Víctimas' : dataset === 'alto_impacto' ? 'Delitos de Alto Impacto' : 'Delitos'}\n`;
+    const datasetName = dataset === 'victimas' ? 'Víctimas'
+      : dataset === 'victimas_mun' ? 'Víctimas Municipios'
+      : dataset === 'alto_impacto' ? 'Delitos de Alto Impacto' : 'Delitos';
+    csvContent += `Conjunto de datos,${datasetName}\n`;
     if (dataset === 'alto_impacto' && Array.isArray(filters.altoImpacto) && filters.altoImpacto.length > 0) {
       const names = filters.altoImpacto.map(t => parseCapsule(t).name);
-      csvContent += `Cápsulas,${names.join(' | ')}\n`;
+      csvContent += `Delitos de alto impacto,${names.join(' | ')}\n`;
     }
     csvContent += `Año,${filters.anio || 'Todos'}\n`;
     csvContent += `Métrica,${filters.metricType === 'rate' ? 'Tasa por 100,000 habitantes' : 'Absoluta'}\n`;
     csvContent += `Entidad,${filters.entidad === 'All' ? 'Nacional' : filters.entidad}\n`;
-    if (dataset === 'delitos') {
+    if (dataset !== 'victimas') {
       csvContent += `Municipio,${filters.municipio === 'All' ? 'Todos los municipios' : (filters.municipio || 'N/A')}\n`;
     }
     csvContent += `Bien jurídico afectado,${(filters.bienJuridico && filters.bienJuridico.length > 0) ? filters.bienJuridico.join(' | ') : 'Todos'}\n`;
@@ -25,7 +28,7 @@ export const downloadCSV = (filename, data, headers, filters) => {
     csvContent += `Subtipo de delito,${(filters.subtipoDelito && filters.subtipoDelito.length > 0) ? filters.subtipoDelito.join(' | ') : 'Todos'}\n`;
     csvContent += `Modalidad,${(filters.modalidad && filters.modalidad.length > 0) ? filters.modalidad.join(' | ') : 'Todos'}\n`;
     
-    if (dataset === 'victimas') {
+    if (dataset === 'victimas' || dataset === 'victimas_mun') {
       csvContent += `Sexo,${(filters.sexo && filters.sexo.length > 0) ? filters.sexo.join(' | ') : 'Todos'}\n`;
       csvContent += `Rango de edad,${(filters.rangoEdad && filters.rangoEdad.length > 0) ? filters.rangoEdad.join(' | ') : 'Todos'}\n`;
     }

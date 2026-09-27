@@ -451,6 +451,10 @@ const HistoryRankings = ({ tempColor }) => {
     setFilters(prev => ({ ...prev, [name]: val }));
   };
 
+  // Cambios sin aplicar: el botón Aplicar solo se ve primario cuando hay algo pendiente (igual que en el tablero)
+  const hasPending = JSON.stringify({ dataset, temporalidad, metricType, mesAcumulado, filters })
+    !== JSON.stringify({ dataset: applied.dataset, temporalidad: applied.temporalidad, metricType: applied.metricType, mesAcumulado: applied.mesAcumulado, filters: applied.filters });
+
   const handleApply = () => {
     setApplied({
       dataset, temporalidad, metricType, mesAcumulado, filters: { ...filters }
@@ -719,7 +723,13 @@ const HistoryRankings = ({ tempColor }) => {
             <button type="button" className="btn" onClick={handleClear} style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0.45rem 1rem', height: 'fit-content', color: 'var(--text-secondary)' }}>
               Limpiar filtros
             </button>
-            <button type="button" className="btn btn-primary" onClick={handleApply} style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0.45rem 1.1rem', height: 'fit-content' }}>
+            <button
+              type="button"
+              className={hasPending ? 'btn btn-primary' : 'btn'}
+              onClick={handleApply}
+              aria-disabled={!hasPending}
+              style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0.45rem 1.1rem', height: 'fit-content', ...(hasPending ? {} : { background: 'var(--bg-main)', color: 'var(--text-secondary)' }) }}
+            >
               Aplicar filtros
             </button>
           </div>

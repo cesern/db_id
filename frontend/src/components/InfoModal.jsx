@@ -108,6 +108,15 @@ const InfoModal = ({ isOpen, onClose }) => {
 
           <section>
             <h3 style={{ color: 'var(--color-accent)', fontSize: '1.2rem', marginBottom: '0.75rem', fontWeight: 700 }}>
+              Cambio de metodología en Víctimas (2026)
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              A partir de <strong>2026</strong> el SESNSP cambió la metodología de registro de víctimas: se incorporan bienes jurídicos que antes no se reportaban (por ejemplo, <em>La familia</em> y <em>Otros bienes jurídicos afectados</em>). Por ello las cifras de víctimas de 2026 <strong>no son comparables</strong> con las de años anteriores; los aumentos entre 2025 y 2026 reflejan en buena parte el cambio de cobertura, no solo un cambio en la incidencia.
+            </p>
+          </section>
+
+          <section>
+            <h3 style={{ color: 'var(--color-accent)', fontSize: '1.2rem', marginBottom: '0.75rem', fontWeight: 700 }}>
               Cálculo de Tasas
             </h3>
             <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '0.5rem' }}>
