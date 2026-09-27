@@ -13,11 +13,12 @@ const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'S
 
 // Resaltado de filas:
 // - 'strong': la entidad activa (vista Entidades) o el municipio seleccionado.
-// - 'soft': los municipios de la entidad activa (vista Municipios), igual que Sonora en Entidades
-//   pero sin negritas, para que la tabla no pese cuando todas las filas son de esa entidad.
-const rowHighlight = (m, isEntidades, activeEntityName, selectedMunicipio) => {
+// - 'soft': en vista Municipios a nivel Nacional, los municipios de Sonora (entidad activa por
+//   defecto), sin negritas. Con una entidad elegida todas las filas son de ella: no se resaltan.
+const rowHighlight = (m, isEntidades, activeEntityName, selectedMunicipio, entidadFiltrada) => {
   if (isEntidades) return m.name === activeEntityName ? 'strong' : null;
   if (selectedMunicipio && m.municipio === selectedMunicipio) return 'strong';
+  if (entidadFiltrada) return null;
   return m.entidad === activeEntityName ? 'soft' : null;
 };
 
@@ -304,7 +305,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
             ) : (rows.length === 0 && !loading) ? (
               <EmptyState />
             ) : rows.map((m) => {
-              const level = rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio);
+              const level = rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio, entidadFiltrada);
               const hl = level === 'strong';
               const pct = maxVal > 0 && typeof m.value === 'number' ? Math.max(2, (m.value / maxVal) * 100) : 0;
               // Con una entidad elegida no se repite ", Sonora"; en Nacional se muestra "Municipio, Entidad"
@@ -496,7 +497,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
           ) : (rows.length === 0 && !loading) ? (
             <EmptyState />
           ) : rows.map((m) => {
-            const level = rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio);
+            const level = rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio, entidadFiltrada);
               const hl = level === 'strong';
             const pct = maxVal > 0 && typeof m.value === 'number' ? Math.max(2, (m.value / maxVal) * 100) : 0;
             // Con una entidad elegida no se repite ", Sonora"; en Nacional se muestra "Municipio, Entidad"
