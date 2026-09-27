@@ -265,10 +265,15 @@ const AxisDirection = ({ axisWidth, gutter, fontSize }) => {
   if (!area) return null;
   const x = area.x - axisWidth - gutter / 2;
   const common = { fontSize, fontWeight: 600, fill: 'var(--text-secondary)', letterSpacing: '0.06em', dominantBaseline: 'central' };
+  // Si la gráfica es baja, las frases completas se enciman a la mitad del eje: se acortan
+  const full = ['MÁS INCIDENCIA →', '← MENOS INCIDENCIA'];
+  const textW = (t) => t.length * fontSize * 0.72; // mayúsculas + espaciado de letras
+  const fits = textW(full[0]) + textW(full[1]) + 16 <= area.height;
+  const [top, bottom] = fits ? full : ['MÁS →', '← MENOS'];
   return (
     <g aria-hidden="true">
-      <text {...common} transform={`translate(${x},${area.y}) rotate(-90)`} textAnchor="end">MÁS INCIDENCIA →</text>
-      <text {...common} transform={`translate(${x},${area.y + area.height}) rotate(-90)`} textAnchor="start">← MENOS INCIDENCIA</text>
+      <text {...common} transform={`translate(${x},${area.y}) rotate(-90)`} textAnchor="end">{top}</text>
+      <text {...common} transform={`translate(${x},${area.y + area.height}) rotate(-90)`} textAnchor="start">{bottom}</text>
     </g>
   );
 };
@@ -516,7 +521,7 @@ const HistoryRankings = ({ tempColor }) => {
     return (
       <div style={{ flex: 1, backgroundColor: 'var(--bg-main)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '150px', gap: '0.15rem' }}>
         <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'center' }}>{label}</span>
-        <span className="tabular" style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-accent)' }}>#{rank}</span>
+        <span className="tabular" style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-primary)' }}>#{rank}</span>
         {latest && (
           <span className="tabular" style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
             <strong style={{ color: 'var(--text-primary)' }}>{formatPeriodLabel(latest.period)}</strong>: {formatCardValue(latest.total)}

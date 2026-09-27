@@ -9,6 +9,7 @@ import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
+import { chartTitle } from '../utils/labels';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
@@ -308,12 +309,8 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
     copyTableToClipboard(dataForExport, headers);
   };
 
-  const mapTitle = isSonora 
-    ? (metricType === 'rate' ? (isAltoImpacto ? 'Tasa de Alto Impacto por Municipio (Sonora)' : 'Tasa de Incidencia por Municipio (Sonora)') : (isAltoImpacto ? 'Alto Impacto por Municipio (Sonora)' : 'Incidencia por Municipio (Sonora)')) 
-    : (isVictimas 
-        ? (metricType === 'rate' ? 'Tasa de Víctimas por Entidad (México)' : 'Víctimas por Entidad (México)') 
-        : (metricType === 'rate' ? (isAltoImpacto ? 'Tasa de Alto Impacto por Entidad (México)' : 'Tasa de Incidencia por Entidad (México)') : (isAltoImpacto ? 'Alto Impacto por Entidad (México)' : 'Incidencia por Entidad (México)'))
-      );
+  // Título compartido (utils/labels): sigue al dataset, incluida Víctimas Municipios
+  const mapTitle = chartTitle(dataset, metricType, isSonora ? 'por municipio (Sonora)' : 'por entidad (México)');
 
   const tooltipLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
 

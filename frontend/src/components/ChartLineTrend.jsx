@@ -3,6 +3,7 @@ import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
+import { metricPhrase } from '../utils/labels';
 import { ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot, Line } from 'recharts';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
@@ -533,11 +534,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
     copyTableToClipboard(dataForExport, headers);
   };
 
-  const chartTitle = isVictimasBase
-    ? (metricType === 'rate' ? 'Histórico mensual de tasa de víctimas' : 'Histórico mensual de víctimas')
-    : isAltoImpacto
-      ? (metricType === 'rate' ? 'Histórico mensual de tasa de alto impacto' : 'Histórico mensual de alto impacto')
-      : (metricType === 'rate' ? 'Histórico mensual de tasa de incidencia' : 'Histórico mensual de incidencia');
+  const chartTitle = `Histórico mensual de ${metricPhrase(dataset, metricType).toLowerCase()}`;
 
   const tooltipLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
 

@@ -3,6 +3,7 @@ import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
+import { chartTitle as buildTitle } from '../utils/labels';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
@@ -304,13 +305,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
     }
   };
 
-  const chartTitle = isVictimasMun
-    ? (metricType === 'rate' ? 'Tasa de víctimas por mes' : 'Víctimas por mes')
-    : isVictimasBase
-      ? (metricType === 'rate' ? 'Tasa de víctimas por año' : 'Víctimas por año')
-      : isAltoImpacto
-        ? (metricType === 'rate' ? 'Tasa de alto impacto por año' : 'Alto impacto por año')
-        : (metricType === 'rate' ? 'Tasa de incidencia por año' : 'Incidencia por año');
+  const chartTitle = buildTitle(dataset, metricType, isVictimasMun ? 'por mes' : 'por año');
 
   const tooltipLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
 

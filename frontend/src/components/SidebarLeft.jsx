@@ -5,6 +5,7 @@ import LoadingSpinner from './LoadingSpinner';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import EmptyState from './EmptyState';
+import { metricPhrase } from '../utils/labels';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import { useFullscreenScale } from '../utils/fullscreenScale';
 
@@ -264,7 +265,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
         className="fullscreen-immersive-overlay"
       >
         <FullScreenHeader
-          title={isVictimas ? "Víctimas por Entidad" : isAltoImpacto ? `Ranking de Alto Impacto por ${tableView === 'entidades' ? 'Entidad' : 'Municipio'}` : `Ranking de Incidencia por ${tableView === 'entidades' ? 'Entidad' : 'Municipio'}`}
+          title={`Ranking de ${metricPhrase(dataset, metricType).toLowerCase()} por ${isEntidades ? 'entidad' : 'municipio'}`}
           selectedFilters={selectedFilters}
           metricType={metricType}
           onClose={() => setIsFullScreen(false)}
@@ -454,7 +455,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
               })()}
           </span>
           <span className="tabular" style={{ lineHeight: 1.1, display: 'flex', alignItems: 'baseline', gap: '0.3rem' }}>
-            <span style={{ fontSize: 'clamp(1.5rem, 2.4vw, 1.9rem)', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '-0.02em' }}>
+            {/* Cifra principal: mismo color oscuro que el total (el azul se reserva a lo interactivo) */}
+            <span style={{ fontSize: 'clamp(1.5rem, 2.4vw, 1.9rem)', fontWeight: 700, color: 'var(--color-primary)', letterSpacing: '-0.02em' }}>
               {error || activeEntityRank === null ? '—' : activeEntityRank}
             </span>
             {!error && activeEntityRank !== null && totalEntidades > 0 && (
