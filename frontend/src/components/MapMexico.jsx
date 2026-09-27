@@ -445,6 +445,33 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
             }
           </Geographies>
         </ComposableMap>
+
+        {/* Leyenda de la escala de color (se exporta junto con el mapa) */}
+        {!error && stateData.length > 0 && maxVal > 0 && (
+          <div
+            role="img"
+            aria-label={`Escala de color: de 0 a ${formatValue(maxVal)} ${metricType === 'rate' ? 'por 100 mil habitantes' : tooltipLabel.toLowerCase()}`}
+            style={{
+              position: 'absolute', left: '0.5rem', bottom: '0.5rem', zIndex: 3,
+              background: 'rgba(255,255,255,0.92)', border: '1px solid var(--border-color)',
+              borderRadius: '8px', padding: '0.4rem 0.6rem', minWidth: '150px',
+              fontSize: `${0.72 * Math.max(1, fsScale || 1)}rem`, color: 'var(--text-secondary)'
+            }}
+          >
+            <div style={{ fontWeight: 600, color: 'var(--color-primary)', marginBottom: '0.25rem' }}>
+              {metricType === 'rate' ? `${tooltipLabel} · tasa por 100 mil hab.` : tooltipLabel}
+            </div>
+            <div style={{ height: '8px', borderRadius: '4px', background: 'linear-gradient(to right, #eceef5, #455993)', border: '1px solid rgba(69,89,147,0.2)' }} />
+            <div className="tabular" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.2rem', gap: '0.75rem' }}>
+              <span>0</span>
+              <span>{formatValue(maxVal)}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
+              <span aria-hidden="true" style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#e2e8f0', border: '1px solid #cbd5e1' }} />
+              Sin dato
+            </div>
+          </div>
+        )}
       </div>
       {drillModal && (
         <DrillDownModal

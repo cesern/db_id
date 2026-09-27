@@ -209,6 +209,7 @@ Si se retoma, tratarlo como trabajo nuevo.
 - KPI: periodo explícito (`Año 2026` / `Ene–Mar 2026`), lugar `21 de 32` con criterio en tooltip; "N/D" explicado. Tabla: resalta solo la entidad activa o el municipio elegido (`#e3e8f3`), barra de dato inline, municipio sin ", Sonora".
 - Móvil: filtros plegables (`.filters-mobile-toggle` / `.filters-body[data-open]`), meses en grid 6×2, sin scroll horizontal a 375px.
 - Números `toLocaleString('es-MX')`; CSV "Suavizado (MA12)"; toggle "Tasa por 100 mil hab.".
+**Ronda 2 (2026-09-26, critique 25/40):** `/api/incidencia_por_anio` devuelve además `mes_final` (último mes con total>0 por año, `MES_NUM` en `main.py`); `ChartBarYears` marca como parcial (opacidad 0.4 + borde punteado + "Ene–Ago" bajo el año) el año cuyo `mes_final` < último mes pedido, y usa etiquetas compactas cuando la cifra no cabe. Mapa con leyenda de escala (0–máx + "Sin dato"). Rankings: "Posición con menor/mayor incidencia" + nota "1 = …", textos ≥12px, verde/rojo oscurecidos. Chip "Todos" en meses. Pestañas en móvil con máscara de desvanecido y `scrollIntoView` de la activa. Etiqueta de tasa unificada "Tasa por 100 mil hab.".
 Pendiente: `App.css` sigue importado; `#2563eb` como fallback en algunos `var(..., #2563eb)`; ChartTooltip compartido; Inter se conserva como fuente de UI (el detector la marca como "overused", decisión deliberada).
 
 ## 14d. Fullscreen con escala (2026-09-12, implementado)

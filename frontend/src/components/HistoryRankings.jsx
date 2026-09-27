@@ -517,9 +517,9 @@ const HistoryRankings = ({ tempColor }) => {
         />
       ) : (
         <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border-color)', backgroundColor: 'white' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              Evolución del ranking nacional de{' '}
+          <h2 style={{ fontSize: 'clamp(1.05rem, 2.5vw, 1.25rem)', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem 0.5rem', flexWrap: 'wrap' }}>
+              <span>Evolución del ranking nacional de</span>{' '}
               <select
                 value={selectedEntidad}
                 onChange={e => setSelectedEntidad(e.target.value)}
@@ -554,7 +554,7 @@ const HistoryRankings = ({ tempColor }) => {
                     setApplied(prev => ({ ...prev, metricType: 'rate' }));
                   }}
                 >
-                  Tasa 100 mil habitantes
+                  Tasa por 100 mil hab.
                 </button>
               </div>
             </div>
@@ -601,32 +601,37 @@ const HistoryRankings = ({ tempColor }) => {
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', marginBottom: '0.5rem', gap: '1rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: '1rem', flex: '1 1 300px' }}>
+          <div style={{ display: 'flex', gap: '0.5rem 1rem', flex: '1 1 300px', flexWrap: 'wrap' }}>
             {summaryEntidad && (
               <>
                 <div style={{ flex: 1, backgroundColor: 'var(--bg-main)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '150px' }}>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Mejor Posición</span>
-                  <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981', marginTop: '0.2rem' }}>#{summaryEntidad.mejor}</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%', alignItems: 'center', marginTop: '0.4rem', maxHeight: '65px', overflowY: 'auto', paddingRight: '4px' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'center' }}>Posición con menor incidencia</span>
+                  <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#047857', marginTop: '0.2rem' }} className="tabular">#{summaryEntidad.mejor}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%', alignItems: 'center', marginTop: '0.4rem', maxHeight: '84px', overflowY: 'auto', paddingRight: '4px' }}>
                     {summaryEntidad.mejorItems.map((item, idx) => (
-                      <span key={idx} style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'center', display: 'block', width: '100%', lineHeight: '1.2' }}>
+                      <span key={idx} className="tabular" style={{ fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'center', display: 'block', width: '100%', lineHeight: '1.2' }}>
                         <strong style={{ color: 'var(--text-primary)' }}>{formatPeriodLabel(item.period)}</strong>: {formatCardValue(item.total)}
                       </span>
                     ))}
                   </div>
                 </div>
                 <div style={{ flex: 1, backgroundColor: 'var(--bg-main)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '150px' }}>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Peor Posición</span>
-                  <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ef4444', marginTop: '0.2rem' }}>#{summaryEntidad.peor}</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%', alignItems: 'center', marginTop: '0.4rem', maxHeight: '65px', overflowY: 'auto', paddingRight: '4px' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'center' }}>Posición con mayor incidencia</span>
+                  <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#b91c1c', marginTop: '0.2rem' }} className="tabular">#{summaryEntidad.peor}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%', alignItems: 'center', marginTop: '0.4rem', maxHeight: '84px', overflowY: 'auto', paddingRight: '4px' }}>
                     {summaryEntidad.peorItems.map((item, idx) => (
-                      <span key={idx} style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'center', display: 'block', width: '100%', lineHeight: '1.2' }}>
+                      <span key={idx} className="tabular" style={{ fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'center', display: 'block', width: '100%', lineHeight: '1.2' }}>
                         <strong style={{ color: 'var(--text-primary)' }}>{formatPeriodLabel(item.period)}</strong>: {formatCardValue(item.total)}
                       </span>
                     ))}
                   </div>
                 </div>
               </>
+            )}
+            {summaryEntidad && (
+              <p style={{ flexBasis: '100%', margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Escala 1–32: 1 = entidad con {applied.metricType === 'rate' ? 'mayor tasa' : 'más ' + (applied.dataset === 'delitos' ? 'delitos' : 'víctimas')} en el periodo.
+              </p>
             )}
           </div>
 

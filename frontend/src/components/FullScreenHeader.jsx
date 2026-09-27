@@ -28,7 +28,7 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
     if (metricType) {
       badges.push({
         label: 'Métrica',
-        value: metricType === 'absolute' ? 'Cifras absolutas' : 'Tasa 100 mil hab.'
+        value: metricType === 'absolute' ? 'Cifras absolutas' : 'Tasa por 100 mil hab.'
       });
     }
 

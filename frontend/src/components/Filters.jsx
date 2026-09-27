@@ -661,7 +661,17 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
       </div>
 
       {/* Bottom Row: Month Buttons (sin selección = todos los meses) */}
-      <div className="months-row" role="group" aria-label="Meses (sin selección se incluyen todos)">
+      <div className="months-row" role="group" aria-label="Meses">
+        <button
+          type="button"
+          className="btn month-btn month-btn-all"
+          aria-pressed={!selectedFilters.meses || selectedFilters.meses.length === 0}
+          title="Incluir todos los meses"
+          onClick={() => setSelectedFilters(prev => ({ ...prev, meses: [] }))}
+          style={{ padding: 'var(--month-btn-padding, 0.4rem 0.1rem)', fontSize: 'var(--month-btn-size, 0.75rem)' }}
+        >
+          Todos
+        </button>
         {MONTHS.map((month) => {
           const isSelected = selectedFilters.meses && selectedFilters.meses.includes(month.name);
           return (

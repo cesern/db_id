@@ -6,3 +6,4 @@ __pycache__/
 skills-lock.json
 AGENTS.MD
 .claude/
+.impeccable/

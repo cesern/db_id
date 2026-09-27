@@ -132,6 +132,7 @@ body {
   color: var(--text-secondary);
   transition: background-color 180ms ease, color 180ms ease;
   flex: 1;
+  white-space: nowrap;
 }
 
 .btn-toggle button.active {
@@ -514,9 +515,10 @@ button:not(:disabled):active { transform: scale(0.97); }
 /* ───────────────── Filtros: meses y plegado en móvil ───────────────── */
 .months-row {
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-columns: minmax(64px, auto) repeat(12, minmax(0, 1fr));
   gap: 0.5rem;
 }
+.month-btn-all { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
 .month-btn[aria-pressed="true"] {
   background: var(--color-accent-light);
   border-color: var(--color-accent);
@@ -529,8 +531,16 @@ button:not(:disabled):active { transform: scale(0.97); }
 
 @media (max-width: 767px) {
   .months-row { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .month-btn-all { grid-column: 1 / -1; }
   .month-btn { min-height: 40px; }
   .dataset-tabs button { padding: 0.55rem 0.85rem; }
+  /* Desvanecido en los bordes: indica que hay más pestañas al desplazar */
+  .dataset-tabs {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 24px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 24px), transparent 100%);
+    padding-inline: 10px 24px;
+    scroll-padding-inline: 12px 24px;
+  }
   .header-actions { width: 100%; }
   .header-actions .dataset-tabs { flex: 1; }
 

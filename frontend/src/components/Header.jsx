@@ -1,8 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import InfoModal from './InfoModal';
 
 const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) => {
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const tabsRef = useRef(null);
+
+  // En pantallas angostas la barra de pestañas se desplaza: mantener visible la activa
+  useEffect(() => {
+    const active = tabsRef.current?.querySelector('[aria-selected="true"]');
+    if (active && tabsRef.current.scrollWidth > tabsRef.current.clientWidth) {
+      active.scrollIntoView({ block: 'nearest', inline: 'center' });
+    }
+  }, [dataset, activeTab]);
 
   return (
     <header style={{
@@ -62,7 +71,7 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
             <path d="M12 11v5M12 7.5h.01" />
           </svg>
         </button>
-        <div className="dataset-tabs" role="tablist" aria-label="Conjunto de datos">
+        <div ref={tabsRef} className="dataset-tabs" role="tablist" aria-label="Conjunto de datos">
           {[
             { id: 'delitos', label: 'Delitos' },
             { id: 'alto_impacto', label: 'Delitos Alto Impacto' },

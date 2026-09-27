@@ -183,6 +183,11 @@ PRESET_ALTO_IMPACTO = {
 }
 
 # Claves del JSON CUSTOM:{...} -> columna Parquet
+MES_NUM = {
+    'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6,
+    'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
+}
+
 CUSTOM_COLUMNAS = {
     "b": "Bien jurídico afectado",
     "t": "Tipo de delito",
@@ -536,6 +541,16 @@ async def obtener_incidencia_por_anio(
     df_res = db.cursor().execute(query, params).df()
     
     if df_res.empty: return []
+
+    # Último mes con datos (>0) por año: permite marcar el año en curso como parcial
+    mes_final = {}
+    if 'Mes' in get_columns(dataset.value):
+        q_mes = f'SELECT "Año", Mes, SUM("{val_col}") as total FROM {dataset.value} {w_sql} GROUP BY "Año", Mes'
+        df_mes = db.cursor().execute(q_mes, params).df()
+        df_mes = df_mes[df_mes['total'] > 0]
+        df_mes['mes_num'] = df_mes['Mes'].map(MES_NUM)
+        mes_final = df_mes.dropna(subset=['mes_num']).groupby('Año')['mes_num'].max().astype(int).to_dict()
+    df_res['mes_final'] = df_res['Año'].map(lambda y: int(mes_final.get(y, 12)))
     
     if metric_type == "rate":
         df_res['population'] = df_res['Año'].map(lambda y: get_poblacion_valor(y, entidad, municipio))
@@ -547,7 +562,7 @@ async def obtener_incidencia_por_anio(
         df_res['value'] = df_res['total'].astype(int)
         
     df_res['year'] = df_res['Año'].astype(int).astype(str)
-    return df_res[['year', 'value']].to_dict('records')
+    return df_res[['year', 'value', 'mes_final']].to_dict('records')
 
 @app.get("/api/incidencia_por_mes_historico")
 async def obtener_incidencia_por_mes_historico(

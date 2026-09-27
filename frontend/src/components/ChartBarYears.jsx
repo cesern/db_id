@@ -10,6 +10,9 @@ import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import DrillDownModal from './DrillDownModal';
 import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
 
+const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
 // Selector de tamaño de letra (solo barras): compone con la escala fullscreen.
 // Se persiste en localStorage para que sobreviva recargas.
 const FONT_BOOST_KEY = 'barChartFontScale';
@@ -156,10 +159,19 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
       .then(res => {
         setError(false);
         if (res.data) {
-          const formatted = res.data.map(d => ({
-            ...d,
-            label: isVictimasMun ? d.name : d.year
-          }));
+          // Año parcial: su último mes con datos no alcanza el último mes del periodo pedido
+          const selMeses = (selectedFilters.meses || []).map(m => MESES_LARGOS.indexOf(m)).filter(i => i >= 0).sort((a, b) => a - b);
+          const mesInicio = selMeses.length ? selMeses[0] : 0;
+          const mesFinEsperado = selMeses.length ? selMeses[selMeses.length - 1] + 1 : 12;
+          const formatted = res.data.map(d => {
+            const partial = !isVictimasMun && typeof d.mes_final === 'number' && d.mes_final < mesFinEsperado;
+            return {
+              ...d,
+              label: isVictimasMun ? d.name : d.year,
+              partial,
+              periodo: partial ? `${MESES_CORTOS[mesInicio]}–${MESES_CORTOS[d.mes_final - 1]}` : null
+            };
+          });
           setData(formatted);
         }
       })
@@ -400,7 +412,19 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: FF(13), fill: 'var(--text-secondary)' }}
+              tick={(props) => {
+                const { x, y, payload, index } = props;
+                const entry = data[index];
+                return (
+                  <g transform={`translate(${x},${y})`}>
+                    <text dy={FF(10)} textAnchor="middle" fontSize={FF(13)} fill="var(--text-secondary)">{payload.value}</text>
+                    {entry?.partial && (
+                      <text dy={FF(24)} textAnchor="middle" fontSize={FF(11)} fontWeight="600" fill="var(--color-accent)">{entry.periodo}</text>
+                    )}
+                  </g>
+                );
+              }}
+              height={data.some(d => d.partial) ? FF(40) : FF(26)}
               axisLine={false}
               tickLine={false}
               tickMargin={FF(6)}
@@ -410,7 +434,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
             <Tooltip
               cursor={{ fill: 'var(--bg-main)' }}
               contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow-md)', fontSize: FF(12) }}
-              formatter={(value) => [formatValue(value), tooltipLabel]}
+              formatter={(value, _name, item) => [formatValue(value), item?.payload?.partial ? `${tooltipLabel} (${item.payload.periodo}, año parcial)` : tooltipLabel]}
             />
             <Bar dataKey="value" radius={[F(6), F(6), 0, 0]} fill="url(#colorBarYears)"
               onClick={handleBarClick}
@@ -422,8 +446,10 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
                 content={(props) => {
                   const { x, y, width, value, index } = props;
                   const fs = FF(13);
-                  const text = formatValue(value);
-                  // Solo se oculta en el caso extremo (texto 2x más ancho que la barra)
+                  // Si la cifra completa no cabe sobre la barra, se usa formato compacto (36.1 mil)
+                  const full = formatValue(value);
+                  const fullW = String(full).length * fs * 0.6;
+                  const text = fullW > width * 1.15 ? formatCompactValue(value) : full;
                   const textW = String(text).length * fs * 0.6;
                   if (textW > width * 2) return null;
                   return (
@@ -442,7 +468,14 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
                 }}
               />
               {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill="url(#colorBarYears)" />
+                <Cell
+                  key={`cell-${index}`}
+                  fill="url(#colorBarYears)"
+                  fillOpacity={entry.partial ? 0.4 : 1}
+                  stroke={entry.partial ? 'var(--color-accent)' : 'none'}
+                  strokeDasharray={entry.partial ? '4 3' : undefined}
+                  strokeWidth={entry.partial ? 1.5 : 0}
+                />
               ))}
             </Bar>
           </BarChart>
