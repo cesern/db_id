@@ -234,6 +234,13 @@ body {
   min-height: 400px;
 }
 
+/* Tablet/móvil: sin altura fija de columna. El mapa toma su alto de su proporción
+   (evita el ciclo de medición que Safari estiraba) y Rankings necesita alto propio. */
+@media (max-width: 1023px) {
+  .dashboard-col-map { min-height: 0; }
+  .rankings-chart-area { min-height: clamp(320px, 55vh, 560px) !important; }
+}
+
 .sidebar-table-card {
   max-height: 500px;
 }

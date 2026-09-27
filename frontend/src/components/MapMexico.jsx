@@ -68,15 +68,34 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
   }, [mapSize, isFullScreen, isSonora]);
   // Vista normal: el lienzo toma la proporción real de la tarjeta (columna angosta y alta)
   // y la escala se ajusta para que el geo la llene, en vez de quedar con franjas vacías.
+  // Escritorio (>=1024px): la columna del mapa tiene altura fija y se puede medir.
+  // En tablet/móvil la altura depende del propio mapa: medirla crea un ciclo
+  // (Safari lo estira sin fin), así que ahí se usa una proporción fija por forma.
+  const [isDesktopLayout, setIsDesktopLayout] = useState(
+    () => typeof window === 'undefined' || window.matchMedia('(min-width: 1024px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = (e) => setIsDesktopLayout(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
   const normalCanvas = useMemo(() => {
     const { w, h } = mapSize;
-    if (isFullScreen || w < 10 || h < 10) return null;
+    if (isFullScreen) return null;
     const W = 800;
-    const H = Math.round(W * h / w);
+    let H;
+    if (!isDesktopLayout) {
+      H = isSonora ? 860 : 540; // Sonora es vertical; México, horizontal
+    } else {
+      if (w < 10 || h < 10) return null;
+      H = Math.round(W * h / w);
+    }
     // Extensión en radianes Mercator: Sonora ≈ 0.117 × 0.124; México ≈ 0.53 × 0.34
     const s = isSonora ? Math.min(0.9 * W / 0.117, 0.9 * H / 0.124) : Math.min(0.92 * W / 0.53, 0.92 * H / 0.34);
     return { W, H, scale: Math.round(s) };
-  }, [mapSize, isFullScreen, isSonora]);
+  }, [mapSize, isFullScreen, isSonora, isDesktopLayout]);
   const mapScale = fitScale || normalCanvas?.scale || (isSonora ? 4000 : 1200);
 
   // Factor de escala fullscreen (1 en vista normal) para el tooltip
@@ -365,7 +384,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
         </div>
       )}
 
-      <div ref={mapWrapRef} style={{ flex: 1, position: 'relative', width: '100%', minHeight: 0 }}>
+      <div ref={mapWrapRef} style={{ flex: isDesktopLayout || isFullScreen ? 1 : 'none', position: 'relative', width: '100%', minHeight: 0 }}>
         {loading && <LoadingSpinner size="md" />}
         {!loading && error && <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />}
         {!loading && !error && stateData.length === 0 && <EmptyState />}
@@ -400,7 +419,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
             scale: mapScale,
             center: isSonora ? [-111.5, 29.5] : [-102, 24]
           }}
-          style={{ width: "100%", height: "100%" }}
+          style={{ width: "100%", height: isDesktopLayout || isFullScreen ? "100%" : "auto", display: "block" }}
         >
           <Geographies geography={geoUrl}>
             {({ geographies }) =>

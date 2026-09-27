@@ -727,7 +727,9 @@ const HistoryRankings = ({ tempColor }) => {
       </div>
     )}
 
-      <div style={{ flex: 1, minHeight: 0, backgroundColor: '#ffffff', position: 'relative' }}>
+      {/* Altura mínima fuera de pantalla completa: en móvil la tarjeta no tiene altura fija
+          y con flex:1 + minHeight:0 la gráfica colapsaba a 0 px */}
+      <div className={isFullScreen ? undefined : 'rankings-chart-area'} style={{ flex: 1, minHeight: 0, backgroundColor: '#ffffff', position: 'relative' }}>
         {!isFullScreen && (
           <div style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', zIndex: 110, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <ExportMenu
