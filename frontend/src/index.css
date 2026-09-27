@@ -260,7 +260,8 @@ body {
 
 @media (min-width: 1024px) {
   .dashboard-grid {
-    grid-template-columns: 280px 1fr 1fr;
+    /* Mapa de referencia: columna más angosta; el análisis a fondo va en pantalla completa */
+    grid-template-columns: 280px 1.2fr 0.9fr;
   }
   .dashboard-col:nth-child(1) { grid-column: span 1; }
   .dashboard-col:nth-child(2) { grid-column: span 1; }
@@ -269,7 +270,7 @@ body {
 
 @media (min-width: 1280px) {
   .dashboard-grid {
-    grid-template-columns: 300px 1.1fr 1fr;
+    grid-template-columns: 300px 1.4fr 0.8fr;
   }
 }
 
