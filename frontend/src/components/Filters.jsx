@@ -224,6 +224,8 @@ function countPendingChanges(selected, applied) {
   return count;
 }
 
+const isVictimasDataset = (d) => d === 'victimas' || d === 'victimas_mun';
+
 // ── Filters Component ──────────────────────────────────────────────────────────
 const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelectedFilters, appliedFilters, onApply, onClear, onInitialLoadComplete, customCapsules, onAddCustomCapsule, onRemoveCustomCapsule }) => {
   const isAltoImpacto = dataset === 'alto_impacto';
@@ -231,6 +233,16 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
   // Móvil: la barra de filtros inicia plegada para que los datos aparezcan primero
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  // Grupo secundario "Delito": plegable, abierto por defecto; recuerda la preferencia
+  const [isDelitoOpen, setIsDelitoOpen] = useState(() => {
+    try { return localStorage.getItem('filters.delitoOpen') !== '0'; } catch { return true; }
+  });
+  const toggleDelito = () => setIsDelitoOpen(v => {
+    try { localStorage.setItem('filters.delitoOpen', v ? '0' : '1'); } catch { /* noop */ }
+    return !v;
+  });
+  const activeDelitoCount = ['bienJuridico', 'tipoDelito', 'subtipoDelito', 'modalidad', 'sexo', 'rangoEdad']
+    .reduce((n, k) => n + (Array.isArray(selectedFilters[k]) && selectedFilters[k].length > 0 ? 1 : 0), 0);
   const [filtrosOpciones, setFiltrosOpciones] = useState({
     anios: [],
     entidades: [],
@@ -544,7 +556,25 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
               </div>
             </div>
           ) : (
-          <div style={{ display: 'flex', gap: 'var(--filters-select-gap, 1rem)', flexWrap: 'wrap' }}>
+          <div className="filters-group" data-open={isDelitoOpen}>
+            <button
+              type="button"
+              className="filters-group-toggle"
+              aria-expanded={isDelitoOpen}
+              aria-controls="filters-group-delito"
+              onClick={toggleDelito}
+            >
+              <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                style={{ transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1)', transform: isDelitoOpen ? 'none' : 'rotate(-90deg)' }}>
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+              {isVictimasDataset(dataset) ? 'Delito y víctima' : 'Delito'}
+              {activeDelitoCount > 0 && (
+                <span className="filters-group-count tabular">{activeDelitoCount} {activeDelitoCount === 1 ? 'filtro activo' : 'filtros activos'}</span>
+              )}
+            </button>
+          {isDelitoOpen && (
+          <div id="filters-group-delito" style={{ display: 'flex', gap: 'var(--filters-select-gap, 1rem)', flexWrap: 'wrap' }}>
             <MultiSelectDropdown
               label="Bien jurídico afectado"
               options={filtrosOpciones.bienesJuridicos}
@@ -585,6 +615,8 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
                 />
               </>
             )}
+          </div>
+          )}
           </div>
           )}
         </div>

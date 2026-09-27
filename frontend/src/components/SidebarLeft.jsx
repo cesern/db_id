@@ -143,6 +143,47 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
     return () => controller.abort();
   }, [selectedFilters, metricType, retryKey]);
 
+  // Lugar nacional del año anterior con los mismos filtros. Si el año actual es parcial
+  // (sin meses elegidos), se compara contra los mismos meses del año anterior.
+  const [prevRank, setPrevRank] = useState(null); // { anio, rank, periodo, value } | null
+  const [showRankTip, setShowRankTip] = useState(false);
+  useEffect(() => {
+    if (!selectedFilters || selectedFilters.anio == null) return undefined;
+    const controller = new AbortController();
+    const signal = controller.signal;
+    const anio = Number(selectedFilters.anio);
+    const base = { dataset: wireDataset, metric_type: metricType };
+    if (isAltoImpacto) {
+      const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
+      base.altoImpacto = ai.join('|');
+    }
+    for (const k of ['bienJuridico', 'tipoDelito', 'subtipoDelito', 'modalidad', 'sexo', 'rangoEdad']) {
+      const v = Array.isArray(selectedFilters[k]) ? selectedFilters[k] : [];
+      if (v.length > 0) base[k] = v.join('|');
+    }
+    const entityName = (!selectedFilters.entidad || selectedFilters.entidad === 'All') ? 'Sonora' : selectedFilters.entidad;
+    (async () => {
+      try {
+        let meses = Array.isArray(selectedFilters.meses) ? selectedFilters.meses : [];
+        const years = await axios.get(`${API_URL}/api/incidencia_por_anio`, { params: base, signal });
+        const rows = Array.isArray(years.data) ? years.data : [];
+        const cur = rows.find(d => Number(d.year) === anio);
+        if (!cur || !rows.some(d => Number(d.year) === anio - 1)) { setPrevRank(null); return; }
+        if (meses.length === 0 && cur.mes_final && cur.mes_final < 12) meses = MESES.slice(0, cur.mes_final);
+        const params = { ...base, anio: anio - 1 };
+        if (meses.length > 0) params.meses = meses.join(',');
+        const res = await axios.get(`${API_URL}/api/incidencia_por_entidad`, { params, signal });
+        const row = (Array.isArray(res.data) ? res.data : []).find(e => e.name === entityName);
+        const idx = meses.map(m => MESES.indexOf(m)).filter(i => i >= 0).sort((a, b) => a - b);
+        const periodo = idx.length > 0 && idx.length < 12 ? `${MESES_CORTOS[idx[0]]}–${MESES_CORTOS[idx[idx.length - 1]]}` : null;
+        setPrevRank(row ? { anio: anio - 1, rank: row.id, periodo, value: row.value } : null);
+      } catch (err) {
+        if (!axios.isCancel(err)) setPrevRank(null);
+      }
+    })();
+    return () => controller.abort();
+  }, [selectedFilters, metricType, retryKey]);
+
   const formatNumber = (num) => {
     if (num === 'N/D' || num === undefined || num === null) return 'N/D';
     const val = typeof num === 'number' ? num : parseFloat(num);
@@ -359,25 +400,62 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
     <>
       {/* KPI Cards: total del periodo + lugar nacional de la entidad activa */}
       <div style={{ display: 'flex', gap: 'var(--grid-gap, 1rem)' }}>
-        {/* La posición nacional va primero: es la lectura principal para la Fiscalía */}
+        {/* La posición nacional va primero: "Sonora · 21 de 32" + indicador vs año anterior.
+            ▲ rojo = subió (hacia el 1, más incidencia); ▼ verde = bajó; = gris = mismo lugar.
+            El detalle vive en un tooltip (mouse y teclado), no en pantalla. */}
         <div
           className="card"
-          title={`Posición de ${activeEntityName} entre las ${totalEntidades || 32} entidades con los filtros aplicados (1 = ${rankCriterion})`}
           style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.2rem', padding: '0.85rem 1rem', position: 'relative', minWidth: 0 }}
         >
           {loading && <LoadingSpinner size="sm" />}
-          <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {activeEntityName}
+          {/* Fila superior: entidad a la izquierda, indicador de cambio a la derecha
+              (así "21 de 32" conserva todo el ancho de la tarjeta angosta) */}
+          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', minWidth: 0 }}>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {activeEntityName}
+            </span>
+              {!error && activeEntityRank !== null && prevRank && (() => {
+                const diff = prevRank.rank - activeEntityRank; // > 0: subió hacia el 1
+                const up = diff > 0, down = diff < 0;
+                const cmpPrev = `${prevRank.periodo ? prevRank.periodo + ' ' : ''}${prevRank.anio}`;
+                const cmpNow = `${prevRank.periodo ? prevRank.periodo + ' ' : ''}${selectedFilters?.anio}`;
+                const unit = metricType === 'rate' ? 'por 100 mil hab.' : (isVictimasBase ? 'víctimas' : 'delitos');
+                const headline = up ? `Subió ${diff} ${diff === 1 ? 'lugar' : 'lugares'}`
+                  : down ? `Bajó ${-diff} ${diff === -1 ? 'lugar' : 'lugares'}` : 'Mismo lugar';
+                const currentValue = activeEntityData ? activeEntityData.value : null;
+                return (
+                  <span
+                    className="rank-change"
+                    tabIndex={0}
+                    role="img"
+                    aria-label={`${headline}. ${cmpPrev}: lugar ${prevRank.rank}, ${formatNumber(prevRank.value)} ${unit}; ${cmpNow}: lugar ${activeEntityRank}, ${formatNumber(currentValue)} ${unit}`}
+                    onMouseEnter={() => setShowRankTip(true)}
+                    onMouseLeave={() => setShowRankTip(false)}
+                    onFocus={() => setShowRankTip(true)}
+                    onBlur={() => setShowRankTip(false)}
+                    data-dir={up ? 'up' : down ? 'down' : 'same'}
+                  >
+                    <span aria-hidden="true">{up ? '▲' : down ? '▼' : '='}</span>
+                    {showRankTip && (
+                      <span className="rank-tip" role="tooltip">
+                        <strong>{headline}</strong>
+                        <span>{cmpPrev}: lugar {prevRank.rank} · {formatNumber(prevRank.value)} {unit}</span>
+                        <span>{cmpNow}: lugar {activeEntityRank} · {formatNumber(currentValue)} {unit}</span>
+                        <em>1 = entidad con {rankCriterion}</em>
+                      </span>
+                    )}
+                  </span>
+                );
+              })()}
           </span>
           <span className="tabular" style={{ lineHeight: 1.1, display: 'flex', alignItems: 'baseline', gap: '0.3rem' }}>
             <span style={{ fontSize: 'clamp(1.5rem, 2.4vw, 1.9rem)', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '-0.02em' }}>
               {error || activeEntityRank === null ? '—' : activeEntityRank}
             </span>
             {!error && activeEntityRank !== null && totalEntidades > 0 && (
-              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>de {totalEntidades}</span>
+              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>de {totalEntidades}</span>
             )}
           </span>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>lugar nacional</span>
         </div>
         {/* El total lleva la cifra larga: tarjeta más ancha que la del lugar (siempre corta) */}
         <div className="card kpi-card" style={{ flex: 1.6, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.2rem', padding: '0.85rem 1rem', position: 'relative', minWidth: 0 }}>

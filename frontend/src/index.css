@@ -547,6 +547,43 @@ button:not(:disabled):active { transform: scale(0.97); }
 }
 
 .filters-body { display: flex; flex-direction: column; gap: var(--filters-gap, 1rem); }
+
+/* Grupo secundario de filtros (cascada de delito): subordinado a Año/Entidad/Municipio */
+.filters-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem 0.65rem;
+  background: var(--bg-main);
+  border-radius: 10px;
+}
+.filters-group[data-open="false"] { padding-bottom: 0.5rem; }
+.filters-group-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 2px 4px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+.filters-group-count {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--color-accent);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 0.72rem;
+}
 .filters-mobile-toggle { display: none; }
 
 @media (max-width: 767px) {
@@ -556,11 +593,21 @@ button:not(:disabled):active { transform: scale(0.97); }
   .dataset-tabs button { padding: 0.55rem 0.85rem; }
   /* Desvanecido en los bordes: indica que hay más pestañas al desplazar */
   .dataset-tabs {
-    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 24px), transparent 100%);
-    mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 24px), transparent 100%);
-    padding-inline: 10px 24px;
-    scroll-padding-inline: 12px 24px;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 12px);
+    mask-image: linear-gradient(to right, transparent 0, #000 12px);
+    padding-inline: 10px 4px;
+    scroll-padding-inline: 12px 110px;
   }
+  /* Rankings es un modo: siempre visible, fijo a la derecha mientras los datasets se desplazan */
+  .dataset-tabs button[role="tab"]:last-child {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    background: var(--bg-main);
+    box-shadow: -10px 0 10px -4px var(--bg-main);
+  }
+  .dataset-tabs button[role="tab"]:last-child[aria-selected="true"] { background: var(--color-accent); }
+  .dataset-tabs-divider { display: none; }
   .header-actions { width: 100%; }
   .header-actions .dataset-tabs { flex: 1; }
 
@@ -587,6 +634,50 @@ button:not(:disabled):active { transform: scale(0.97); }
   header h1 { font-size: 1.05rem !important; margin-left: 0 !important; }
   header img { height: 34px !important; }
 }
+
+/* Indicador de cambio de lugar en el KPI (▲ rojo subió hacia el 1, ▼ verde bajó, = gris igual) */
+.rank-change {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  min-height: 22px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: help;
+}
+.rank-change[data-dir="up"] { color: #b91c1c; }
+.rank-change[data-dir="down"] { color: #047857; }
+.rank-change[data-dir="same"] { color: #7a8699; font-weight: 700; }
+.rank-tip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -12px; /* se abre hacia la derecha: la tarjeta está pegada al borde izquierdo */
+  z-index: 500; /* sobre los menús de exportar (90) y tooltips de gráficas; debajo de modales/pantalla completa */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
+  max-width: 260px;
+  padding: 0.55rem 0.7rem;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.35;
+  text-align: left;
+  transform-origin: top left;
+  animation: rankTipIn 150ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  pointer-events: none;
+}
+.rank-tip strong { color: #ffffff; font-weight: 700; }
+.rank-tip em { color: #94a3b8; font-style: normal; margin-top: 2px; }
+@keyframes rankTipIn { from { opacity: 0; transform: translateY(-3px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
 /* Badge de la entidad en Rankings: aparece tras el trazo de la línea */
 .rank-badge { animation: rankBadgeIn 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }

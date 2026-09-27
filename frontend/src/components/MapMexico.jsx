@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
-import { scaleLinear } from 'd3-scale';
+import { scaleSqrt } from 'd3-scale';
+
+// Extremos del degradado del azul institucional
+const MAP_LOW = '#e6e9f2';
+const MAP_HIGH = '#455993';
 import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
@@ -255,9 +259,9 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
     return () => controller.abort();
   }, [selectedFilters, isSonora, dataset, metricType, retryKey]);
 
-  const colorScale = scaleLinear()
-    .domain([0, maxVal])
-    .range(["#eceef5", "#455993"]);
+  // Escala de raíz cuadrada: el color refleja la magnitud (Hermosillo 7,157 intenso,
+  // San Luis Río Colorado 1,296 en tono medio) sin que el valor máximo deje al resto en blanco.
+  const colorScale = scaleSqrt().domain([0, maxVal]).range([MAP_LOW, MAP_HIGH]).clamp(true);
 
   const getFillColor = (val) => {
     if (val === "N/D" || val === undefined || val === null) {
@@ -456,7 +460,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
         {!error && stateData.length > 0 && maxVal > 0 && (
           <div
             role="img"
-            aria-label={`Escala de color: de 0 a ${formatValue(maxVal)} ${metricType === 'rate' ? 'por 100 mil habitantes' : tooltipLabel.toLowerCase()}`}
+            aria-label={`Escala de color (raíz cuadrada): de 0 a ${formatValue(maxVal)} ${metricType === 'rate' ? 'por 100 mil habitantes' : tooltipLabel.toLowerCase()}`}
             style={{
               position: 'absolute', left: '0.5rem', bottom: '0.5rem', zIndex: 3,
               background: 'rgba(255,255,255,0.92)', border: '1px solid var(--border-color)',
@@ -471,7 +475,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
                 <div style={{ fontWeight: 600, color: 'var(--color-primary)', marginBottom: '0.25rem' }}>
                   {metricType === 'rate' ? `${tooltipLabel} · tasa por 100 mil hab.` : tooltipLabel}
                 </div>
-                <div style={{ height: '8px', borderRadius: '4px', background: 'linear-gradient(to right, #eceef5, #455993)', border: '1px solid rgba(69,89,147,0.2)' }} />
+                <div style={{ height: '8px', borderRadius: '4px', background: `linear-gradient(to right, ${MAP_LOW}, ${MAP_HIGH})`, border: '1px solid rgba(69,89,147,0.2)' }} />
                 <div className="tabular" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.2rem', gap: '0.75rem' }}>
                   <span>0</span>
                   <span>{formatValue(maxVal)}</span>
@@ -484,7 +488,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
             ) : (
               <>
                 <span className="tabular">0</span>
-                <span aria-hidden="true" style={{ width: '64px', height: '6px', borderRadius: '3px', background: 'linear-gradient(to right, #eceef5, #455993)', border: '1px solid rgba(69,89,147,0.2)' }} />
+                <span aria-hidden="true" style={{ width: '64px', height: '6px', borderRadius: '3px', background: `linear-gradient(to right, ${MAP_LOW}, ${MAP_HIGH})`, border: '1px solid rgba(69,89,147,0.2)' }} />
                 <span className="tabular">{formatValue(maxVal)}</span>
                 <span aria-hidden="true" style={{ width: '8px', height: '8px', marginLeft: '0.3rem', borderRadius: '2px', background: '#e2e8f0', border: '1px solid #cbd5e1' }} />
                 <span>Sin dato</span>

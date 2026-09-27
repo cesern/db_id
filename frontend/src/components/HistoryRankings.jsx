@@ -802,7 +802,7 @@ const HistoryRankings = ({ tempColor }) => {
                     en el corte real (10.5 y 20.5): visibles pero discretas. */}
                 <ReferenceLine y={10.5} stroke="#94a3b8" strokeWidth={1} strokeDasharray="6 4" strokeOpacity={0.85} />
                 <ReferenceLine y={20.5} stroke="#94a3b8" strokeWidth={1} strokeDasharray="6 4" strokeOpacity={0.85} />
-                <Customized component={<AxisDirection axisWidth={AXIS_W} gutter={AXIS_GUTTER} fontSize={F(10)} />} />
+                <Customized component={<AxisDirection axisWidth={AXIS_W} gutter={AXIS_GUTTER} fontSize={F(11)} />} />
 
                 {/* Solo la entidad elegida: las 31 líneas de fondo formaban una trama de cruces
                     (en un ranking siempre ocupan todas las posiciones) y se retiraron. */}
