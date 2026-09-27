@@ -107,6 +107,17 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
 
   const initialLoadCalled = useRef(false);
   const cardRef = useRef(null);
+  const chartWrapRef = useRef(null);
+  const [chartW, setChartW] = useState(0);
+
+  // Ancho real del área de la gráfica: decide si las etiquetas completas caben o se escalonan
+  useEffect(() => {
+    const el = chartWrapRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(([entry]) => setChartW(Math.round(entry.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isFullScreen]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -205,16 +216,6 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
       return new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
     }
     return new Intl.NumberFormat('es-MX').format(num);
-  };
-
-  const formatCompactValue = (val) => {
-    if (val === 'N/D' || val === undefined || val === null) return '';
-    const num = typeof val === 'number' ? val : parseFloat(val);
-    if (isNaN(num)) return '';
-    if (metricType === 'rate') {
-      return new Intl.NumberFormat('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 1 }).format(num);
-    }
-    return new Intl.NumberFormat('es-MX', { notation: "compact", compactDisplay: "short", maximumFractionDigits: 1 }).format(num);
   };
 
   const getExportData = () => {
@@ -333,6 +334,21 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
   // El multiplicador de letra solo rige en fullscreen; la vista normal queda intacta
   const FF = (base) => (isFullScreen ? Math.max(1, Math.round(F(base) * fontBoost)) : F(base));
 
+  // Etiquetas siempre con la cifra completa. Si la más larga no cabe en el espacio de un año
+  // (barra + separación), se escalonan las de índice impar una línea más arriba.
+  const LABEL_FS = FF(13);
+  const LABEL_STEP = LABEL_FS + 4;
+  const slotW = data.length > 0 && chartW > 0
+    ? (chartW - FF(10) * 2) / data.length
+    : Infinity;
+  const maxLabelW = data.reduce((mx, d) => Math.max(mx, String(formatValue(d.value)).length * LABEL_FS * 0.6), 0);
+  const staggerLabels = maxLabelW > slotW - 4;
+  // En modo escalonado las etiquetas van en dos renglones fijos sobre el área de barras
+  // (pares abajo, impares arriba), así no chocan aunque las barras vecinas sean más altas.
+  const chartTop = F(30) + (staggerLabels ? LABEL_STEP : 0);
+  // Margen lateral suficiente para que la primera y la última etiqueta no se corten
+  const chartSide = staggerLabels ? Math.max(FF(10), Math.ceil((maxLabelW - slotW) / 2) + 4) : FF(10);
+
   return (
     <div 
       ref={cardRef} 
@@ -394,14 +410,15 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
         </div>
       )}
 
-      <div style={{ flex: 1, position: 'relative', width: '100%', minHeight: '120px' }}>
+      <div ref={chartWrapRef} style={{ flex: 1, position: 'relative', width: '100%', minHeight: '120px' }}>
         {loading && <LoadingSpinner size="md" />}
         {!loading && error && <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />}
         {!loading && !error && data.length === 0 && <EmptyState />}
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}
-            margin={{ top: F(30), right: FF(10), left: FF(10), bottom: FF(6) }}
+            margin={{ top: chartTop, right: chartSide, left: chartSide, bottom: FF(6) }}
+            barCategoryGap="6%"
           >
             <defs>
               <linearGradient id="colorBarYears" x1="0" y1="0" x2="0" y2="1">
@@ -445,17 +462,15 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
                 position="top"
                 content={(props) => {
                   const { x, y, width, value, index } = props;
-                  const fs = FF(13);
-                  // Si la cifra completa no cabe sobre la barra, se usa formato compacto (36.1 mil)
-                  const full = formatValue(value);
-                  const fullW = String(full).length * fs * 0.6;
-                  const text = fullW > width * 1.15 ? formatCompactValue(value) : full;
-                  const textW = String(text).length * fs * 0.6;
-                  if (textW > width * 2) return null;
+                  const fs = LABEL_FS;
+                  const text = formatValue(value);
+                  const labelY = staggerLabels
+                    ? chartTop - FF(8) - (index % 2 === 1 ? LABEL_STEP : 0)
+                    : y - FF(8);
                   return (
                     <text
                       x={x + width / 2}
-                      y={y - FF(8)}
+                      y={labelY}
                       fill="var(--text-primary)"
                       textAnchor="middle"
                       dominantBaseline="middle"
