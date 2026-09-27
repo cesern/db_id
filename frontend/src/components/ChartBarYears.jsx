@@ -335,19 +335,28 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
   const FF = (base) => (isFullScreen ? Math.max(1, Math.round(F(base) * fontBoost)) : F(base));
 
   // Etiquetas siempre con la cifra completa. Si la más larga no cabe en el espacio de un año
-  // (barra + separación), se escalonan las de índice impar una línea más arriba.
+  // (barra + separación), se reparten en N renglones fijos sobre el área de barras
+  // (etiqueta i en el renglón i % N), así no chocan aunque las barras vecinas sean más altas.
   const LABEL_FS = FF(13);
   const LABEL_STEP = LABEL_FS + 4;
-  const slotW = data.length > 0 && chartW > 0
-    ? (chartW - FF(10) * 2) / data.length
-    : Infinity;
+  const MAX_LABEL_ROWS = 4;
+  const n = data.length;
   const maxLabelW = data.reduce((mx, d) => Math.max(mx, String(formatValue(d.value)).length * LABEL_FS * 0.6), 0);
-  const staggerLabels = maxLabelW > slotW - 4;
-  // En modo escalonado las etiquetas van en dos renglones fijos sobre el área de barras
-  // (pares abajo, impares arriba), así no chocan aunque las barras vecinas sean más altas.
-  const chartTop = F(30) + (staggerLabels ? LABEL_STEP : 0);
-  // Margen lateral suficiente para que la primera y la última etiqueta no se corten
-  const chartSide = staggerLabels ? Math.max(FF(10), Math.ceil((maxLabelW - slotW) / 2) + 4) : FF(10);
+  const baseSide = FF(10);
+  const slotFor = (side) => (n > 0 && chartW > 0 ? (chartW - side * 2) / n : Infinity);
+  const fitsInline = maxLabelW <= slotFor(baseSide) - 4;
+  // Margen lateral para que la primera y la última etiqueta no se corten. Se resuelve
+  // analíticamente porque el espacio por año depende del propio margen:
+  // side = (maxLabelW - slot)/2 + 4, con slot = (chartW - 2·side)/n.
+  const chartSide = fitsInline || n < 2
+    ? baseSide
+    : Math.max(baseSide, Math.ceil((maxLabelW - chartW / n + 8) / (2 * (1 - 1 / n))));
+  const slotW = slotFor(chartSide);
+  const labelRows = fitsInline
+    ? 1
+    : Math.min(MAX_LABEL_ROWS, Math.max(2, Math.ceil((maxLabelW + 4) / slotW)));
+  const staggerLabels = labelRows > 1;
+  const chartTop = F(30) + (labelRows - 1) * LABEL_STEP;
 
   return (
     <div 
@@ -434,7 +443,12 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
                 const entry = data[index];
                 return (
                   <g transform={`translate(${x},${y})`}>
-                    <text dy={FF(10)} textAnchor="middle" fontSize={FF(13)} fill="var(--text-secondary)">{payload.value}</text>
+                    <text dy={FF(10)} textAnchor="middle" fontSize={FF(13)} fill="var(--text-secondary)">
+                      {/* Si el año completo no cabe en su espacio, se abrevia ('15) para no encimar el eje */}
+                      {/^[0-9]{4}$/.test(String(payload.value)) && slotW < 4 * FF(13) * 0.6 + 6
+                        ? `’${String(payload.value).slice(2)}`
+                        : payload.value}
+                    </text>
                     {entry?.partial && (
                       <text dy={FF(24)} textAnchor="middle" fontSize={FF(11)} fontWeight="600" fill="var(--color-accent)">{entry.periodo}</text>
                     )}
@@ -465,7 +479,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
                   const fs = LABEL_FS;
                   const text = formatValue(value);
                   const labelY = staggerLabels
-                    ? chartTop - FF(8) - (index % 2 === 1 ? LABEL_STEP : 0)
+                    ? chartTop - FF(8) - (index % labelRows) * LABEL_STEP
                     : y - FF(8);
                   return (
                     <text

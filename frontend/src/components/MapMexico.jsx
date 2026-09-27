@@ -340,8 +340,8 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
               type="button"
               className="icon-btn"
               onClick={() => setIsFullScreen(true)}
-              title="Ver en pantalla completa"
-              aria-label="Ver en pantalla completa"
+              title="Ampliar mapa en pantalla completa"
+              aria-label="Ampliar mapa en pantalla completa"
               style={{ gap: '0.3rem', padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600 }}
             >
               <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
