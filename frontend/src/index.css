@@ -651,7 +651,7 @@ button:not(:disabled):active { transform: scale(0.97); }
 }
 .rank-change[data-dir="up"] { color: #b91c1c; }
 .rank-change[data-dir="down"] { color: #047857; }
-.rank-change[data-dir="same"] { color: #7a8699; font-weight: 700; }
+.rank-change[data-dir="same"] { color: var(--text-secondary); font-weight: 700; } /* 6.2:1 sobre blanco */
 .rank-tip {
   position: absolute;
   top: calc(100% + 8px);

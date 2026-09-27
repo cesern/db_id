@@ -147,6 +147,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
   // (sin meses elegidos), se compara contra los mismos meses del año anterior.
   const [prevRank, setPrevRank] = useState(null); // { anio, rank, periodo, value } | null
   const [showRankTip, setShowRankTip] = useState(false);
+  // Último mes con datos del año seleccionado (con los filtros): para rotular el periodo real
+  const [curMesFinal, setCurMesFinal] = useState(null);
   useEffect(() => {
     if (!selectedFilters || selectedFilters.anio == null) return undefined;
     const controller = new AbortController();
@@ -168,6 +170,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
         const years = await axios.get(`${API_URL}/api/incidencia_por_anio`, { params: base, signal });
         const rows = Array.isArray(years.data) ? years.data : [];
         const cur = rows.find(d => Number(d.year) === anio);
+        setCurMesFinal(cur && typeof cur.mes_final === 'number' ? cur.mes_final : null);
         if (!cur || !rows.some(d => Number(d.year) === anio - 1)) { setPrevRank(null); return; }
         if (meses.length === 0 && cur.mes_final && cur.mes_final < 12) meses = MESES.slice(0, cur.mes_final);
         const params = { ...base, anio: anio - 1 };
@@ -209,6 +212,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
     const anio = selectedFilters?.anio ?? '';
     const sel = Array.isArray(selectedFilters?.meses) ? selectedFilters.meses : [];
     const idx = sel.map(m => MESES.indexOf(m)).filter(i => i >= 0).sort((a, b) => a - b);
+    // Sin meses elegidos: si el año está incompleto se rotula el periodo real (Ene–Ago 2026)
+    if (idx.length === 0 && curMesFinal && curMesFinal < 12) return `Ene–${MESES_CORTOS[curMesFinal - 1]} ${anio}`;
     if (idx.length === 0 || idx.length === 12) return `Año ${anio}`;
     const contiguous = idx.every((v, i) => i === 0 || v === idx[i - 1] + 1);
     if (idx.length === 1) return `${MESES_CORTOS[idx[0]]} ${anio}`;
