@@ -14,7 +14,7 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
   }, [dataset, activeTab]);
 
   return (
-    <header style={{
+    <header className="app-header" style={{
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
@@ -29,7 +29,7 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
         <img src="/logo.png" alt="Fiscalía General de Justicia del Estado de Sonora" style={{ height: 'var(--header-logo-height, 50px)', objectFit: 'contain' }} />
         <h1
           style={{
-            fontSize: 'clamp(1.2rem, 3.5vw, 2.2rem)',
+            fontSize: 'clamp(1.2rem, 2.6vw, 2.2rem)',
             fontWeight: 900,
             color: '#081C3A',
             letterSpacing: '-0.03em',
@@ -53,7 +53,8 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
               display: 'inline-block',
             }}
           />
-          Incidencia Delictiva - {activeTab === 'rankings' ? 'Evolución Ranking' : (dataset === 'delitos' ? 'Delitos' : dataset === 'alto_impacto' ? 'Delitos Alto Impacto' : dataset === 'victimas' ? 'Víctimas' : 'Víctimas Municipios')}
+          {/* Título fijo: la pestaña activa ya indica el dataset */}
+          Incidencia Delictiva
         </h1>
       </div>
 

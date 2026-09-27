@@ -523,6 +523,14 @@ button:not(:disabled):active { transform: scale(0.97); }
 }
 .header-actions { display: flex; gap: 0.75rem; align-items: center; max-width: 100%; min-width: 0; }
 
+/* Escritorio (>=1200px): título y pestañas siempre en la misma fila. Por debajo no caben ambos con un título legible y se permite el salto */
+@media (min-width: 1200px) {
+  .app-header { flex-wrap: nowrap !important; }
+  .app-header > div:first-child { min-width: 0; flex-shrink: 1; }
+  .app-header h1 { white-space: nowrap; }
+  .app-header .header-actions { flex-shrink: 0; }
+}
+
 /* ───────────────── Filtros: meses y plegado en móvil ───────────────── */
 .months-row {
   display: grid;
