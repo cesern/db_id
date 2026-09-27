@@ -180,20 +180,20 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
             backgroundColor: '#fef2f2',
             border: '1px solid #fee2e2',
             borderRadius: '8px',
-            color: '#ef4444',
+            color: '#b91c1c', /* 6.1:1 sobre #fef2f2 (antes #ef4444, 3.4:1) */
             fontSize: '1rem',
             fontWeight: '600',
             cursor: 'pointer',
             transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease'
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#ef4444';
+            e.currentTarget.style.backgroundColor = '#b91c1c';
             e.currentTarget.style.color = '#ffffff';
-            e.currentTarget.style.borderColor = '#ef4444';
+            e.currentTarget.style.borderColor = '#b91c1c';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = '#fef2f2';
-            e.currentTarget.style.color = '#ef4444';
+            e.currentTarget.style.color = '#b91c1c';
             e.currentTarget.style.borderColor = '#fee2e2';
           }}
           title="Salir de pantalla completa (Esc)"

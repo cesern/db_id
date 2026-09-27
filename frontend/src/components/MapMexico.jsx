@@ -59,14 +59,6 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
     return () => ro.disconnect();
   }, []);
 
-  // En fullscreen la escala se calcula del tamaño medido para que el geo
-  // se vea completo y centrado; en vista normal se conservan las constantes.
-  const fitScale = useMemo(() => {
-    const { w, h } = mapSize;
-    if (!isFullScreen || w < 10 || h < 10) return null;
-    const s = isSonora ? Math.min(8.9 * w, 8.7 * h) : Math.min(1.9 * w, 2.5 * h);
-    return Math.round(s * 0.96);
-  }, [mapSize, isFullScreen, isSonora]);
   // Vista normal: el lienzo toma la proporción real de la tarjeta (columna angosta y alta)
   // y la escala se ajusta para que el geo la llene, en vez de quedar con franjas vacías.
   // Escritorio (>=1024px): la columna del mapa tiene altura fija y se puede medir.
@@ -82,12 +74,13 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
+  // Pantalla completa usa el mismo lienzo proporcional (medido): antes calculaba la escala en
+  // píxeles sobre el viewBox por defecto 800×600 y recortaba Sonora.
   const normalCanvas = useMemo(() => {
     const { w, h } = mapSize;
-    if (isFullScreen) return null;
     const W = 800;
     let H;
-    if (!isDesktopLayout) {
+    if (!isDesktopLayout && !isFullScreen) {
       H = isSonora ? 860 : 540; // Sonora es vertical; México, horizontal
     } else {
       if (w < 10 || h < 10) return null;
@@ -97,7 +90,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
     const s = isSonora ? Math.min(0.9 * W / 0.117, 0.9 * H / 0.124) : Math.min(0.92 * W / 0.53, 0.92 * H / 0.34);
     return { W, H, scale: Math.round(s) };
   }, [mapSize, isFullScreen, isSonora, isDesktopLayout]);
-  const mapScale = fitScale || normalCanvas?.scale || (isSonora ? 4000 : 1200);
+  const mapScale = normalCanvas?.scale || (isSonora ? 4000 : 1200);
 
   // Factor de escala fullscreen (1 en vista normal) para el tooltip
   const fsScale = useFullscreenScale(isFullScreen);

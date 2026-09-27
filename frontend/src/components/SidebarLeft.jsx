@@ -270,7 +270,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
   const selectedMunicipio = (!isVictimas && selectedFilters?.municipio && selectedFilters.municipio !== 'All') ? selectedFilters.municipio : null;
   const activeIncidenceLabel = (selectedFilters?.municipio && selectedFilters.municipio !== 'All')
     ? selectedFilters.municipio
-    : (isVictimasBase ? 'Víctimas' : isAltoImpacto ? 'Incidencia de alto impacto' : 'Incidencia');
+    : (isVictimasBase ? 'Víctimas' : isAltoImpacto ? 'Alto impacto' : 'Incidencia');
 
   const isEntidades = tableView === 'entidades' || isVictimas;
   const rows = isEntidades ? entidades : municipios;
@@ -347,7 +347,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
                   borderRadius: '10px',
                   padding: '3px',
                   gap: '2px',
-                  width: '200px',
+                  flexShrink: 0,
                   boxSizing: 'border-box',
                 }}>
                   {['entidades', 'municipios'].map((view) => {
@@ -359,7 +359,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
                         onClick={() => setTableView(view)}
                         style={{
                           flex: 1,
-                          padding: '0.4rem 0',
+                          padding: '0.4rem 0.9rem', /* ancho por contenido: sin width fijo el texto ya no se encima */
+                          whiteSpace: 'nowrap',
                           fontSize: '0.8rem',
                           fontWeight: active ? 700 : 500,
                           border: 'none',

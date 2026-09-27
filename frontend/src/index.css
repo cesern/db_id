@@ -822,3 +822,12 @@ button:not(:disabled):active { transform: scale(0.97); }
 .fs-bar-row[data-unranked] .fs-bar { background: #cbd5e1; }
 
 @media (prefers-reduced-motion: reduce) { .fs-rank-body { animation: none; } }
+
+/* Pantalla completa en pantallas angostas: el encabezado baja a dos renglones (título y filtros
+   arriba; acciones abajo) para que "Cerrar" nunca quede fuera de la pantalla */
+@media (max-width: 639px) {
+  .fs-header { flex-wrap: wrap; align-items: flex-start !important; }
+  .fs-header > div:first-child { flex: 1 1 100%; }
+  .fs-header > div:last-child { flex: 1 1 100%; flex-shrink: 1; flex-wrap: wrap; justify-content: flex-end; }
+  .fs-header > div:last-child > div { flex-wrap: wrap; gap: 0.5rem !important; }
+}

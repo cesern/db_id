@@ -816,8 +816,10 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
               width={F(52)}
               tickFormatter={(val) => {
                 if (metricType === 'rate') return val.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
-                if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}M`;
-                if (val >= 1_000) return `${(val / 1_000).toFixed(0)}K`;
+                // Sin redondeo engañoso: 1,500 → "1.5K" (no "2K"); múltiplos exactos sin decimal
+                const compact = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, ''));
+                if (val >= 1_000_000) return `${compact(val / 1_000_000)}M`;
+                if (val >= 1_000) return `${compact(val / 1_000)}K`;
                 return val;
               }}
             />
