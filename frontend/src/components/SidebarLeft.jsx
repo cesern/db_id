@@ -11,10 +11,15 @@ import { useFullscreenScale } from '../utils/fullscreenScale';
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-// Fila resaltada: la entidad activa (vista entidades) o el municipio seleccionado
-const isHighlightedRow = (m, isEntidades, activeEntityName, selectedMunicipio) => (
-  isEntidades ? m.name === activeEntityName : (selectedMunicipio ? m.municipio === selectedMunicipio : false)
-);
+// Resaltado de filas:
+// - 'strong': la entidad activa (vista Entidades) o el municipio seleccionado.
+// - 'soft': los municipios de la entidad activa (vista Municipios), igual que Sonora en Entidades
+//   pero sin negritas, para que la tabla no pese cuando todas las filas son de esa entidad.
+const rowHighlight = (m, isEntidades, activeEntityName, selectedMunicipio) => {
+  if (isEntidades) return m.name === activeEntityName ? 'strong' : null;
+  if (selectedMunicipio && m.municipio === selectedMunicipio) return 'strong';
+  return m.entidad === activeEntityName ? 'soft' : null;
+};
 
 const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [totalIncidencia, setTotalIncidencia] = useState(0);
@@ -169,6 +174,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
     return `${idx.map(i => MESES_CORTOS[i]).join(', ')} ${anio}`;
   })();
   const totalIsND = totalIncidencia === 'N/D';
+  const entidadFiltrada = !!(selectedFilters?.entidad && selectedFilters.entidad !== 'All');
   const selectedMunicipio = (!isVictimas && selectedFilters?.municipio && selectedFilters.municipio !== 'All') ? selectedFilters.municipio : null;
   const activeIncidenceLabel = (selectedFilters?.municipio && selectedFilters.municipio !== 'All')
     ? selectedFilters.municipio
@@ -298,14 +304,16 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
             ) : (rows.length === 0 && !loading) ? (
               <EmptyState />
             ) : rows.map((m) => {
-              const hl = isHighlightedRow(m, isEntidades, activeEntityName, selectedMunicipio);
+              const level = rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio);
+              const hl = level === 'strong';
               const pct = maxVal > 0 && typeof m.value === 'number' ? Math.max(2, (m.value / maxVal) * 100) : 0;
-              // En municipios la entidad ya está elegida: no repetir ", Sonora"
-              const displayName = isEntidades ? m.name : (m.municipio || m.name);
+              // Con una entidad elegida no se repite ", Sonora"; en Nacional se muestra "Municipio, Entidad"
+              const displayName = (isEntidades || !entidadFiltrada) ? m.name : (m.municipio || m.name);
               return (
                 <div
                   key={`${tableView}-${m.name}-${m.id}`}
                   aria-current={hl ? 'true' : undefined}
+                data-highlight={level || undefined}
                   style={{
                     display: 'grid',
                     gridTemplateColumns: `${Math.round(40 * fsScale)}px 1fr ${Math.round(120 * fsScale)}px`,
@@ -313,8 +321,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
                     alignItems: 'center',
                     padding: `${0.7 * fsScale}rem 1rem`,
                     fontSize: `${0.9 * fsScale}rem`,
-                    backgroundColor: hl ? '#e3e8f3' : 'transparent',
-                    color: hl ? 'var(--color-accent-dark)' : 'var(--color-primary)',
+                    backgroundColor: hl ? '#e3e8f3' : (level === 'soft' ? '#e9edf6' : 'transparent'),
+                    color: level ? 'var(--color-accent-dark)' : 'var(--color-primary)',
                     borderBottom: '1px solid var(--border-color)',
                     fontWeight: hl ? 700 : 400,
                   }}
@@ -488,14 +496,16 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
           ) : (rows.length === 0 && !loading) ? (
             <EmptyState />
           ) : rows.map((m) => {
-            const hl = isHighlightedRow(m, isEntidades, activeEntityName, selectedMunicipio);
+            const level = rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio);
+              const hl = level === 'strong';
             const pct = maxVal > 0 && typeof m.value === 'number' ? Math.max(2, (m.value / maxVal) * 100) : 0;
-            // En municipios la entidad ya está elegida: no repetir ", Sonora"
-            const displayName = isEntidades ? m.name : (m.municipio || m.name);
+            // Con una entidad elegida no se repite ", Sonora"; en Nacional se muestra "Municipio, Entidad"
+            const displayName = (isEntidades || !entidadFiltrada) ? m.name : (m.municipio || m.name);
             return (
               <div
                 key={`${tableView}-${m.name}-${m.id}`}
                 aria-current={hl ? 'true' : undefined}
+                data-highlight={level || undefined}
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '30px 1fr 80px',
@@ -503,8 +513,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
                   alignItems: 'center',
                   padding: '0.45rem 1rem',
                   fontSize: '0.875rem',
-                  backgroundColor: hl ? '#e3e8f3' : 'transparent',
-                  color: hl ? 'var(--color-accent-dark)' : 'var(--color-primary)',
+                  backgroundColor: hl ? '#e3e8f3' : (level === 'soft' ? '#e9edf6' : 'transparent'),
+                  color: level ? 'var(--color-accent-dark)' : 'var(--color-primary)',
                   borderBottom: '1px solid var(--border-color)',
                   fontWeight: hl ? 700 : 400,
                 }}
