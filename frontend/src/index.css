@@ -418,6 +418,16 @@ select:focus:not(:focus-visible) {
 /* Cifras alineadas en tablas y KPIs */
 .tabular { font-variant-numeric: tabular-nums; }
 
+/* KPI: la cifra se ajusta al ancho de SU tarjeta y a su número de caracteres (--chars),
+   así nunca se desborda y solo se reduce cuando hace falta. Sin animación: cambia con cada filtro. */
+.kpi-card { container-type: inline-size; }
+.kpi-value {
+  display: block;
+  white-space: nowrap;
+  font-size: 1.9rem; /* respaldo sin container queries */
+  font-size: clamp(1.1rem, calc(100cqi / (var(--chars, 6) * 0.62)), 1.9rem);
+}
+
 /* Respuesta táctil al presionar (sutil; se omite con movimiento reducido) */
 button:not(:disabled):active { transform: scale(0.97); }
 
