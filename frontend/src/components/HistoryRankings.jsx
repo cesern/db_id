@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import axios from 'axios';
 import { API_URL } from '../api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceArea } from 'recharts';
@@ -258,6 +258,47 @@ const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, da
   return null;
 };
 
+const PREFERS_REDUCED_MOTION = typeof window !== 'undefined'
+  && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+// Lista desplegable de periodos adicionales en las tarjetas de posición.
+// El control dice qué hará ("+N periodos más" / "Ocultar periodos") y la flecha gira;
+// la lista aparece sin animar la altura (acción de uso frecuente).
+const MorePeriods = ({ items, formatPeriodLabel, formatCardValue }) => {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  return (
+    <div style={{ width: '100%', textAlign: 'center' }}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen(v => !v)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+          background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', borderRadius: '6px',
+          fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-accent)'
+        }}
+      >
+        {open ? 'Ocultar periodos' : `+${items.length} ${items.length === 1 ? 'periodo' : 'periodos'} más`}
+        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          style={{ transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1)', transform: open ? 'rotate(180deg)' : 'none' }}>
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div id={listId} style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '0.3rem', maxHeight: '120px', overflowY: 'auto' }}>
+          {items.map((item) => (
+            <span key={item.period} className="tabular" style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>{formatPeriodLabel(item.period)}</strong>: {formatCardValue(item.total)}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const HistoryRankings = ({ tempColor }) => {
   const [selectedEntidad, setSelectedEntidad] = useState('Sonora');
   const [dataset, setDataset] = useState('delitos');
@@ -452,6 +493,25 @@ const HistoryRankings = ({ tempColor }) => {
     }
   };
 
+  // Tarjeta de posición (menor/mayor incidencia): la posición en navy, sin verde/rojo que juzgue;
+  // el periodo más reciente a la vista y el resto desplegable.
+  const renderPositionCard = (label, rank, items) => {
+    const sorted = [...items].sort((x, y) => String(y.period).localeCompare(String(x.period)));
+    const [latest, ...rest] = sorted;
+    return (
+      <div style={{ flex: 1, backgroundColor: 'var(--bg-main)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '150px', gap: '0.15rem' }}>
+        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'center' }}>{label}</span>
+        <span className="tabular" style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-accent)' }}>#{rank}</span>
+        {latest && (
+          <span className="tabular" style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+            <strong style={{ color: 'var(--text-primary)' }}>{formatPeriodLabel(latest.period)}</strong>: {formatCardValue(latest.total)}
+          </span>
+        )}
+        {rest.length > 0 && <MorePeriods items={rest} formatPeriodLabel={formatPeriodLabel} formatCardValue={formatCardValue} />}
+      </div>
+    );
+  };
+
   const dataForExport = useMemo(() => {
     if (!chartData || chartData.length === 0) return [];
     return chartData.filter(d => d[selectedEntidad] !== undefined).map(d => ({
@@ -563,7 +623,7 @@ const HistoryRankings = ({ tempColor }) => {
         {/* Filters and Selectors Container */}
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', padding: '1rem', backgroundColor: 'var(--bg-main)', borderRadius: '8px', marginTop: '1rem' }}>
           <div style={{ flex: '1 1 min(100%, 180px)' }}>
-            <label className="label-sm">Dataset</label>
+            <label className="label-sm">Conjunto de datos</label>
             <select className="input-select" value={dataset} onChange={e => setDataset(e.target.value)}>
               <option value="delitos">Delitos</option>
               <option value="victimas">Víctimas</option>
@@ -601,31 +661,11 @@ const HistoryRankings = ({ tempColor }) => {
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', marginBottom: '0.5rem', gap: '1rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: '0.5rem 1rem', flex: '1 1 300px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '0.5rem 1rem', flex: '1 1 300px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
             {summaryEntidad && (
               <>
-                <div style={{ flex: 1, backgroundColor: 'var(--bg-main)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '150px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'center' }}>Posición con menor incidencia</span>
-                  <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#047857', marginTop: '0.2rem' }} className="tabular">#{summaryEntidad.mejor}</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%', alignItems: 'center', marginTop: '0.4rem', maxHeight: '84px', overflowY: 'auto', paddingRight: '4px' }}>
-                    {summaryEntidad.mejorItems.map((item, idx) => (
-                      <span key={idx} className="tabular" style={{ fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'center', display: 'block', width: '100%', lineHeight: '1.2' }}>
-                        <strong style={{ color: 'var(--text-primary)' }}>{formatPeriodLabel(item.period)}</strong>: {formatCardValue(item.total)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ flex: 1, backgroundColor: 'var(--bg-main)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '150px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'center' }}>Posición con mayor incidencia</span>
-                  <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#b91c1c', marginTop: '0.2rem' }} className="tabular">#{summaryEntidad.peor}</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%', alignItems: 'center', marginTop: '0.4rem', maxHeight: '84px', overflowY: 'auto', paddingRight: '4px' }}>
-                    {summaryEntidad.peorItems.map((item, idx) => (
-                      <span key={idx} className="tabular" style={{ fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'center', display: 'block', width: '100%', lineHeight: '1.2' }}>
-                        <strong style={{ color: 'var(--text-primary)' }}>{formatPeriodLabel(item.period)}</strong>: {formatCardValue(item.total)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+                {renderPositionCard('Posición con menor incidencia', summaryEntidad.mejor, summaryEntidad.mejorItems)}
+                {renderPositionCard('Posición con mayor incidencia', summaryEntidad.peor, summaryEntidad.peorItems)}
               </>
             )}
             {summaryEntidad && (
@@ -636,10 +676,10 @@ const HistoryRankings = ({ tempColor }) => {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-            <button className="btn" onClick={handleClear} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', height: 'fit-content' }}>
-              ✕ Limpiar filtros
+            <button type="button" className="btn" onClick={handleClear} style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0.45rem 1rem', height: 'fit-content', color: 'var(--text-secondary)' }}>
+              Limpiar filtros
             </button>
-            <button className="btn btn-primary" onClick={handleApply} style={{ fontSize: '0.85rem', padding: '0.5rem 1.5rem', height: 'fit-content' }}>
+            <button type="button" className="btn btn-primary" onClick={handleApply} style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0.45rem 1.1rem', height: 'fit-content' }}>
               Aplicar filtros
             </button>
           </div>
@@ -682,8 +722,9 @@ const HistoryRankings = ({ tempColor }) => {
         <div style={{
           position: 'absolute',
           top: '1rem', left: '1rem', right: '1rem', bottom: '0.2rem',
-          opacity: isFading ? 0.3 : 1,
-          transition: 'opacity 0.4s ease-in-out'
+          // Feedback de carga breve y sutil (no un efecto): atenuar rápido, volver rápido
+          opacity: isFading ? 0.55 : 1,
+          transition: 'opacity 150ms cubic-bezier(0.23, 1, 0.32, 1)'
         }}>
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
@@ -714,7 +755,7 @@ const HistoryRankings = ({ tempColor }) => {
                   width={30}
                   reversed={true}
                   domain={[1, 32]}
-                  ticks={[1, 10, 20, 30, 32]}
+                  ticks={[1, 10, 20, 32]}
                   tick={{ fill: '#64748b', fontSize: F(11), fontWeight: 500 }}
                   axisLine={false}
                   tickLine={false}
@@ -722,28 +763,15 @@ const HistoryRankings = ({ tempColor }) => {
                 />
                 <Tooltip content={<CustomTooltip metricType={applied.metricType} selectedEntidad={selectedEntidad} dataset={applied.dataset} fs={fsScale} />} wrapperStyle={{ zIndex: 1000 }} />
 
-                <ReferenceArea y1={1} y2={10} fill="#ef4444" fillOpacity={0.06} strokeOpacity={0} />
-                <ReferenceArea y1={11} y2={20} fill="#f59e0b" fillOpacity={0.06} strokeOpacity={0} />
-                <ReferenceArea y1={21} y2={32} fill="#10b981" fillOpacity={0.06} strokeOpacity={0} />
+                {/* Zonas en tono único azul institucional: más intenso = más arriba en el ranking
+                    (1–10, mayor incidencia). Conserva la lectura de zona sin el juicio rojo/verde. */}
+                {/* Sin rótulos dentro del área: chocaban con la línea; el eje (1, 10, 20, 32) ya marca las zonas */}
+                <ReferenceArea y1={1} y2={10.5} fill="#455993" fillOpacity={0.11} strokeOpacity={0} />
+                <ReferenceArea y1={10.5} y2={20.5} fill="#455993" fillOpacity={0.055} strokeOpacity={0} />
+                <ReferenceArea y1={20.5} y2={32} fill="#455993" fillOpacity={0.02} strokeOpacity={0} />
 
-                {/* Render background/inactive lines */}
-                {lineNames.filter(name => name !== selectedEntidad).map((name) => (
-                  <Line
-                    key={name}
-                    type="monotone"
-                    dataKey={name}
-                    name={name}
-                    stroke="#e2e8f0"
-                    strokeWidth={isFullScreen ? 1.5 : 1}
-                    strokeOpacity={0.8}
-                    dot={false}
-                    activeDot={false}
-                    isAnimationActive={false}
-                    legendType="none"
-                    label={false}
-                  />
-                ))}
-
+                {/* Solo la entidad elegida: las 31 líneas de fondo formaban una trama de cruces
+                    (en un ranking siempre ocupan todas las posiciones) y se retiraron. */}
                 {/* Render active line always on top */}
                 {lineNames.includes(selectedEntidad) && (
                   <Line
@@ -756,7 +784,12 @@ const HistoryRankings = ({ tempColor }) => {
                     strokeOpacity={1}
                     dot={false}
                     activeDot={{ r: 6, fill: primaryColor }}
-                    isAnimationActive={false}
+                    // Trazo de izquierda a derecha: comunica la evolución en el tiempo.
+                    // Se omite con "reducir movimiento"; el rótulo final aparece al terminar.
+                    isAnimationActive={!PREFERS_REDUCED_MOTION}
+                    animationBegin={0}
+                    animationDuration={600}
+                    animationEasing="ease-out"
                     style={{ zIndex: 10 }}
                     legendType="none"
                     label={renderCustomLabel}

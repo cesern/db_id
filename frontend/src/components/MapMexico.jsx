@@ -61,7 +61,18 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
     const s = isSonora ? Math.min(8.9 * w, 8.7 * h) : Math.min(1.9 * w, 2.5 * h);
     return Math.round(s * 0.96);
   }, [mapSize, isFullScreen, isSonora]);
-  const mapScale = fitScale || (isSonora ? 4000 : 1200);
+  // Vista normal: el lienzo toma la proporción real de la tarjeta (columna angosta y alta)
+  // y la escala se ajusta para que el geo la llene, en vez de quedar con franjas vacías.
+  const normalCanvas = useMemo(() => {
+    const { w, h } = mapSize;
+    if (isFullScreen || w < 10 || h < 10) return null;
+    const W = 800;
+    const H = Math.round(W * h / w);
+    // Extensión en radianes Mercator: Sonora ≈ 0.117 × 0.124; México ≈ 0.53 × 0.34
+    const s = isSonora ? Math.min(0.9 * W / 0.117, 0.9 * H / 0.124) : Math.min(0.92 * W / 0.53, 0.92 * H / 0.34);
+    return { W, H, scale: Math.round(s) };
+  }, [mapSize, isFullScreen, isSonora]);
+  const mapScale = fitScale || normalCanvas?.scale || (isSonora ? 4000 : 1200);
 
   // Factor de escala fullscreen (1 en vista normal) para el tooltip
   const fsScale = useFullscreenScale(isFullScreen);
@@ -325,9 +336,9 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
         />
       ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', paddingRight: '0.5rem' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0, minWidth: 0 }}>
+          <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0, minWidth: 0 }}>
             {mapTitle}
-          </h3>
+          </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <ExportMenu
               elementRef={cardRef}
@@ -382,6 +393,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
         )}
 
         <ComposableMap
+          {...(normalCanvas ? { width: normalCanvas.W, height: normalCanvas.H } : {})}
           projection="geoMercator"
           projectionConfig={{
             scale: mapScale,

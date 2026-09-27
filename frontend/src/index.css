@@ -358,7 +358,7 @@ body {
   }
 
   /* Reducir tamaño de títulos en tarjetas */
-  .card h3 {
+  .card h2, .card h3 {
     font-size: 0.85rem !important;
     margin-bottom: 0.5rem !important;
   }
@@ -522,6 +522,7 @@ button:not(:disabled):active { transform: scale(0.97); }
   box-shadow: 0 2px 6px rgba(69, 89, 147, 0.25);
 }
 .header-actions { display: flex; gap: 0.75rem; align-items: center; max-width: 100%; min-width: 0; }
+.dataset-tabs-divider { flex-shrink: 0; width: 1px; height: 20px; margin: 0 6px; background: #c5cedb; }
 
 /* Escritorio (>=1200px): título y pestañas siempre en la misma fila. Por debajo no caben ambos con un título legible y se permite el salto */
 @media (min-width: 1200px) {

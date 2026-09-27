@@ -359,23 +359,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
     <>
       {/* KPI Cards: total del periodo + lugar nacional de la entidad activa */}
       <div style={{ display: 'flex', gap: 'var(--grid-gap, 1rem)' }}>
-        {/* El total lleva la cifra larga: tarjeta más ancha que la del lugar (siempre corta) */}
-        <div className="card kpi-card" style={{ flex: 1.6, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.2rem', padding: '0.85rem 1rem', position: 'relative', minWidth: 0 }}>
-          {loading && <LoadingSpinner size="sm" />}
-          <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {activeIncidenceLabel}{metricType === 'rate' ? ' · tasa' : ''}
-          </span>
-          <span
-            title={totalIsND ? 'Sin población CONAPO para calcular la tasa en este periodo' : undefined}
-            className="tabular kpi-value"
-            style={{ '--chars': String(error ? '—' : formatNumber(totalIncidencia)).length, fontWeight: 700, color: 'var(--color-primary)', lineHeight: 1.1, letterSpacing: '-0.02em' }}
-          >
-            {error ? '—' : formatNumber(totalIncidencia)}
-          </span>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-            {totalIsND && !error ? 'Sin población CONAPO para la tasa' : periodLabel}
-          </span>
-        </div>
+        {/* La posición nacional va primero: es la lectura principal para la Fiscalía */}
         <div
           className="card"
           title={`Posición de ${activeEntityName} entre las ${totalEntidades || 32} entidades con los filtros aplicados (1 = ${rankCriterion})`}
@@ -394,6 +378,23 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
             )}
           </span>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>lugar nacional</span>
+        </div>
+        {/* El total lleva la cifra larga: tarjeta más ancha que la del lugar (siempre corta) */}
+        <div className="card kpi-card" style={{ flex: 1.6, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.2rem', padding: '0.85rem 1rem', position: 'relative', minWidth: 0 }}>
+          {loading && <LoadingSpinner size="sm" />}
+          <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {activeIncidenceLabel}{metricType === 'rate' ? ' · tasa' : ''}
+          </span>
+          <span
+            title={totalIsND ? 'Sin población CONAPO para calcular la tasa en este periodo' : undefined}
+            className="tabular kpi-value"
+            style={{ '--chars': String(error ? '—' : formatNumber(totalIncidencia)).length, fontWeight: 700, color: 'var(--color-primary)', lineHeight: 1.1, letterSpacing: '-0.02em' }}
+          >
+            {error ? '—' : formatNumber(totalIncidencia)}
+          </span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            {totalIsND && !error ? 'Sin población CONAPO para la tasa' : periodLabel}
+          </span>
         </div>
       </div>
 

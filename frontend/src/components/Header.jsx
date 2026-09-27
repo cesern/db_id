@@ -93,7 +93,7 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
               }
             };
 
-            return (
+            const tab = (
               <button
                 key={opt.id}
                 type="button"
@@ -104,6 +104,13 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
                 {opt.label}
               </button>
             );
+            // Rankings es un modo de análisis, no un dataset: se separa con un divisor
+            return opt.id === 'rankings' ? (
+              <React.Fragment key={opt.id}>
+                <span className="dataset-tabs-divider" aria-hidden="true" />
+                {tab}
+              </React.Fragment>
+            ) : tab;
           })}
         </div>
       </div>

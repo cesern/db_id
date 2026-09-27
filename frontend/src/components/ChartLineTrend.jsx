@@ -658,8 +658,9 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
     borderRadius: '6px',
     cursor: 'pointer',
     transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease',
-    border: active ? '1px solid var(--color-accent)' : '1px solid var(--border-color)',
-    background: active ? 'var(--color-accent)' : '#ffffff',
+    // Inactivos discretos (sin caja) para no competir con el título; el activo se marca en azul
+    border: active ? '1px solid var(--color-accent)' : '1px solid transparent',
+    background: active ? 'var(--color-accent)' : 'var(--bg-main)',
     color: active ? '#ffffff' : 'var(--text-secondary)',
     boxShadow: active ? '0 1px 3px rgba(69,89,147,0.25)' : 'none',
   });
@@ -716,12 +717,12 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
           }
         />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.5rem' }}>
           {/* Fila 1: Título y Acciones */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '0.2rem' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0 }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0 }}>
               {chartTitle}
-            </h3>
+            </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <ExportMenu
                 elementRef={cardRef}
