@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import axios from 'axios';
 import { API_URL } from '../api';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceArea } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Customized, usePlotArea, ReferenceLine } from 'recharts';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
@@ -256,6 +256,21 @@ const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, da
     );
   }
   return null;
+};
+
+// Sentido del eje Y (reversed: 1 arriba). Rótulos verticales discretos en el canal del eje.
+// Recharts 3: el área de la gráfica se lee con usePlotArea (Customized ya no pasa offset).
+const AxisDirection = ({ axisWidth, gutter, fontSize }) => {
+  const area = usePlotArea();
+  if (!area) return null;
+  const x = area.x - axisWidth - gutter / 2;
+  const common = { fontSize, fontWeight: 600, fill: 'var(--text-secondary)', letterSpacing: '0.06em', dominantBaseline: 'central' };
+  return (
+    <g aria-hidden="true">
+      <text {...common} transform={`translate(${x},${area.y}) rotate(-90)`} textAnchor="end">MÁS INCIDENCIA →</text>
+      <text {...common} transform={`translate(${x},${area.y + area.height}) rotate(-90)`} textAnchor="start">← MENOS INCIDENCIA</text>
+    </g>
+  );
 };
 
 const PREFERS_REDUCED_MOTION = typeof window !== 'undefined'
@@ -536,17 +551,37 @@ const HistoryRankings = ({ tempColor }) => {
 
   const primaryColor = 'var(--color-accent)';
 
+  // Badge conectado al último punto: ●── SONORA #21. Recharts dibuja el label al terminar
+  // el trazo, así que el badge aparece después (fundido de 150ms en .rank-badge).
+  const BADGE_FS = F(11);
+  const BADGE_H = BADGE_FS + 10;
+  const DOT_R = 4;
+  const CONNECTOR = 12;
+  const badgeWidth = (text) => Math.ceil(String(text).length * BADGE_FS * 0.68) + 16;
+  // Margen derecho según el nombre más largo posible de la entidad (con "#32")
+  const rightMargin = Math.max(90, DOT_R + CONNECTOR + badgeWidth(`${selectedEntidad.toUpperCase()} #32`) + 12);
+
   const renderCustomLabel = (props) => {
     const { x, y, value, index } = props;
-    if (index === chartData.length - 1) {
-      return (
-        <text x={x + 10} y={y + 4} fill={primaryColor} fontSize={F(14)} fontWeight={700} textAnchor="start">
-          {selectedEntidad} #{value}
+    if (index !== chartData.length - 1 || value === undefined || value === null) return null;
+    const text = `${selectedEntidad.toUpperCase()} #${value}`;
+    const w = badgeWidth(text);
+    const bx = x + DOT_R + CONNECTOR;
+    return (
+      <g className="rank-badge" aria-label={`${selectedEntidad}, posición ${value} en el último periodo`}>
+        <line x1={x} y1={y} x2={bx} y2={y} stroke={primaryColor} strokeWidth={1.5} />
+        <circle cx={x} cy={y} r={DOT_R} fill={primaryColor} stroke="#ffffff" strokeWidth={1.5} />
+        <rect x={bx} y={y - BADGE_H / 2} width={w} height={BADGE_H} rx={4} fill={primaryColor} />
+        <text x={bx + w / 2} y={y} fill="#ffffff" fontSize={BADGE_FS} fontWeight={600} letterSpacing="0.04em" textAnchor="middle" dominantBaseline="central" className="tabular">
+          {text}
         </text>
-      );
-    }
-    return null;
+      </g>
+    );
   };
+
+  // Sentido del eje Y (reversed: 1 arriba): rótulos verticales discretos en el canal del eje
+  const AXIS_W = 30;
+  const AXIS_GUTTER = F(14);
 
   return (
     <div
@@ -687,7 +722,7 @@ const HistoryRankings = ({ tempColor }) => {
       </div>
     )}
 
-      <div style={{ flex: 1, minHeight: 0, backgroundColor: '#fcfcfc', position: 'relative' }}>
+      <div style={{ flex: 1, minHeight: 0, backgroundColor: '#ffffff', position: 'relative' }}>
         {!isFullScreen && (
           <div style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', zIndex: 110, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <ExportMenu
@@ -728,8 +763,8 @@ const HistoryRankings = ({ tempColor }) => {
         }}>
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 20, right: 90, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+              <LineChart data={chartData} margin={{ top: 20, right: rightMargin, left: AXIS_GUTTER, bottom: 0 }}>
+                {/* Sin cuadrícula: solo las divisorias entre niveles (abajo) para no competir con ellas */}
                 <XAxis
                   dataKey="period"
                   tick={{ fill: '#475569', fontSize: F(12), fontWeight: 600 }}
@@ -752,23 +787,22 @@ const HistoryRankings = ({ tempColor }) => {
                   }}
                 />
                 <YAxis
-                  width={30}
+                  width={AXIS_W}
                   reversed={true}
                   domain={[1, 32]}
                   ticks={[1, 10, 20, 32]}
-                  tick={{ fill: '#64748b', fontSize: F(11), fontWeight: 500 }}
+                  tick={{ fill: 'var(--text-secondary)', fontSize: F(11), fontWeight: 500 }}
                   axisLine={false}
                   tickLine={false}
                   dx={-5}
                 />
                 <Tooltip content={<CustomTooltip metricType={applied.metricType} selectedEntidad={selectedEntidad} dataset={applied.dataset} fs={fsScale} />} wrapperStyle={{ zIndex: 1000 }} />
 
-                {/* Zonas en tono único azul institucional: más intenso = más arriba en el ranking
-                    (1–10, mayor incidencia). Conserva la lectura de zona sin el juicio rojo/verde. */}
-                {/* Sin rótulos dentro del área: chocaban con la línea; el eje (1, 10, 20, 32) ya marca las zonas */}
-                <ReferenceArea y1={1} y2={10.5} fill="#455993" fillOpacity={0.11} strokeOpacity={0} />
-                <ReferenceArea y1={10.5} y2={20.5} fill="#455993" fillOpacity={0.055} strokeOpacity={0} />
-                <ReferenceArea y1={20.5} y2={32} fill="#455993" fillOpacity={0.02} strokeOpacity={0} />
+                {/* Fondo de un solo color. Divisorias entre los tres niveles (1–10, 11–20, 21–32)
+                    en el corte real (10.5 y 20.5): visibles pero discretas. */}
+                <ReferenceLine y={10.5} stroke="#94a3b8" strokeWidth={1} strokeDasharray="6 4" strokeOpacity={0.85} />
+                <ReferenceLine y={20.5} stroke="#94a3b8" strokeWidth={1} strokeDasharray="6 4" strokeOpacity={0.85} />
+                <Customized component={<AxisDirection axisWidth={AXIS_W} gutter={AXIS_GUTTER} fontSize={F(10)} />} />
 
                 {/* Solo la entidad elegida: las 31 líneas de fondo formaban una trama de cruces
                     (en un ranking siempre ocupan todas las posiciones) y se retiraron. */}
