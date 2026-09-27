@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 import axios from 'axios';
 import { API_URL } from '../api';
 import { ALTO_IMPACTO_PRESETS, parseCapsule } from '../utils/altoImpacto';
@@ -13,6 +13,7 @@ const MONTHS = [
 
 const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const uid = useId();
   const [searchTerm, setSearchTerm] = useState('');
   const containerRef = useRef(null);
   const masterCheckboxRef = useRef(null);
@@ -81,101 +82,121 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
 
   return (
     <div style={{ position: 'relative', flex: '1 1 min(100%, 180px)' }} ref={containerRef}>
-      <label className="label-sm">{label}</label>
-      <div
+      <label className="label-sm" id={`${uid}-label`} htmlFor={`${uid}-trigger`}>{label}</label>
+      <button
+        type="button"
+        id={`${uid}-trigger`}
         className="input-select"
-        style={{ cursor: 'pointer', userSelect: 'none', minHeight: 'var(--input-min-height, 30px)', display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-labelledby={`${uid}-label ${uid}-trigger`}
+        style={{ cursor: 'pointer', userSelect: 'none', minHeight: 'var(--input-min-height, 30px)', display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}
         onClick={() => setIsOpen(!isOpen)}
         title={displayText}
       >
-        {displayText}
-      </div>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayText}</span>
+      </button>
       {isOpen && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0,
-          backgroundColor: 'white', border: '1px solid var(--border-color)',
-          borderRadius: '6px', marginTop: '4px', zIndex: 100,
-          boxShadow: 'var(--shadow-lg)',
-          display: 'flex', flexDirection: 'column',
-          maxHeight: '350px'
-        }}>
+        <div
+          role="dialog"
+          aria-label={`Opciones de ${label}`}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.stopPropagation();
+              setIsOpen(false);
+              document.getElementById(`${uid}-trigger`)?.focus();
+            }
+          }}
+          style={{
+            position: 'absolute', top: '100%', left: 0, right: 0,
+            minWidth: '220px',
+            backgroundColor: 'white', border: '1px solid var(--border-color)',
+            borderRadius: '8px', marginTop: '4px', zIndex: 100,
+            boxShadow: 'var(--shadow-lg)',
+            display: 'flex', flexDirection: 'column',
+            maxHeight: '350px'
+          }}
+        >
           {/* Sección Fija Superior */}
           <div style={{
             position: 'sticky', top: 0, zIndex: 10,
             backgroundColor: 'var(--bg-main)', borderBottom: '1px solid var(--border-color)',
-            borderTopLeftRadius: '6px', borderTopRightRadius: '6px',
+            borderTopLeftRadius: '8px', borderTopRightRadius: '8px',
             padding: '0.6rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem'
           }}>
             <input
-              type="text"
+              type="search"
+              autoFocus
+              aria-label={`Buscar en ${label}`}
               placeholder="Buscar opciones..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
               style={{
-                width: '100%', padding: '0.4rem 0.5rem',
-                border: '1px solid var(--border-color)', borderRadius: '4px',
-                fontSize: '0.8rem', outline: 'none'
+                width: '100%', padding: '0.45rem 0.55rem',
+                border: '1px solid var(--border-color)', borderRadius: '6px',
+                fontSize: '0.8125rem'
               }}
             />
-            
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div 
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
-                onClick={(e) => { e.stopPropagation(); handleMasterChange(); }}
-              >
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   ref={masterCheckboxRef}
                   checked={isAllVisibleSelected}
-                  onChange={() => {}}
-                  style={{ cursor: 'pointer' }}
+                  onChange={handleMasterChange}
+                  style={{ cursor: 'pointer', accentColor: 'var(--color-accent)' }}
                 />
-                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>Seleccionar todo</span>
-              </div>
-              
+                <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Seleccionar todo</span>
+              </label>
+
               <button
+                type="button"
                 onClick={handleLimpiar}
                 style={{
                   background: 'none', border: 'none', color: 'var(--color-accent)',
-                  fontSize: '0.8rem', cursor: 'pointer', fontWeight: 700, padding: 0
+                  fontSize: '0.8125rem', cursor: 'pointer', fontWeight: 700, padding: '2px 4px'
                 }}
               >
                 Limpiar
               </button>
             </div>
-            
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+
+            <div className="tabular" aria-live="polite" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
               {safeSelected.length} de {safeOptions.length} seleccionados
             </div>
           </div>
-          
+
           {/* Contenedor Scrolleable de Opciones */}
-          <div style={{ overflowY: 'auto', flex: 1 }}>
+          <div role="group" aria-label={label} style={{ overflowY: 'auto', flex: 1 }}>
             {filteredOptions.length === 0 ? (
-              <div style={{ padding: '1rem', fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-                No se encontraron opciones
+              <div style={{ padding: '1rem', fontSize: '0.8125rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                Ninguna opción coincide con “{searchTerm}”
               </div>
             ) : (
               filteredOptions.map(opt => {
                 const isSel = safeSelected.includes(opt);
                 return (
-                  <div
+                  <label
                     key={opt}
                     title={opt}
                     style={{
                       padding: '0.55rem 0.75rem', cursor: 'pointer', display: 'flex',
                       alignItems: 'center', gap: '0.5rem',
-                      background: isSel ? 'var(--bg-main)' : 'white',
+                      background: isSel ? 'var(--color-accent-light)' : 'white',
                       borderBottom: '1px solid var(--border-color)'
                     }}
-                    onClick={(e) => { e.stopPropagation(); handleToggle(opt); }}
                   >
-                    <input type="checkbox" checked={isSel} readOnly style={{ cursor: 'pointer' }} />
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <input
+                      type="checkbox"
+                      checked={isSel}
+                      onChange={() => handleToggle(opt)}
+                      style={{ cursor: 'pointer', accentColor: 'var(--color-accent)', flexShrink: 0 }}
+                    />
+                    <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {opt}
                     </span>
-                  </div>
+                  </label>
                 );
               })
             )}
@@ -208,6 +229,8 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
   const isAltoImpacto = dataset === 'alto_impacto';
   const wireDataset = isAltoImpacto ? 'delitos' : dataset;
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
+  // Móvil: la barra de filtros inicia plegada para que los datos aparezcan primero
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [filtrosOpciones, setFiltrosOpciones] = useState({
     anios: [],
     entidades: [],
@@ -383,6 +406,20 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
       flexDirection: 'column',
       gap: 'var(--filters-gap, 1rem)'
     }}>
+      <button
+        type="button"
+        className="filters-mobile-toggle"
+        aria-expanded={isMobileOpen}
+        aria-controls="filters-body"
+        onClick={() => setIsMobileOpen(v => !v)}
+      >
+        <span>
+          Filtros{pendingCount > 0 ? ` · ${pendingCount} sin aplicar` : ''}
+        </span>
+        <span aria-hidden="true" style={{ color: 'var(--color-accent)' }}>{isMobileOpen ? '▴' : '▾'}</span>
+      </button>
+
+      <div id="filters-body" className="filters-body" data-open={isMobileOpen}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--filters-select-gap, 1.5rem)', flexWrap: 'wrap' }}>
         
         {/* Contenedor principal de Filtros */}
@@ -453,11 +490,13 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
                             };
                           });
                         }}
+                        type="button"
+                        aria-pressed={isActive}
                         title={parsed.isCustom ? `Personalizado: ${token.slice(0, 120)}` : token}
                         style={{
                           display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
                           padding: '0.35rem 0.75rem', fontSize: '0.8rem', fontWeight: isActive ? 700 : 500,
-                          borderRadius: '999px', cursor: 'pointer', transition: 'all 0.15s ease',
+                          borderRadius: '999px', cursor: 'pointer', transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms cubic-bezier(0.23, 1, 0.32, 1)',
                           border: isActive ? '1px solid var(--color-accent)' : '1px solid var(--border-color)',
                           background: isActive ? 'var(--color-accent)' : '#ffffff',
                           color: isActive ? '#ffffff' : 'var(--text-secondary)'
@@ -469,6 +508,16 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
                             onClick={(e) => {
                               e.stopPropagation();
                               if (onRemoveCustomCapsule) onRemoveCustomCapsule(token);
+                            }}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Eliminar ${parsed.name}`}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (onRemoveCustomCapsule) onRemoveCustomCapsule(token);
+                              }
                             }}
                             title="Eliminar cápsula"
                             style={{ fontWeight: 700, marginLeft: '0.15rem', lineHeight: 1 }}
@@ -544,21 +593,26 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
         <div className="filters-controls-right" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--filters-gap, 1rem)', alignItems: 'flex-end', flexShrink: 0 }}>
           <div className="btn-toggle" style={{ display: 'flex' }}>
             <button
+              type="button"
+              aria-pressed={metricType === 'absolute'}
               className={metricType === 'absolute' ? 'active' : ''}
               onClick={() => setMetricType('absolute')}
             >
               Cifras absolutas
             </button>
             <button
+              type="button"
+              aria-pressed={metricType === 'rate'}
               className={metricType === 'rate' ? 'active' : ''}
               onClick={() => setMetricType('rate')}
             >
-              Tasa 100 mil habitantes
+              Tasa por 100 mil hab.
             </button>
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <button
+              type="button"
               id="btn-limpiar-filtros"
               onClick={onClear}
               style={{
@@ -571,10 +625,11 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
               onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fca5a5'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = 'var(--text-secondary, #64748b)'; e.currentTarget.style.borderColor = 'var(--border-color, #e2e8f0)'; }}
             >
-              ✕ Limpiar filtros
+              Limpiar filtros
             </button>
 
             <button
+              type="button"
               id="btn-aplicar-filtros"
               onClick={onApply}
               style={{
@@ -584,7 +639,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
                 transition: 'background 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease',
                 background: pendingCount > 0 ? 'var(--color-accent, #2563eb)' : 'var(--bg-main, #f1f5f9)',
                 color: pendingCount > 0 ? '#fff' : 'var(--text-secondary, #64748b)',
-                boxShadow: pendingCount > 0 ? '0 4px 12px rgba(37,99,235,0.30)' : 'none'
+                boxShadow: pendingCount > 0 ? '0 4px 12px rgba(69,89,147,0.30)' : 'none'
               }}
               onMouseEnter={e => { if (pendingCount > 0) e.currentTarget.style.transform = 'translateY(-1px)'; }}
               onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
@@ -605,14 +660,18 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
         </div>
       </div>
 
-      {/* Bottom Row: Month Buttons */}
-      <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '4px' }}>
+      {/* Bottom Row: Month Buttons (sin selección = todos los meses) */}
+      <div className="months-row" role="group" aria-label="Meses (sin selección se incluyen todos)">
         {MONTHS.map((month) => {
           const isSelected = selectedFilters.meses && selectedFilters.meses.includes(month.name);
           return (
             <button
               key={month.name}
-              className="btn"
+              type="button"
+              className="btn month-btn"
+              aria-pressed={!!isSelected}
+              aria-label={month.name}
+              title={month.name}
               onClick={() => {
                 setSelectedFilters(prev => {
                   const currentMeses = prev.meses || [];
@@ -624,20 +683,17 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
                 });
               }}
               style={{
-                flex: 1,
-                minWidth: '35px',
+                minWidth: 0,
                 padding: 'var(--month-btn-padding, 0.4rem 0.1rem)',
-                fontSize: 'var(--month-btn-size, 0.75rem)',
-                background: isSelected ? 'var(--bg-main)' : 'white',
-                borderColor: isSelected ? 'var(--color-accent)' : 'var(--border-color)',
-                color: isSelected ? 'var(--color-accent)' : 'inherit',
-                fontWeight: isSelected ? 700 : 500
+                fontSize: 'var(--month-btn-size, 0.75rem)'
               }}
             >
               {month.label}
             </button>
           );
         })}
+      </div>
+
       </div>
 
       {isCustomModalOpen && (

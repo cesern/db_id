@@ -201,6 +201,16 @@ Esta sección describía cambios que nunca llegaron a ningún commit. Estado rea
 - Sin KPI hero con regla dorada, sin meses colapsables en `Filters`, sin barra de filtros navy (`.filters-bar-dark`).
 Si se retoma, tratarlo como trabajo nuevo.
 
+**Actualización 2026-09-26 (impeccable critique → fixes, audiencia: analista de la Fiscalía, tono sobrio):** ya implementado:
+- `index.html lang="es-MX"` + theme-color/description. `--text-secondary #526075` (5.5:1 sobre `--bg-main`). `--color-accent-dark`, `--color-gold`, `--ease-out` en `:root`. Montserrat 800/900 ahora sí se carga en `index.css`.
+- `:focus-visible` global, `::selection` dorado, `.tabular`, press `scale(0.97)`, `prefers-reduced-motion`, sin `transition: all` (salvo `TableTopCrimes`, huérfano).
+- `EmptyState.jsx` (variant `empty|error` + `onRetry`) en SidebarLeft, ChartBarYears, ChartLineTrend y MapMexico, cada uno con `error` + `retryKey`.
+- Botones de icono con `aria-label`; tabs de dataset `role=tab/aria-selected` (clase `.dataset-tabs`, scroll horizontal propio); `MultiSelectDropdown` con `<button>` disparador, checkboxes reales, Escape y buscador con foco.
+- KPI: periodo explícito (`Año 2026` / `Ene–Mar 2026`), lugar `21 de 32` con criterio en tooltip; "N/D" explicado. Tabla: resalta solo la entidad activa o el municipio elegido (`#e3e8f3`), barra de dato inline, municipio sin ", Sonora".
+- Móvil: filtros plegables (`.filters-mobile-toggle` / `.filters-body[data-open]`), meses en grid 6×2, sin scroll horizontal a 375px.
+- Números `toLocaleString('es-MX')`; CSV "Suavizado (MA12)"; toggle "Tasa por 100 mil hab.".
+Pendiente: `App.css` sigue importado; `#2563eb` como fallback en algunos `var(..., #2563eb)`; ChartTooltip compartido; Inter se conserva como fuente de UI (el detector la marca como "overused", decisión deliberada).
+
 ## 14d. Fullscreen con escala (2026-09-12, implementado)
 
 - Hook compartido `src/utils/fullscreenScale.js`: `useFullscreenScale(isFullScreen)` → factor `clamp(min(vw/1280, vh/720), 1.25, 1.75)` con listener `resize` (~1.5 a 1080p; mínimo 1.25 para que siempre se note); `scaleSize(base, s)`. En vista normal siempre 1 (sin cambios visuales).

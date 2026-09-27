@@ -85,7 +85,7 @@ const DrillDownModal = ({
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            animation: 'ddSlideUp 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            animation: 'ddSlideUp 0.28s cubic-bezier(0.23, 1, 0.32, 1)',
           }}
           onClick={e => e.stopPropagation()}
         >
@@ -117,8 +117,9 @@ const DrillDownModal = ({
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--border-color)'}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                 title="Cerrar (Esc)"
+                aria-label="Cerrar"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
@@ -176,7 +177,7 @@ const DrillDownModal = ({
                           </td>
                         )}
                         <td style={tdStyle({ textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' })}>
-                          {typeof row.value === 'number' ? row.value.toLocaleString('en-US') : row.value}
+                          {typeof row.value === 'number' ? row.value.toLocaleString('es-MX') : row.value}
                         </td>
                         {showPct && (
                           <td style={tdStyle({ textAlign: 'right', paddingRight: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.8rem', fontVariantNumeric: 'tabular-nums' })}>
@@ -209,7 +210,7 @@ const DrillDownModal = ({
               </span>
               {total > 0 && (
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  Total: <strong style={{ color: 'var(--text-primary)' }}>{total.toLocaleString('en-US')}</strong>
+                  Total: <strong style={{ color: 'var(--text-primary)' }}>{total.toLocaleString('es-MX')}</strong>
                 </span>
               )}
             </div>

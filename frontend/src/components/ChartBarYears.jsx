@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
+import EmptyState from './EmptyState';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
@@ -98,6 +99,8 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [loading, setLoading] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [drillModal, setDrillModal] = useState(null);
+  const [error, setError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
   const initialLoadCalled = useRef(false);
   const cardRef = useRef(null);
@@ -151,6 +154,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
     const endpoint = isVictimasMun ? "api/incidencia_por_mes_historico" : "api/incidencia_por_anio";
     axios.get(`${API_URL}/${endpoint}?${params.toString()}`, { signal: controller.signal })
       .then(res => {
+        setError(false);
         if (res.data) {
           const formatted = res.data.map(d => ({
             ...d,
@@ -162,6 +166,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
       .catch(err => {
         if (axios.isCancel(err)) return; // petición cancelada, ignorar
         console.error("Error fetching incidencia por anio", err);
+        setError(true);
       })
       .finally(() => {
         setLoading(false);
@@ -172,7 +177,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
       });
 
     return () => controller.abort();
-  }, [selectedFilters, metricType]);
+  }, [selectedFilters, metricType, retryKey]);
 
   const dataset = selectedFilters?.dataset || 'delitos';
   const isVictimas = dataset === 'victimas';
@@ -364,7 +369,8 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
                 borderRadius: '4px',
                 transition: 'background 0.2s',
               }}
-              title="Pantalla completa"
+              title="Ver en pantalla completa"
+              aria-label="Ver en pantalla completa"
               onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
             >
@@ -378,6 +384,8 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
 
       <div style={{ flex: 1, position: 'relative', width: '100%', minHeight: '120px' }}>
         {loading && <LoadingSpinner size="md" />}
+        {!loading && error && <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />}
+        {!loading && !error && data.length === 0 && <EmptyState />}
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}

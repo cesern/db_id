@@ -148,9 +148,9 @@ const InfoModal = ({ isOpen, onClose }) => {
           <div style={{
             marginTop: '1rem',
             padding: '1rem',
-            backgroundColor: 'rgba(69, 89, 147, 0.05)',
-            borderLeft: '4px solid var(--color-accent)',
-            borderRadius: '4px'
+            backgroundColor: 'rgba(69, 89, 147, 0.06)',
+            border: '1px solid rgba(69, 89, 147, 0.18)',
+            borderRadius: '8px'
           }}>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0, fontStyle: 'italic' }}>
               Toda la información contenida en esta plataforma tiene fines estadísticos e informativos, basados en los datos de acceso público.

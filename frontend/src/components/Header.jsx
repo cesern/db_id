@@ -16,14 +16,14 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
       borderBottom: '1px solid var(--border-color)',
       boxShadow: 'var(--shadow-sm)'
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <img src="/logo.png" alt="Logo Institucional" style={{ height: 'var(--header-logo-height, 50px)', objectFit: 'contain' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
+        <img src="/logo.png" alt="Fiscalía General de Justicia del Estado de Sonora" style={{ height: 'var(--header-logo-height, 50px)', objectFit: 'contain' }} />
         <h1
           style={{
             fontSize: 'clamp(1.2rem, 3.5vw, 2.2rem)',
             fontWeight: 900,
             color: '#081C3A',
-            letterSpacing: '-0.06em',
+            letterSpacing: '-0.03em',
             textTransform: 'uppercase',
             marginLeft: '1rem',
             fontFamily: '"Montserrat", "Inter", sans-serif',
@@ -34,7 +34,9 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
           }}
         >
           <span
+            aria-hidden="true"
             style={{
+              flexShrink: 0,
               width: '6px',
               height: 'var(--header-bar-height, 38px)',
               background: 'linear-gradient(to bottom, #C8A96B, #9F7A3D)',
@@ -46,45 +48,21 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
         </h1>
       </div>
 
-      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+      <div className="header-actions">
         <button
+          type="button"
+          className="icon-btn"
           onClick={() => setIsInfoOpen(true)}
-          style={{
-            background: 'transparent',
-            border: '1px solid var(--border-color)',
-            color: 'var(--text-secondary)',
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            fontSize: '1.2rem',
-            fontWeight: 600,
-            transition: 'all 0.2s ease',
-            boxShadow: 'var(--shadow-sm)'
-          }}
-          title="Ver Metodología e Información"
-          onMouseEnter={(e) => {
-            e.target.style.borderColor = 'var(--color-accent)';
-            e.target.style.color = 'var(--color-accent)';
-          }}
-          onMouseLeave={(e) => {
-            e.target.style.borderColor = 'var(--border-color)';
-            e.target.style.color = 'var(--text-secondary)';
-          }}
+          aria-label="Metodología y fuentes de información"
+          title="Metodología y fuentes de información"
+          style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', flexShrink: 0 }}
         >
-          i
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 11v5M12 7.5h.01" />
+          </svg>
         </button>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          backgroundColor: 'var(--bg-main, #f1f5f9)',
-          padding: '4px',
-          borderRadius: '10px',
-          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.05)'
-        }}>
+        <div className="dataset-tabs" role="tablist" aria-label="Conjunto de datos">
           {[
             { id: 'delitos', label: 'Delitos' },
             { id: 'alto_impacto', label: 'Delitos Alto Impacto' },
@@ -108,35 +86,14 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
             return (
               <button
                 key={opt.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
                 onClick={handleClick}
-                style={{
-                  padding: '0.45rem 1rem',
-                  border: 'none',
-                  borderRadius: '8px',
-                  backgroundColor: isActive ? 'var(--color-accent, #2563eb)' : 'transparent',
-                  color: isActive ? '#ffffff' : 'var(--text-secondary, #64748b)',
-                  fontWeight: isActive ? 700 : 500,
-                  fontSize: '0.875rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: isActive ? '0 4px 10px rgba(0,0,0,0.15)' : 'none'
-                }}
-                onMouseEnter={e => {
-                  if (!isActive) {
-                    e.currentTarget.style.color = 'var(--text-primary, #334155)';
-                    e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.6)';
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!isActive) {
-                    e.currentTarget.style.color = 'var(--text-secondary, #64748b)';
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }
-                }}
               >
                 {opt.label}
               </button>
-            )
+            );
           })}
         </div>
       </div>

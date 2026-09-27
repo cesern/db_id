@@ -161,8 +161,7 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
             fontSize: '1rem',
             fontWeight: '600',
             cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            outline: 'none'
+            transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease'
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = '#ef4444';
@@ -175,8 +174,9 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
             e.currentTarget.style.borderColor = '#fee2e2';
           }}
           title="Salir de pantalla completa (Esc)"
+          aria-label="Salir de pantalla completa"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>

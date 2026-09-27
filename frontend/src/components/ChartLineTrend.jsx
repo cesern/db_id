@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
+import EmptyState from './EmptyState';
 import { ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot, Line } from 'recharts';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
@@ -359,6 +360,8 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
 
   // null | 3 | 6 | 12 | 'lowess' | 'sg'
   const [maWindow, setMAWindow] = useState(null);
+  const [error, setError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
   // Rango confirmado del histórico (lo que ve la gráfica). null = periodo completo.
   const [brushRange, setBrushRange] = useState(null);
@@ -426,11 +429,13 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
 
     axios.get(`${API_URL}/api/incidencia_por_mes_historico?${params.toString()}`, { signal: controller.signal })
       .then(res => {
+        setError(false);
         if (res.data) setData(res.data);
       })
       .catch(err => {
         if (axios.isCancel(err)) return;
         console.error("Error fetching incidencia por mes histórico", err);
+        setError(true);
       })
       .finally(() => {
         setLoading(false);
@@ -441,7 +446,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
       });
 
     return () => controller.abort();
-  }, [selectedFilters, metricType]);
+  }, [selectedFilters, metricType, retryKey]);
 
   const dataset = selectedFilters?.dataset || 'delitos';
   const isVictimas = dataset === 'victimas';
@@ -486,7 +491,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
       : maWindow === 'sg'
         ? `Savitzky-Golay`
         : maWindow === 12
-          ? `Smoothing (MA12)`
+          ? `Suavizado (MA12)`
           : maWindow
             ? `Prom. Móvil ${maWindow}M`
             : null;
@@ -652,7 +657,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
     fontWeight: 600,
     borderRadius: '6px',
     cursor: 'pointer',
-    transition: 'all 0.15s ease',
+    transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease',
     border: active ? '1px solid var(--color-accent)' : '1px solid var(--border-color)',
     background: active ? 'var(--color-accent)' : '#ffffff',
     color: active ? '#ffffff' : 'var(--text-secondary)',
@@ -736,7 +741,8 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
                   borderRadius: '4px',
                   transition: 'background 0.2s',
                 }}
-                title="Pantalla completa"
+                title="Ver en pantalla completa"
+              aria-label="Ver en pantalla completa"
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
               >
@@ -773,6 +779,8 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
 
       <div style={{ flex: 1, position: 'relative', width: '100%', minHeight: '120px' }}>
         {loading && <LoadingSpinner size="md" />}
+        {!loading && error && <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />}
+        {!loading && !error && data.length === 0 && <EmptyState />}
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={displayData}
@@ -807,7 +815,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
               tickMargin={F(6)}
               width={F(52)}
               tickFormatter={(val) => {
-                if (metricType === 'rate') return val.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+                if (metricType === 'rate') return val.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
                 if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}M`;
                 if (val >= 1_000) return `${(val / 1_000).toFixed(0)}K`;
                 return val;

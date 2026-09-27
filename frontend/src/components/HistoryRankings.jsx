@@ -199,7 +199,7 @@ const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, da
     const metricLabel = dataset === 'victimas' ? 'Víctimas' : 'Delitos';
     const formatVal = (val) => {
       if (val === null || val === undefined) return '';
-      const numStr = Number(val).toLocaleString('en-US');
+      const numStr = Number(val).toLocaleString('es-MX');
       return metricType === 'rate' ? `${numStr} (tasa)` : `${numStr} ${metricLabel}`;
     };
 
@@ -445,10 +445,10 @@ const HistoryRankings = ({ tempColor }) => {
     if (val === null || val === undefined) return '';
     if (applied.metricType === 'rate') {
       const num = Number(val);
-      const formatted = num % 1 === 0 ? num.toLocaleString('en-US') : num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const formatted = num % 1 === 0 ? num.toLocaleString('es-MX') : num.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       return `${formatted} (tasa)`;
     } else {
-      return `${Math.round(val).toLocaleString('en-US')} ${metricLabel}`;
+      return `${Math.round(val).toLocaleString('es-MX')} ${metricLabel}`;
     }
   };
 
@@ -531,7 +531,7 @@ const HistoryRankings = ({ tempColor }) => {
                   </option>
                 ))}
               </select>
-              <button onClick={() => setIsModalOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex' }} title="Información">
+              <button type="button" className="icon-btn" onClick={() => setIsModalOpen(true)} title="Cómo leer el ranking" aria-label="Cómo leer el ranking">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
               </button>
             </div>
@@ -663,7 +663,8 @@ const HistoryRankings = ({ tempColor }) => {
                 borderRadius: '4px',
                 transition: 'background 0.2s',
               }}
-              title="Pantalla completa"
+              title="Ver en pantalla completa"
+              aria-label="Ver en pantalla completa"
               onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
             >

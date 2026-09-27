@@ -4,6 +4,7 @@ import { scaleLinear } from 'd3-scale';
 import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
+import EmptyState from './EmptyState';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
@@ -33,6 +34,8 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [isFullScreen, setIsFullScreen] = useState(false);
 
   const [drillModal, setDrillModal] = useState(null);
+  const [error, setError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const initialLoadCalled = useRef(false);
   const cardRef = useRef(null);
   const mapWrapRef = useRef(null);
@@ -215,6 +218,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
 
     axios.get(`${API_URL}/${endpoint}?${params.toString()}`, { signal: controller.signal })
       .then(res => {
+        setError(false);
         if (res.data) {
           setStateData(res.data);
           const numericValues = res.data
@@ -227,6 +231,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
       .catch(err => {
         if (axios.isCancel(err)) return; // petición cancelada, ignorar
         console.error("Error fetching map data", err);
+        setError(true);
       })
       .finally(() => {
         setLoading(false);
@@ -237,7 +242,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
       });
 
     return () => controller.abort();
-  }, [selectedFilters, isSonora, dataset, metricType]);
+  }, [selectedFilters, isSonora, dataset, metricType, retryKey]);
 
   const colorScale = scaleLinear()
     .domain([0, maxVal])
@@ -262,9 +267,9 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
     const num = typeof val === 'number' ? val : parseFloat(val);
     if (isNaN(num)) return 'N/D';
     if (metricType === 'rate') {
-      return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return num.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
-    return num.toLocaleString('en-US');
+    return num.toLocaleString('es-MX');
   };
 
   const getExportData = () => {
@@ -342,7 +347,8 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
                 borderRadius: '4px',
                 transition: 'background 0.2s',
               }}
-              title="Pantalla completa"
+              title="Ver en pantalla completa"
+              aria-label="Ver en pantalla completa"
               onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
             >
@@ -356,6 +362,8 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
 
       <div ref={mapWrapRef} style={{ flex: 1, position: 'relative', width: '100%', minHeight: 0 }}>
         {loading && <LoadingSpinner size="md" />}
+        {!loading && error && <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />}
+        {!loading && !error && stateData.length === 0 && <EmptyState />}
 
         {/* Custom Tooltip Overlay */}
         {tooltipData && (
@@ -416,7 +424,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
                         stroke: "#ffffff",
                         strokeWidth: 0.5,
                         outline: "none",
-                        transition: "all 250ms"
+                        transition: "fill 160ms ease, stroke 160ms ease"
                       },
                       hover: {
                         fill: "#f59e0b",
@@ -424,7 +432,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
                         strokeWidth: 1.5,
                         outline: "none",
                         cursor: "pointer",
-                        transition: "all 250ms"
+                        transition: "fill 160ms ease, stroke 160ms ease"
                       },
                       pressed: {
                         fill: "#d97706",

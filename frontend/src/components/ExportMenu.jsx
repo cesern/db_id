@@ -56,8 +56,12 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
   return (
     <div ref={menuRef} style={{ position: 'relative', display: 'inline-block', zIndex: 90, ...style }}>
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        title="Opciones de exportación"
+        title="Exportar (CSV, copiar o imagen)"
+        aria-label="Exportar (CSV, copiar o imagen)"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -69,7 +73,7 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
           background: 'var(--bg-card, #ffffff)',
           cursor: 'pointer',
           color: 'var(--text-secondary, #64748b)',
-          transition: 'all 0.2s ease',
+          transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms cubic-bezier(0.23, 1, 0.32, 1)',
           boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05))',
         }}
         onMouseEnter={(e) => {
@@ -93,6 +97,7 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
+          aria-hidden="true"
         >
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
           <polyline points="7 10 12 15 17 10" />

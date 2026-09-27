@@ -81,9 +81,9 @@ const TableTopCrimes = ({ selectedFilters, metricType, onInitialLoad }) => {
 
   const formatValue = (val) => {
     if (metricType === 'rate') {
-      return val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return val.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
-    return val.toLocaleString('en-US');
+    return val.toLocaleString('es-MX');
   };
 
   const handleDownloadCSV = () => {

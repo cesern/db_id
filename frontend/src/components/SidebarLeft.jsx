@@ -4,8 +4,17 @@ import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
+import EmptyState from './EmptyState';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import { useFullscreenScale } from '../utils/fullscreenScale';
+
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+// Fila resaltada: la entidad activa (vista entidades) o el municipio seleccionado
+const isHighlightedRow = (m, isEntidades, activeEntityName, selectedMunicipio) => (
+  isEntidades ? m.name === activeEntityName : (selectedMunicipio ? m.municipio === selectedMunicipio : false)
+);
 
 const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [totalIncidencia, setTotalIncidencia] = useState(0);
@@ -14,6 +23,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [tableView, setTableView] = useState('entidades'); // 'entidades' | 'municipios'
   const [loading, setLoading] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [error, setError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
   const initialLoadCalled = useRef(false);
   const tableCardRef = useRef(null);
@@ -99,6 +110,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
 
     Promise.all(requests)
       .then(([resTotal, resEntidades, resMunicipios]) => {
+        setError(false);
         if (resTotal.data?.total_incidencia !== undefined) {
           setTotalIncidencia(resTotal.data.total_incidencia);
         }
@@ -112,6 +124,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
       .catch(err => {
         if (axios.isCancel(err)) return; // petición cancelada, ignorar
         console.error('Error fetching sidebar data', err);
+        setError(true);
       })
       .finally(() => {
         setLoading(false);
@@ -122,16 +135,16 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
       });
 
     return () => controller.abort();
-  }, [selectedFilters, metricType]);
+  }, [selectedFilters, metricType, retryKey]);
 
   const formatNumber = (num) => {
     if (num === 'N/D' || num === undefined || num === null) return 'N/D';
     const val = typeof num === 'number' ? num : parseFloat(num);
     if (isNaN(val)) return 'N/D';
     if (metricType === 'rate') {
-      return val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return val.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
-    return val.toLocaleString('en-US');
+    return val.toLocaleString('es-MX');
   };
 
   // Determinar la entidad activa a mostrar en el KPI card
@@ -140,7 +153,23 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
     : selectedFilters.entidad;
 
   const activeEntityData = entidades.find(e => e.name === activeEntityName);
-  const activeEntityRank = activeEntityData ? `#${activeEntityData.id}` : 'N/A';
+  const activeEntityRank = activeEntityData ? activeEntityData.id : null;
+  const totalEntidades = entidades.length;
+  const rankCriterion = metricType === 'rate' ? 'mayor tasa' : (isVictimasBase ? 'más víctimas' : 'mayor incidencia');
+
+  // Periodo explícito del KPI: meses seleccionados (o todos) + año
+  const periodLabel = (() => {
+    const anio = selectedFilters?.anio ?? '';
+    const sel = Array.isArray(selectedFilters?.meses) ? selectedFilters.meses : [];
+    const idx = sel.map(m => MESES.indexOf(m)).filter(i => i >= 0).sort((a, b) => a - b);
+    if (idx.length === 0 || idx.length === 12) return `Año ${anio}`;
+    const contiguous = idx.every((v, i) => i === 0 || v === idx[i - 1] + 1);
+    if (idx.length === 1) return `${MESES_CORTOS[idx[0]]} ${anio}`;
+    if (contiguous) return `${MESES_CORTOS[idx[0]]}–${MESES_CORTOS[idx[idx.length - 1]]} ${anio}`;
+    return `${idx.map(i => MESES_CORTOS[i]).join(', ')} ${anio}`;
+  })();
+  const totalIsND = totalIncidencia === 'N/D';
+  const selectedMunicipio = (!isVictimas && selectedFilters?.municipio && selectedFilters.municipio !== 'All') ? selectedFilters.municipio : null;
   const activeIncidenceLabel = (selectedFilters?.municipio && selectedFilters.municipio !== 'All')
     ? selectedFilters.municipio
     : (isVictimasBase ? 'Víctimas' : 'Incidencia');
@@ -149,6 +178,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
   const rows = isEntidades ? entidades : municipios;
   const colLabel = isEntidades ? 'Entidad' : 'Municipio';
   
+  const maxVal = rows.reduce((mx, r) => (typeof r.value === 'number' && r.value > mx ? r.value : mx), 0);
+
   const baseValLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
   const valLabel = metricType === 'rate' ? `${baseValLabel} (Tasa)` : baseValLabel;
 
@@ -261,55 +292,54 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
           </div>
 
           {/* Table Rows */}
-          <div style={{ overflowY: 'auto', flex: 1, padding: '0.5rem 0' }}>
-            {rows.map((m, i) => {
-              const isSonora = isEntidades
-                ? m.name === 'Sonora'
-                : m.entidad === 'Sonora';
-
+          <div style={{ overflowY: 'auto', flex: 1, padding: '0.25rem 0', position: 'relative', minHeight: '140px' }}>
+            {error ? (
+              <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />
+            ) : (rows.length === 0 && !loading) ? (
+              <EmptyState />
+            ) : rows.map((m) => {
+              const hl = isHighlightedRow(m, isEntidades, activeEntityName, selectedMunicipio);
+              const pct = maxVal > 0 && typeof m.value === 'number' ? Math.max(2, (m.value / maxVal) * 100) : 0;
+              // En municipios la entidad ya está elegida: no repetir ", Sonora"
+              const displayName = isEntidades ? m.name : (m.municipio || m.name);
               return (
                 <div
                   key={`${tableView}-${m.name}-${m.id}`}
+                  aria-current={hl ? 'true' : undefined}
                   style={{
                     display: 'grid',
                     gridTemplateColumns: `${Math.round(40 * fsScale)}px 1fr ${Math.round(120 * fsScale)}px`,
                     gap: '1rem',
-                    padding: `${0.75 * fsScale}rem 1rem`,
+                    alignItems: 'center',
+                    padding: `${0.7 * fsScale}rem 1rem`,
                     fontSize: `${0.9 * fsScale}rem`,
-                    backgroundColor: isSonora
-                      ? 'var(--color-accent)'
-                      : (i % 2 === 0 ? 'white' : 'var(--color-accent-light)'),
-                    color: isSonora ? 'white' : 'var(--color-primary)',
+                    backgroundColor: hl ? '#e3e8f3' : 'transparent',
+                    color: hl ? 'var(--color-accent-dark)' : 'var(--color-primary)',
                     borderBottom: '1px solid var(--border-color)',
-                    fontWeight: isSonora ? 'bold' : 'normal',
-                    transition: 'background-color 0.15s ease',
+                    fontWeight: hl ? 700 : 400,
                   }}
                 >
-                  <span style={{ color: isSonora ? 'rgba(255,255,255,0.8)' : 'var(--text-secondary)', fontWeight: isSonora ? 700 : 500 }}>
+                  <span className="tabular" style={{ color: hl ? 'var(--color-accent-dark)' : 'var(--text-secondary)', fontWeight: hl ? 700 : 500 }}>
                     {m.id}
                   </span>
-                  <span style={{ fontWeight: isSonora ? 700 : 500 }}>
-                    {m.name}
+                  <span title={m.name} style={{ fontWeight: hl ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {displayName}
                   </span>
-                  <span style={{ textAlign: 'right', fontWeight: isSonora ? 700 : 600 }}>
+                  <span
+                    className="tabular"
+                    style={{
+                      textAlign: 'right',
+                      fontWeight: hl ? 700 : 600,
+                      padding: '2px 4px',
+                      borderRadius: '3px',
+                      background: `linear-gradient(to left, rgba(69, 89, 147, ${hl ? 0.22 : 0.12}) ${pct}%, transparent ${pct}%)`
+                    }}
+                  >
                     {formatNumber(m.value)}
                   </span>
                 </div>
               );
             })}
-
-            {rows.length === 0 && !loading && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '150px',
-                color: 'var(--text-secondary)',
-                fontSize: '0.95rem',
-              }}>
-                Sin datos disponibles
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -318,17 +348,42 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
 
   return (
     <>
-      {/* KPI Cards */}
-      <div style={{ display: 'flex', gap: '1rem' }}>
-        <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1rem', position: 'relative' }}>
+      {/* KPI Cards: total del periodo + lugar nacional de la entidad activa */}
+      <div style={{ display: 'flex', gap: 'var(--grid-gap, 1rem)' }}>
+        <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.2rem', padding: '0.85rem 1rem', position: 'relative', minWidth: 0 }}>
           {loading && <LoadingSpinner size="sm" />}
-          <span style={{ fontSize: '1rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{activeIncidenceLabel}</span>
-          <span style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--color-primary)', marginTop: '0.25rem' }}>{formatNumber(totalIncidencia)}</span>
+          <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {activeIncidenceLabel}{metricType === 'rate' ? ' · tasa' : ''}
+          </span>
+          <span
+            className="tabular"
+            title={totalIsND ? 'Sin población CONAPO para calcular la tasa en este periodo' : undefined}
+            style={{ fontSize: 'clamp(1.5rem, 2.4vw, 1.9rem)', fontWeight: 700, color: 'var(--color-primary)', lineHeight: 1.1, letterSpacing: '-0.02em' }}
+          >
+            {error ? '—' : formatNumber(totalIncidencia)}
+          </span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            {totalIsND && !error ? 'Sin población CONAPO para la tasa' : periodLabel}
+          </span>
         </div>
-        <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1rem', position: 'relative' }}>
+        <div
+          className="card"
+          title={`Posición de ${activeEntityName} entre las ${totalEntidades || 32} entidades con los filtros aplicados (1 = ${rankCriterion})`}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.2rem', padding: '0.85rem 1rem', position: 'relative', minWidth: 0 }}
+        >
           {loading && <LoadingSpinner size="sm" />}
-          <span style={{ fontSize: '1rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{activeEntityName}</span>
-          <span style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--color-accent)', marginTop: '0.25rem' }}>{activeEntityRank}</span>
+          <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {activeEntityName}
+          </span>
+          <span className="tabular" style={{ lineHeight: 1.1, display: 'flex', alignItems: 'baseline', gap: '0.3rem' }}>
+            <span style={{ fontSize: 'clamp(1.5rem, 2.4vw, 1.9rem)', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '-0.02em' }}>
+              {error || activeEntityRank === null ? '—' : activeEntityRank}
+            </span>
+            {!error && activeEntityRank !== null && totalEntidades > 0 && (
+              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>de {totalEntidades}</span>
+            )}
+          </span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>lugar nacional</span>
         </div>
       </div>
 
@@ -404,7 +459,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
                 borderRadius: '4px',
                 transition: 'background 0.2s',
               }}
-              title="Pantalla completa"
+              title="Ver en pantalla completa"
+              aria-label="Ver en pantalla completa"
               onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
             >
@@ -425,55 +481,54 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad }) => {
         </div>
 
         {/* Table Rows */}
-        <div style={{ overflowY: 'auto', flex: 1, padding: '0.5rem 0' }}>
-          {rows.map((m, i) => {
-            const isSonora = isEntidades
-              ? m.name === 'Sonora'
-              : m.entidad === 'Sonora';
-
+        <div style={{ overflowY: 'auto', flex: 1, padding: '0.25rem 0', position: 'relative', minHeight: '140px' }}>
+          {error ? (
+            <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />
+          ) : (rows.length === 0 && !loading) ? (
+            <EmptyState />
+          ) : rows.map((m) => {
+            const hl = isHighlightedRow(m, isEntidades, activeEntityName, selectedMunicipio);
+            const pct = maxVal > 0 && typeof m.value === 'number' ? Math.max(2, (m.value / maxVal) * 100) : 0;
+            // En municipios la entidad ya está elegida: no repetir ", Sonora"
+            const displayName = isEntidades ? m.name : (m.municipio || m.name);
             return (
               <div
                 key={`${tableView}-${m.name}-${m.id}`}
+                aria-current={hl ? 'true' : undefined}
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '30px 1fr 80px',
                   gap: '0.5rem',
-                  padding: '0.5rem 1rem',
+                  alignItems: 'center',
+                  padding: '0.45rem 1rem',
                   fontSize: '0.875rem',
-                  backgroundColor: isSonora
-                    ? 'var(--color-accent)'
-                    : (i % 2 === 0 ? 'white' : 'var(--color-accent-light)'),
-                  color: isSonora ? 'white' : 'var(--color-primary)',
+                  backgroundColor: hl ? '#e3e8f3' : 'transparent',
+                  color: hl ? 'var(--color-accent-dark)' : 'var(--color-primary)',
                   borderBottom: '1px solid var(--border-color)',
-                  fontWeight: isSonora ? 'bold' : 'normal',
-                  transition: 'background-color 0.15s ease',
+                  fontWeight: hl ? 700 : 400,
                 }}
               >
-                <span style={{ color: isSonora ? 'rgba(255,255,255,0.8)' : 'var(--text-secondary)', fontWeight: isSonora ? 700 : 500 }}>
+                <span className="tabular" style={{ color: hl ? 'var(--color-accent-dark)' : 'var(--text-secondary)', fontWeight: hl ? 700 : 500 }}>
                   {m.id}
                 </span>
-                <span style={{ fontWeight: isSonora ? 700 : 500 }}>
-                  {m.name}
+                <span title={m.name} style={{ fontWeight: hl ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {displayName}
                 </span>
-                <span style={{ textAlign: 'right', fontWeight: isSonora ? 700 : 600 }}>
+                <span
+                  className="tabular"
+                  style={{
+                    textAlign: 'right',
+                    fontWeight: hl ? 700 : 600,
+                    padding: '2px 4px',
+                    borderRadius: '3px',
+                    background: `linear-gradient(to left, rgba(69, 89, 147, ${hl ? 0.22 : 0.12}) ${pct}%, transparent ${pct}%)`
+                  }}
+                >
                   {formatNumber(m.value)}
                 </span>
               </div>
             );
           })}
-
-          {rows.length === 0 && !loading && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '80px',
-              color: 'var(--text-secondary)',
-              fontSize: '0.85rem',
-            }}>
-              Sin datos disponibles
-            </div>
-          )}
         </div>
       </div>
     </>
