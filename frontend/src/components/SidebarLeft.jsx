@@ -5,9 +5,9 @@ import LoadingSpinner from './LoadingSpinner';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import EmptyState from './EmptyState';
+import MenuSelect from './MenuSelect';
 import { metricPhrase, periodLabel as formatPeriod } from '../utils/labels';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
-import { useFullscreenScale } from '../utils/fullscreenScale';
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -26,6 +26,13 @@ const rowHighlight = (m, isEntidades, activeEntityName, selectedMunicipio, entid
 // Filas que no son un municipio real ("No especificado", "Otros Municipios"): se muestran con su
 // cifra para que cuadren los totales, pero sin lugar (#) y al final; el resto se re-clasifica
 // (rank 'min': empates comparten lugar).
+// Pantalla completa del ranking: vista tabla/barras y medidas de la tabla en columnas (coinciden con index.css)
+const FS_VIEW_KEY = 'rankingFullscreenView';
+const FS_VIEW_OPTIONS = [{ value: 'tabla', label: 'Tabla' }, { value: 'barras', label: 'Barras' }];
+const FS_COL_MIN = 320; // ancho mínimo por columna
+const FS_ROW_H = 33;    // alto de fila (.fs-col-row)
+const FS_HEAD_H = 40;   // encabezado de columna (.fs-col-head)
+
 const NO_MUNICIPIO = /^(no especificado|otros municipios)$/i;
 const rankMunicipios = (list) => {
   const isReal = (m) => !NO_MUNICIPIO.test(String(m.municipio || m.name.split(',')[0]).trim());
@@ -62,8 +69,28 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
   const initialLoadCalled = useRef(false);
   const tableCardRef = useRef(null);
 
-  // Factor de escala fullscreen (1 en vista normal): solo afecta al overlay
-  const fsScale = useFullscreenScale(isFullScreen);
+  // Pantalla completa: vista "tabla" (en columnas) o "barras"; se recuerda en el navegador
+  const [fsView, setFsView] = useState(() => {
+    try { return localStorage.getItem(FS_VIEW_KEY) === 'barras' ? 'barras' : 'tabla'; } catch { return 'tabla'; }
+  });
+  const setFsViewPersist = (v) => {
+    setFsView(v);
+    try { localStorage.setItem(FS_VIEW_KEY, v); } catch { /* sin almacenamiento: solo en memoria */ }
+  };
+  // Tamaño del cuerpo para repartir la tabla en columnas
+  const fsBodyRef = useRef(null);
+  const [fsBox, setFsBox] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    if (!isFullScreen) return undefined;
+    const el = fsBodyRef.current;
+    if (!el) return undefined;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setFsBox(prev => (Math.abs(prev.w - width) < 1 && Math.abs(prev.h - height) < 1 ? prev : { w: width, h: height }));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isFullScreen, fsView, tableView]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -256,6 +283,17 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
     : rows;
   const hiddenCount = rows.length - visibleRows.length;
 
+  // Tabla en columnas (pantalla completa): tantas columnas como quepan (≥ FS_COL_MIN px cada una)
+  // hasta que todas las filas entren sin desplazamiento; si ni así caben, se desplaza en vertical.
+  const fsColumns = (() => {
+    if (!isFullScreen || fsView !== 'tabla' || rows.length === 0) return [rows];
+    const maxCols = Math.max(1, Math.floor((fsBox.w || 0) / FS_COL_MIN));
+    const fitRows = Math.max(1, Math.floor(((fsBox.h || 0) - FS_HEAD_H) / FS_ROW_H));
+    const cols = Math.min(maxCols, Math.max(1, Math.ceil(rows.length / fitRows)));
+    const per = Math.ceil(rows.length / cols);
+    return Array.from({ length: cols }, (_, i) => rows.slice(i * per, (i + 1) * per)).filter(c => c.length > 0);
+  })();
+
   const maxVal = rows.reduce((mx, r) => (typeof r.value === 'number' && r.value > mx ? r.value : mx), 0);
 
   const baseValLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
@@ -295,6 +333,13 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
           onClose={() => setIsFullScreen(false)}
           extraActions={
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <MenuSelect
+                value={fsView}
+                onChange={setFsViewPersist}
+                options={FS_VIEW_OPTIONS}
+                prefix="Vista: "
+                title="Cambiar entre tabla y barras"
+              />
               {!isVictimas && (
                 <div style={{
                   display: 'inline-flex',
@@ -343,84 +388,66 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
           }
         />
 
-        {/* Centered Table wrapper for perfect layout */}
-        <div style={{ 
-          maxWidth: '800px', 
-          width: '100%', 
-          margin: '0 auto', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          flex: 1, 
-          overflow: 'hidden',
-          backgroundColor: '#ffffff',
-          border: '1px solid var(--border-color)',
-          borderRadius: 'var(--radius-lg)',
-          boxShadow: 'var(--shadow-sm)',
-          position: 'relative'
-        }}>
+        {/* Cuerpo: Tabla en columnas (todo a la vista) o Barras horizontales; se cambia con "Vista ▾" */}
+        <div
+          ref={fsBodyRef}
+          key={`${fsView}-${tableView}`}
+          className="fs-rank-body"
+          style={{ flex: 1, minHeight: 0, position: 'relative', overflowY: 'auto' }}
+        >
           {loading && <LoadingSpinner size="md" />}
-          
-          {/* Table Header */}
-            <div style={{ padding: '1rem', borderBottom: '2px solid var(--border-color)', backgroundColor: 'var(--bg-main)' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: `${Math.round(40 * fsScale)}px 1fr ${Math.round(120 * fsScale)}px`, gap: '1rem', fontWeight: 700, color: 'var(--color-primary)', fontSize: `${0.95 * fsScale}rem` }}>
-              <span>#</span>
-              <span>{colLabel}</span>
-              <span style={{ textAlign: 'right' }}>{valLabel}</span>
+          {error ? (
+            <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />
+          ) : (rows.length === 0 && !loading) ? (
+            <EmptyState />
+          ) : fsView === 'barras' ? (
+            <div className="fs-bars">
+              {rows.map((m) => {
+                const level = rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio, entidadFiltrada);
+                const isNum = typeof m.value === 'number';
+                const pct = maxVal > 0 && isNum ? Math.max(0.5, (m.value / maxVal) * 100) : 0;
+                const displayName = (isEntidades || !entidadFiltrada) ? m.name : (m.municipio || m.name);
+                return (
+                  <div key={`${tableView}-${m.name}-${m.id}`} className="fs-bar-row" data-highlight={level || undefined} data-unranked={m.id === '—' || undefined}>
+                    <span className="fs-bar-rank tabular">{m.id}</span>
+                    <span className="fs-bar-name" title={m.name}>{displayName}</span>
+                    <span className="fs-bar-track">
+                      {isNum && <span className="fs-bar" style={{ width: `calc((100% - 5.5rem) * ${pct / 100})` }} />}
+                      <span className="fs-bar-value tabular">{formatNumber(m.value)}</span>
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-          </div>
-
-          {/* Table Rows */}
-          <div style={{ overflowY: 'auto', flex: 1, padding: '0.25rem 0', position: 'relative', minHeight: '140px' }}>
-            {error ? (
-              <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />
-            ) : (rows.length === 0 && !loading) ? (
-              <EmptyState />
-            ) : rows.map((m) => {
-              const level = rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio, entidadFiltrada);
-              const hl = level === 'strong';
-              const pct = maxVal > 0 && typeof m.value === 'number' ? Math.max(2, (m.value / maxVal) * 100) : 0;
-              // Con una entidad elegida no se repite ", Sonora"; en Nacional se muestra "Municipio, Entidad"
-              const displayName = (isEntidades || !entidadFiltrada) ? m.name : (m.municipio || m.name);
-              return (
-                <div
-                  key={`${tableView}-${m.name}-${m.id}`}
-                  aria-current={hl ? 'true' : undefined}
-                data-highlight={level || undefined}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: `${Math.round(40 * fsScale)}px 1fr ${Math.round(120 * fsScale)}px`,
-                    gap: '1rem',
-                    alignItems: 'center',
-                    padding: `${0.7 * fsScale}rem 1rem`,
-                    fontSize: `${0.9 * fsScale}rem`,
-                    backgroundColor: hl ? '#e3e8f3' : (level === 'soft' ? '#e9edf6' : 'transparent'),
-                    color: level ? 'var(--color-accent-dark)' : 'var(--color-primary)',
-                    borderBottom: '1px solid var(--border-color)',
-                    fontWeight: hl ? 700 : 400,
-                  }}
-                >
-                  <span className="tabular" style={{ color: hl ? 'var(--color-accent-dark)' : 'var(--text-secondary)', fontWeight: hl ? 700 : 500 }}>
-                    {m.id}
-                  </span>
-                  <span title={m.name} style={{ fontWeight: hl ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {displayName}
-                  </span>
-                  <span
-                    className="tabular"
-                    style={{
-                      textAlign: 'right',
-                      fontWeight: hl ? 700 : 600,
-                      padding: '2px 4px',
-                      borderRadius: '3px',
-                      background: `linear-gradient(to left, rgba(69, 89, 147, ${hl ? 0.22 : 0.12}) ${pct}%, transparent ${pct}%)`
-                    }}
-                  >
-                    {formatNumber(m.value)}
-                  </span>
+          ) : (
+            <div className="fs-cols">
+              {fsColumns.map((col, ci) => (
+                <div key={ci} className="fs-col">
+                  <div className="fs-col-head">
+                    <span>#</span>
+                    <span>{colLabel}</span>
+                    <span style={{ textAlign: 'right' }}>{valLabel}</span>
+                  </div>
+                  {col.map((m) => {
+                    const level = rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio, entidadFiltrada);
+                    const displayName = (isEntidades || !entidadFiltrada) ? m.name : (m.municipio || m.name);
+                    return (
+                      <div
+                        key={`${tableView}-${m.name}-${m.id}`}
+                        className="fs-col-row"
+                        aria-current={level === 'strong' ? 'true' : undefined}
+                        data-highlight={level || undefined}
+                      >
+                        <span className="tabular fs-col-rank">{m.id}</span>
+                        <span className="fs-col-name" title={m.name}>{displayName}</span>
+                        <span className="tabular fs-col-value">{formatNumber(m.value)}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -613,7 +640,6 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
           ) : visibleRows.map((m) => {
             const level = rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio, entidadFiltrada);
               const hl = level === 'strong';
-            const pct = maxVal > 0 && typeof m.value === 'number' ? Math.max(2, (m.value / maxVal) * 100) : 0;
             // Con una entidad elegida no se repite ", Sonora"; en Nacional se muestra "Municipio, Entidad"
             const displayName = (isEntidades || !entidadFiltrada) ? m.name : (m.municipio || m.name);
             return (
@@ -646,8 +672,6 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
                     textAlign: 'right',
                     fontWeight: hl ? 700 : 600,
                     padding: '2px 4px',
-                    borderRadius: '3px',
-                    background: `linear-gradient(to left, rgba(69, 89, 147, ${hl ? 0.22 : 0.12}) ${pct}%, transparent ${pct}%)`
                   }}
                 >
                   {formatNumber(m.value)}

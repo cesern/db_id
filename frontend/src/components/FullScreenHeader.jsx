@@ -1,15 +1,36 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { parseCapsule } from '../utils/altoImpacto';
+import { periodLabel, monthsLabel } from '../utils/labels';
+import { MesFinalContext } from '../utils/mesFinalContext';
 
-const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraActions }) => {
+const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+/**
+ * periodMode: cómo rotular el periodo según lo que muestra la vista
+ * - 'year' (tabla, mapa): "Periodo: Ene–Ago 2026" / "Mar 2026" / "Año 2024"
+ * - 'series' (barras por año): "Año: 2026 (Ene–Ago)" si es parcial + "Meses: Mar de cada año" si hay meses
+ * - 'history' (histórico mensual, ignora meses): "Datos hasta: Ago 2026" si el año es parcial
+ */
+const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraActions, periodMode = 'year' }) => {
+  const mesFinal = useContext(MesFinalContext);
   // Generar subtítulo contextual basado en los filtros (en formato de pastillas/badges)
   const generateSubtitle = () => {
     if (!selectedFilters) return null;
     const badges = [];
 
-    // 1. Año
+    // 1. Periodo (año + meses elegidos o, si el año está incompleto, hasta qué mes hay datos)
     if (selectedFilters.anio) {
-      badges.push({ label: 'Año', value: selectedFilters.anio });
+      const anio = selectedFilters.anio;
+      const meses = selectedFilters.meses;
+      const partial = mesFinal && mesFinal < 12 && !monthsLabel(meses);
+      if (periodMode === 'series') {
+        badges.push({ label: 'Año', value: partial ? `${anio} (Ene–${MESES_CORTOS[mesFinal - 1]})` : anio });
+        if (monthsLabel(meses)) badges.push({ label: 'Meses', value: `${monthsLabel(meses)} de cada año` });
+      } else if (periodMode === 'history') {
+        if (mesFinal && mesFinal < 12) badges.push({ label: 'Datos hasta', value: `${MESES_CORTOS[mesFinal - 1]} ${anio}` });
+      } else {
+        badges.push({ label: 'Periodo', value: periodLabel(anio, meses, mesFinal) });
+      }
     }
 
     // 2. Entidad
@@ -69,8 +90,7 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
       { key: 'subtipoDelito', label: 'Subtipo' },
       { key: 'modalidad', label: 'Modalidad' },
       { key: 'sexo', label: 'Sexo' },
-      { key: 'rangoEdad', label: 'Edad' },
-      { key: 'meses', label: 'Meses' }
+      { key: 'rangoEdad', label: 'Edad' }
     ];
 
     filterKeysConfig.forEach(({ key, label }) => {

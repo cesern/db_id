@@ -9,6 +9,7 @@ import ChartLineTrend from './components/ChartLineTrend';
 import MapMexico from './components/MapMexico';
 import TableTopCrimes from './components/TableTopCrimes';
 import HistoryRankings from './components/HistoryRankings';
+import { MesFinalContext } from './utils/mesFinalContext';
 
 const DATASET_COLORS = {
   delitos: "#455993",
@@ -193,6 +194,7 @@ function PublicDashboard() {
   };
 
   return (
+    <MesFinalContext.Provider value={mesFinal}>
     <div className="app-container" style={{ display: 'flex', flexDirection: 'column' }}>
       
       {/* Capa de cargando inicial (Loading overlay) */}
@@ -328,6 +330,7 @@ function PublicDashboard() {
         <HistoryRankings tempColor={DATASET_COLORS[appliedFilters.dataset] || "#455993"} />
       )}
     </div>
+    </MesFinalContext.Provider>
   );
 }
 

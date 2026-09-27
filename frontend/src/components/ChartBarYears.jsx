@@ -362,6 +362,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
     >
       {isFullScreen ? (
         <FullScreenHeader
+          periodMode="series"
           title={chartTitle}
           selectedFilters={selectedFilters}
           metricType={metricType}

@@ -677,6 +677,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
     >
       {isFullScreen ? (
         <FullScreenHeader
+          periodMode="history"
           title={chartTitle}
           selectedFilters={selectedFilters}
           metricType={metricType}
