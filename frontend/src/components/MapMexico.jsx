@@ -324,8 +324,8 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
           }
         />
       ) : (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', paddingRight: '0.5rem' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', paddingRight: '0.5rem' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0, minWidth: 0 }}>
             {mapTitle}
           </h3>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -335,26 +335,19 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
               onDownloadCSV={handleDownloadCSV}
               onCopyTable={handleCopyData}
             />
+            {/* Mapa de referencia: el análisis detallado se hace ampliado */}
             <button
+              type="button"
+              className="icon-btn"
               onClick={() => setIsFullScreen(true)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-secondary)',
-                display: 'flex',
-                padding: '4px',
-                borderRadius: '4px',
-                transition: 'background 0.2s',
-              }}
               title="Ver en pantalla completa"
               aria-label="Ver en pantalla completa"
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
-              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              style={{ gap: '0.3rem', padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600 }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
               </svg>
+              Ampliar
             </button>
           </div>
         </div>
@@ -446,7 +439,8 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
           </Geographies>
         </ComposableMap>
 
-        {/* Leyenda de la escala de color (se exporta junto con el mapa) */}
+        {/* Leyenda de la escala de color (se exporta junto con el mapa).
+            Vista normal: una sola fila compacta; pantalla completa: bloque con título. */}
         {!error && stateData.length > 0 && maxVal > 0 && (
           <div
             role="img"
@@ -454,22 +448,36 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad }) => {
             style={{
               position: 'absolute', left: '0.5rem', bottom: '0.5rem', zIndex: 3,
               background: 'rgba(255,255,255,0.92)', border: '1px solid var(--border-color)',
-              borderRadius: '8px', padding: '0.4rem 0.6rem', minWidth: '150px',
-              fontSize: `${0.72 * Math.max(1, fsScale || 1)}rem`, color: 'var(--text-secondary)'
+              color: 'var(--text-secondary)',
+              ...(isFullScreen
+                ? { borderRadius: '8px', padding: '0.4rem 0.6rem', minWidth: '150px', fontSize: `${0.72 * Math.max(1, fsScale || 1)}rem` }
+                : { borderRadius: '6px', padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' })
             }}
           >
-            <div style={{ fontWeight: 600, color: 'var(--color-primary)', marginBottom: '0.25rem' }}>
-              {metricType === 'rate' ? `${tooltipLabel} · tasa por 100 mil hab.` : tooltipLabel}
-            </div>
-            <div style={{ height: '8px', borderRadius: '4px', background: 'linear-gradient(to right, #eceef5, #455993)', border: '1px solid rgba(69,89,147,0.2)' }} />
-            <div className="tabular" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.2rem', gap: '0.75rem' }}>
-              <span>0</span>
-              <span>{formatValue(maxVal)}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
-              <span aria-hidden="true" style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#e2e8f0', border: '1px solid #cbd5e1' }} />
-              Sin dato
-            </div>
+            {isFullScreen ? (
+              <>
+                <div style={{ fontWeight: 600, color: 'var(--color-primary)', marginBottom: '0.25rem' }}>
+                  {metricType === 'rate' ? `${tooltipLabel} · tasa por 100 mil hab.` : tooltipLabel}
+                </div>
+                <div style={{ height: '8px', borderRadius: '4px', background: 'linear-gradient(to right, #eceef5, #455993)', border: '1px solid rgba(69,89,147,0.2)' }} />
+                <div className="tabular" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.2rem', gap: '0.75rem' }}>
+                  <span>0</span>
+                  <span>{formatValue(maxVal)}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
+                  <span aria-hidden="true" style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#e2e8f0', border: '1px solid #cbd5e1' }} />
+                  Sin dato
+                </div>
+              </>
+            ) : (
+              <>
+                <span className="tabular">0</span>
+                <span aria-hidden="true" style={{ width: '64px', height: '6px', borderRadius: '3px', background: 'linear-gradient(to right, #eceef5, #455993)', border: '1px solid rgba(69,89,147,0.2)' }} />
+                <span className="tabular">{formatValue(maxVal)}</span>
+                <span aria-hidden="true" style={{ width: '8px', height: '8px', marginLeft: '0.3rem', borderRadius: '2px', background: '#e2e8f0', border: '1px solid #cbd5e1' }} />
+                <span>Sin dato</span>
+              </>
+            )}
           </div>
         )}
       </div>
