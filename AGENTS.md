@@ -104,7 +104,7 @@ Consultas principales (todas GET sin auth en `main.py`):
   - `HistoryRankings.jsx`: estado aislado (no usa `appliedFilters`), `selectedEntidad='Sonora'`, `/api/filtros` + `/api/ranking_historico?nivel=entidad&temporalidad=...&meses=Ene,..`. Y invertido `domain[1,32]`, `ReferenceArea 1-10 rojo, 11-20 ámbar, 21-32 verde`.
   - Transversales: `ExportMenu` (CSV/Copiar/PNG via `html-to-image`), `FullScreenHeader` (badges filtros), `DrillDownModal`, `InfoModal` (fuentes SESNSP, tasas CONAPO), `LoadingSpinner`.
 - `utils/exportUtils.js`: `downloadCSV` con bloque `=== FILTROS APLICADOS ===` + BOM `\ufeff`, `downloadImage/toPng`, `downloadPNGFromSVG` (inlina estilos, oculta tooltip), `copyTableToClipboard` (TSV + `sonner` toast).
-- Estilos: `index.css` vars `--bg-main #f4f7f9, --color-accent #455993, ...`, grid `.dashboard-grid` (1fr -> 768px 1fr 1fr -> 1024px 280px 1fr 1fr -> 1280px 300px 1.1fr 1fr), fullscreen `.fullscreen-immersive-overlay`. Resto inline. Sin Tailwind/CSS Modules.
+- Estilos: `index.css` vars `--bg-main #f4f7f9, --color-accent #455993, ...`, grid `.dashboard-grid` (1fr -> 768px 1fr 1fr -> 1024px 280px 1.2fr 0.9fr -> 1280px 300px 1.4fr 0.8fr; mapa angosto de referencia), fullscreen `.fullscreen-immersive-overlay`. Resto inline. Sin Tailwind/CSS Modules.
 - Visualizaciones: `recharts` Bar/Composed/Line siempre en `ResponsiveContainer`; `react-simple-maps` ComposableMap/Geographies/Geography.
 
 ## 8. Configuración
@@ -210,7 +210,9 @@ Si se retoma, tratarlo como trabajo nuevo.
 - Móvil: filtros plegables (`.filters-mobile-toggle` / `.filters-body[data-open]`), meses en grid 6×2, sin scroll horizontal a 375px.
 - Números `toLocaleString('es-MX')`; CSV "Suavizado (MA12)"; toggle "Tasa por 100 mil hab.".
 **Ronda 2 (2026-09-26, critique 25/40):** `/api/incidencia_por_anio` devuelve además `mes_final` (último mes con total>0 por año, `MES_NUM` en `main.py`); `ChartBarYears` marca como parcial (opacidad 0.4 + borde punteado + "Ene–Ago" bajo el año) el año cuyo `mes_final` < último mes pedido, y usa etiquetas compactas cuando la cifra no cabe. Mapa con leyenda de escala (0–máx + "Sin dato"). Rankings: "Posición con menor/mayor incidencia" + nota "1 = …", textos ≥12px, verde/rojo oscurecidos. Chip "Todos" en meses. Pestañas en móvil con máscara de desvanecido y `scrollIntoView` de la activa. Etiqueta de tasa unificada "Tasa por 100 mil hab.".
-Pendiente: `App.css` sigue importado; `#2563eb` como fallback en algunos `var(..., #2563eb)`; ChartTooltip compartido; Inter se conserva como fuente de UI (el detector la marca como "overused", decisión deliberada).
+**Mapa compacto (2026-09-26, plan `docs/superpowers/plans/2026-09-26-mapa-compacto.md`):** columna del mapa angosta; leyenda de una fila en vista normal (bloque de 3 filas en pantalla completa); botón "Ampliar" (`.icon-btn` + texto). El análisis detallado del mapa va en pantalla completa.
+**Barras:** siempre cifra completa (`formatValue`, sin formato compacto). `barCategoryGap="6%"` (en Recharts es por lado). Si la etiqueta más larga no cabe en el espacio por año (medido con `ResizeObserver`), las etiquetas pasan a dos renglones fijos sobre el área (pares abajo, impares arriba) y el margen lateral crece para no cortar extremos.
+Pendiente: la KPI de total se desborda de su tarjeta con cifras de 7 dígitos (Nacional) a 1280px; `App.css` sigue importado; `#2563eb` como fallback en algunos `var(..., #2563eb)`; ChartTooltip compartido; Inter se conserva como fuente de UI (el detector la marca como "overused", decisión deliberada).
 
 ## 14d. Fullscreen con escala (2026-09-12, implementado)
 
