@@ -68,7 +68,7 @@ raíz/
 
 ## 4. Tecnologías reales (no asumir otras)
 
-Backend (`backend/requirements.txt`): `fastapi==0.136.1, uvicorn==0.46.0, duckdb>=1.0.0, pandas==2.3.3, numpy==2.2.6, pyarrow>=15.0.0, pydantic==2.13.4, pydantic-settings>=2.2.1, python-multipart, PyJWT, openpyxl==3.1.5`. Dev: `requirements-dev.txt` (`-r requirements.txt`, `pytest`, `httpx`). El ETL ya no usa `chardet` (encoding `utf-8-sig -> latin-1`).
+Backend (`backend/requirements.txt`): `fastapi==0.136.1, uvicorn==0.46.0, duckdb>=1.0.0, pandas==2.3.3, numpy==2.2.6, pyarrow>=15.0.0, pydantic==2.13.4, pydantic-settings>=2.2.1, python-multipart, PyJWT`. Dev: `requirements-dev.txt` (`-r requirements.txt`, `pytest`, `httpx`). El ETL ya no usa `chardet` (encoding `utf-8-sig -> latin-1`).
 
 Frontend (`frontend/package.json`): `react ^19.2.0, react-dom ^19.2.0, react-router-dom ^7.15.1, vite ^7.3.1, axios ^1.16.0, recharts ^3.8.1, react-simple-maps ^3.0.0, d3-scale ^4.0.2, html-to-image ^1.11.13, sonner ^2.0.7, prop-types ^15.8.1`.
 
@@ -261,5 +261,5 @@ Pendiente: `#2563eb` como fallback en algunos `var(..., #2563eb)`; ChartTooltip 
 ## 14. Dependencias importantes
 
 - No quitar: `duckdb, pandas, pyarrow, fastapi, uvicorn, pydantic-settings, python-multipart, PyJWT` (backend runtime); `axios, react-router-dom, recharts, react-simple-maps, d3-scale, html-to-image, sonner` (frontend runtime).
-- `openpyxl` está en requirements pero no se importa en `app/` ni ETL (posible resto). `d3-scale-chromatic` y los assets sin uso se eliminaron (2026-09-27).
+- `openpyxl`, `d3-scale-chromatic` y los assets sin uso se eliminaron (2026-09-27).
 - Si algo no está claro (ej. contenido `cls/`, datos reales en parquet, Railway deploy), indicarlo explícitamente y leer el archivo/parquet antes de afirmar.
