@@ -173,17 +173,20 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
       .then(res => {
         setError(false);
         if (res.data) {
-          // Año parcial: su último mes con datos no alcanza el último mes del periodo pedido
+          // Año parcial: la fuente aún no publica todos los meses pedidos. La etiqueta dice qué meses
+          // pedidos sí están ("Ene–Ago"); si ninguno está publicado, "Sin datos" (p. ej. solo Dic en 2026)
           const selMeses = (selectedFilters.meses || []).map(m => MESES_LARGOS.indexOf(m)).filter(i => i >= 0).sort((a, b) => a - b);
-          const mesInicio = selMeses.length ? selMeses[0] : 0;
-          const mesFinEsperado = selMeses.length ? selMeses[selMeses.length - 1] + 1 : 12;
+          const pedidos = selMeses.length ? selMeses : MESES_LARGOS.map((_, i) => i);
           const formatted = res.data.map(d => {
-            const partial = !isVictimasMun && typeof d.mes_final === 'number' && d.mes_final < mesFinEsperado;
+            const publicados = typeof d.mes_final === 'number' ? pedidos.filter(i => i < d.mes_final) : pedidos;
+            const partial = !isVictimasMun && publicados.length < pedidos.length;
             return {
               ...d,
               label: isVictimasMun ? d.name : d.year,
               partial,
-              periodo: partial ? `${MESES_CORTOS[mesInicio]}–${MESES_CORTOS[d.mes_final - 1]}` : null
+              periodo: !partial ? null
+                : publicados.length === 0 ? 'Sin datos'
+                : (monthsLabel(publicados.map(i => MESES_LARGOS[i])) || `Ene–${MESES_CORTOS[d.mes_final - 1]}`)
             };
           });
           setData(formatted);
