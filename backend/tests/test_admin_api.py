@@ -1,5 +1,6 @@
 """Endpoints del admin (`/api/admin`) sobre un almacén temporal."""
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -184,9 +185,60 @@ def test_reload_error_500_keeps_published(admin):
     sys.modules["app.routes.admin"]._store.reload = falla
     r = c.post("/api/admin/datasets/delitos/publish", headers=h)
     assert r.status_code == 500
-    assert "versión publicada anterior" in r.json()["detail"]
+    assert r.json()["detail"] == "No se pudieron recargar los datos; se mantuvo la versión anterior"
     assert (pub / "delitos.parquet").read_bytes() == original
     assert _total(c) == 40
+
+
+def test_storage_error_500_without_paths(admin, monkeypatch):
+    c, pub = admin
+    h = _login(c)
+    assert _subir(c, h).status_code == 200
+    store = sys.modules["app.routes.admin"]._store
+
+    def falla(*a, **k):
+        raise PermissionError(13, "Acceso denegado", str(pub / "delitos.parquet"))
+
+    monkeypatch.setattr(store, "_cambiar_publicado", falla)
+    r = c.post("/api/admin/datasets/delitos/publish", headers=h)
+    assert r.status_code == 500
+    assert r.json()["detail"] == "Error de almacenamiento: PermissionError"
+
+
+def test_upload_content_length_413_before_reading(make_client, tmp_path, monkeypatch):
+    _sembrar(tmp_path)
+    c = make_client(_env(tmp_path, MAX_UPLOAD_MB="1"), https=True)
+    h = _login(c)
+    leido = []
+    store = sys.modules["app.routes.admin"]._store
+    monkeypatch.setattr(store, "stage", lambda *a, **k: leido.append(1))
+    grande = b"PAR1" + b"0" * (2 * 1024 * 1024 + 10)
+    r = c.post("/api/admin/datasets/delitos/upload", headers=h,
+               files={"file": ("x.parquet", grande, "application/octet-stream")})
+    assert r.status_code == 413 and "1 MB" in r.json()["detail"]
+    assert leido == []
+
+
+def test_login_fail_logged(admin):
+    c, _ = admin
+    c.post("/api/admin/login", json={"username": "intruso", "password": "x"})
+    h = _login(c)
+    entrada = c.get("/api/admin/log", headers=h).json()[0]
+    assert entrada["action"] == "login_fail" and entrada["user"] == "intruso"
+
+
+def test_env_file_does_not_leak(make_client):
+    make_client({})
+    assert not (Path.cwd() / ".env").exists()
+    assert Path.cwd().resolve() != Path(__file__).resolve().parent.parent
+
+
+def test_empty_data_store_dir_uses_default(make_client):
+    make_client({"DATA_STORE_DIR": ""})
+    from app import config
+    s = config.settings
+    assert Path(s.data_store_dir) == Path(config.BASE_DIR / "storage")
+    assert s.store_persistent is False
 
 
 def test_mutations_need_csrf(admin):

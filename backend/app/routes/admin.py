@@ -8,15 +8,51 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from pydantic import BaseModel
 
 from app import config
 from app.services import auth
 from app.services.datastore import (
-    BusyError, DataStore, NothingToDoError, TooLargeError, ValidationError,
+    BusyError, DataStore, NothingToDoError, ReloadError, TooLargeError, ValidationError,
 )
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+# Margen para encabezados y límites del multipart sobre MAX_UPLOAD_MB
+MARGEN_MULTIPART = 1024 * 1024
+
+
+def _limite_bytes() -> int:
+    return config.settings.max_upload_mb * 1024 * 1024
+
+
+class RutaConLimite(APIRoute):
+    """Rechaza con 413 por Content-Length antes de que FastAPI lea el cuerpo.
+
+    Las dependencias corren después de parsear el multipart, así que la
+    revisión temprana tiene que ir en la ruta misma.
+    """
+
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+
+        async def con_limite(request: Request):
+            largo = request.headers.get("content-length")
+            if largo is not None:
+                try:
+                    excede = int(largo) > _limite_bytes() + MARGEN_MULTIPART
+                except ValueError:
+                    return JSONResponse(status_code=400, content={"detail": "Content-Length inválido"})
+                if excede:
+                    return JSONResponse(
+                        status_code=413,
+                        content={"detail": f"El archivo excede el límite de {config.settings.max_upload_mb} MB"},
+                    )
+            return await handler(request)
+
+        return con_limite
+
+
+router = APIRouter(prefix="/api/admin", tags=["admin"], route_class=RutaConLimite)
 
 Conjunto = Literal["delitos", "victimas", "victimas_mun", "poblacion"]
 
@@ -59,7 +95,7 @@ def login(credentials: LoginRequest, request: Request, response: Response):
     if not (usuario_ok and clave_ok):
         auth.login_limiter.fail(ip)
         if _store is not None:
-            _store._bitacora("login_fail", None, credentials.username[:64], ip=ip)
+            _store.log_event("login_fail", credentials.username[:64], ip=ip)
         raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
 
     auth.login_limiter.reset(ip)
@@ -97,12 +133,16 @@ def _operar(fn, *args):
         raise HTTPException(status_code=409, detail="Operación en curso")
     except NothingToDoError as e:
         raise HTTPException(status_code=409, detail=str(e))
-    except Exception as e:
-        print(f"[ADMIN] error en {getattr(fn, '__name__', 'operación')}: {e}")
+    except ReloadError as e:
+        print(f"[ADMIN] recarga fallida en {getattr(fn, '__name__', 'operación')}: {e}")
         raise HTTPException(
             status_code=500,
-            detail="No se pudieron recargar los datos; se conservó la versión publicada anterior",
+            detail="No se pudieron recargar los datos; se mantuvo la versión anterior",
         )
+    except Exception as e:
+        # El mensaje puede traer rutas del servidor: solo va al log
+        print(f"[ADMIN] error en {getattr(fn, '__name__', 'operación')}: {e!r}")
+        raise HTTPException(status_code=500, detail=f"Error de almacenamiento: {type(e).__name__}")
 
 
 @router.get("/datasets")
@@ -113,7 +153,9 @@ def datasets(user: str = Depends(auth.require_admin)):
 @router.post("/datasets/{c}/upload")
 def upload(c: Conjunto, file: UploadFile = File(...), user: str = Depends(auth.require_csrf)):
     store = _almacen()
-    max_bytes = config.settings.max_upload_mb * 1024 * 1024
+    max_bytes = _limite_bytes()
+    # Content-Length ya se revisó antes de leer el cuerpo (RutaConLimite); aquí se
+    # vuelve a contar al copiar por si no venía o mentía
     try:
         resultado = _operar(store.stage, c, file.file, max_bytes, user)
     finally:

@@ -55,6 +55,10 @@ class BusyError(Exception):
     """Otra operación de publicar/restaurar está en curso."""
 
 
+class ReloadError(RuntimeError):
+    """La recarga de DuckDB falló; el publicado se revirtió (si se pudo)."""
+
+
 # ── Utilidades ────────────────────────────────────────────────────────────────
 def _ident(nombre: str) -> str:
     return '"' + nombre.replace('"', '""') + '"'
@@ -316,6 +320,10 @@ class DataStore:
         except OSError as e:
             print(f"[DATOS] no se pudo escribir la bitácora ({action} {dataset}): {e}")
 
+    def log_event(self, action: str, user: str | None, dataset: str | None = None, summary=None, **extra) -> None:
+        """Entrada pública de la bitácora (p. ej. `login_fail`); nunca lanza por E/S."""
+        self._bitacora(action, dataset, user, summary, **extra)
+
     def _tomar(self) -> None:
         if not self._lock.acquire(blocking=False):
             raise BusyError("Operación en curso")
@@ -383,7 +391,7 @@ class DataStore:
                     print(f"[DATOS] AVISO: la versión anterior de {pub.name} solo está en {bak_tmp} "
                           f"(cópiala antes de reiniciar): {e_bak}")
             self._bitacora(f"{action}_failed", c, user, error=str(e))
-            raise
+            raise ReloadError(str(e)) from e
 
         # El publicado ya cambió: lo que sigue solo avisa si falla
         self._guardar_resumen(pub, c, res_nuevo)

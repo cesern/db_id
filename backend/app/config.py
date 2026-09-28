@@ -2,7 +2,6 @@ from pydantic import ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
 
-import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -41,6 +40,14 @@ class Settings(BaseSettings):
         campo = cls.model_fields[info.field_name]
         if campo.annotation is not str and isinstance(v, str) and not v.strip():
             return campo.default
+        return v
+
+    @field_validator("data_store_dir", mode="before")
+    @classmethod
+    def _ruta_vacia_es_default(cls, v, info: ValidationInfo):
+        # Ruta vacía = carpeta por defecto dentro de backend/ (no cuenta como persistente)
+        if isinstance(v, str) and not v.strip():
+            return cls.model_fields[info.field_name].default
         return v
 
     @property
