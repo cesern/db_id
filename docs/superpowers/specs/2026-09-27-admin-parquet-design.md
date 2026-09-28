@@ -64,7 +64,7 @@ Reglas al subir (en este orden; el primer fallo corta y se borra staging):
 2. Firma `PAR1` al inicio y al final.
 3. `pyarrow.parquet.read_schema` legible; columnas comparadas con normalización NFC.
 4. Columnas requeridas presentes (mensaje lista las faltantes).
-5. Datos: `Año` entero en 2000–2100; `Mes` dentro de Enero…Diciembre; valor (`Incidencia`/`Víctimas`) numérico ≥ 0; al menos 1 fila. Población: `AÑO` entero y `POB_MIT_*` numéricos.
+5. Datos: `Año` entero en 2000–2100; `Mes` dentro de Enero…Diciembre; valor (`Incidencia`/`Víctimas`) numérico y finito (se permiten negativos: ajustes del SESNSP, contados en `negative_rows` del resumen); al menos 1 fila. Población: `AÑO` entero y `POB_MIT_*` numéricos.
 
 **Resumen** (`<conjunto>.json`): filas, año mínimo/máximo, último mes con total > 0 del año máximo, total del año máximo (hasta ese mes), tamaño en MB, fecha. Se calcula con DuckDB sobre el archivo en staging. La comparación se hace contra el resumen del publicado (se genera y guarda la primera vez que se consulta).
 
@@ -124,7 +124,7 @@ Se eliminan: `/upload` (CSV), `/run-etl`, `/etl-status`, `/reload-db`, el estado
 - Railway hoy: **ningún cambio**. Sin `ENABLE_ADMIN`/`VITE_ENABLE_ADMIN` el admin no existe; los Parquet se leen de la misma carpeta.
 - Encender el admin en Railway o en servidor propio: guía detallada fuera del repo en `docs/privado/railway-admin.md` (en `.gitignore`).
 - `.env.example` (backend y frontend), `README.md` y `AGENTS.md` se actualizan con las variables nuevas y el flujo.
-- `requirements.txt`: se agrega `pytest` como dependencia de desarrollo (sección comentada) — no se agregan dependencias de runtime.
+- `requirements-dev.txt` (nuevo) con `pytest` y `httpx`; `requirements.txt` sin dependencias nuevas de runtime.
 
 ## 11. Pruebas
 

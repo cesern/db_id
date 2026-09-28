@@ -95,7 +95,7 @@ def login(credentials: LoginRequest, request: Request, response: Response):
     if not (usuario_ok and clave_ok):
         auth.login_limiter.fail(ip)
         if _store is not None:
-            _store.log_event("login_fail", credentials.username[:64], ip=ip)
+            _store.log_event("login_fail", None, ip=ip)  # sin el usuario tecleado: podría contener la contraseña
         raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
 
     auth.login_limiter.reset(ip)

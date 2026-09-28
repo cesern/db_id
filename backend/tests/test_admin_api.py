@@ -224,7 +224,7 @@ def test_login_fail_logged(admin):
     c.post("/api/admin/login", json={"username": "intruso", "password": "x"})
     h = _login(c)
     entrada = c.get("/api/admin/log", headers=h).json()[0]
-    assert entrada["action"] == "login_fail" and entrada["user"] == "intruso"
+    assert entrada["action"] == "login_fail" and entrada["user"] is None  # no se registra lo tecleado
 
 
 def test_env_file_does_not_leak(make_client):
