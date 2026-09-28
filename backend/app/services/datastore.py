@@ -357,18 +357,31 @@ class DataStore:
         try:
             self.reload()
         except Exception as e:
+            revertido = True
             try:
                 if habia_pub:
                     self._poner(bak_tmp, pub)
                 else:
                     _borrar_silencioso(pub)
             except Exception as e_rev:
+                revertido = False
                 print(f"[DATOS] no se pudo revertir {pub.name}: {e_rev}")
             try:
                 self.reload()
             except Exception as e2:
                 print(f"[DATOS] la recarga tras revertir también falló: {e2}")
-            _borrar_silencioso(bak_tmp)
+            if revertido or bak_tmp is None:
+                _borrar_silencioso(bak_tmp)
+            else:
+                # bak_tmp es la única copia del publicado anterior: pasa al respaldo
+                try:
+                    _reemplazar(bak_tmp, bak)
+                    self._guardar_resumen(bak, c, res_viejo)
+                    print(f"[DATOS] AVISO: {pub.name} quedó con la versión nueva; "
+                          f"la anterior está en el respaldo ({bak}) para restaurarla")
+                except Exception as e_bak:
+                    print(f"[DATOS] AVISO: la versión anterior de {pub.name} solo está en {bak_tmp} "
+                          f"(cópiala antes de reiniciar): {e_bak}")
             self._bitacora(f"{action}_failed", c, user, error=str(e))
             raise
 

@@ -493,3 +493,29 @@ def test_status_tolerates_vanishing_file(entorno, monkeypatch):
     s = store.status()
     assert s["datasets"]["victimas"]["published"] is None
     assert s["datasets"]["delitos"]["published"]["year_max"] == 2025
+
+
+def test_failed_revert_keeps_previous_in_backup(entorno, monkeypatch):
+    """Si fallan la recarga y la reversión, el publicado anterior queda en el respaldo."""
+    store = _preparar_con_respaldo(entorno)
+    _, _, fallos = entorno
+    pub, bak = store._pub("delitos"), store._bak("delitos")
+    pub_antes = _bytes(pub)
+    original = ds._reemplazar
+    llamadas = {"n": 0}
+
+    def falla_reversion(a, b):
+        llamadas["n"] += 1
+        if llamadas["n"] == 2:  # 1 = poner lo nuevo, 2 = revertir el publicado
+            raise PermissionError("[WinError 5] Acceso denegado")
+        return original(a, b)
+
+    monkeypatch.setattr(ds, "_reemplazar", falla_reversion)
+    fallos["n"] = 2
+    with pytest.raises(RuntimeError, match="fallo de recarga"):
+        store.publish("delitos", "admin")
+
+    assert _bytes(bak) == pub_antes
+    assert pub.exists()
+    assert not _temporales(store) and not store._lock.locked()
+    assert store.status()["datasets"]["delitos"]["backup"]["total_last_year"] == 2 * 8
