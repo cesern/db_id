@@ -12,13 +12,14 @@ Almacén de Parquet del panel de administración.
 Los archivos subidos solo se leen con pyarrow y con una conexión DuckDB
 efímera (nunca la global de `main.py`); jamás se ejecutan. Los movimientos
 usan `os.replace` y las operaciones que tocan publicados van con candado.
-Cada Parquet lleva junto su resumen `<nombre>.json`.
+Cada carpeta guarda el resumen de cada Parquet como `<conjunto>.json`.
 """
 
 import json
 import os
 import shutil
 import threading
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO, Callable
@@ -36,6 +37,10 @@ ANIO_MIN, ANIO_MAX = 2000, 2100
 
 class ValidationError(Exception):
     """El archivo no cumple las reglas del conjunto."""
+
+
+class UnknownDatasetError(ValidationError):
+    """El conjunto no está en la lista cerrada."""
 
 
 class TooLargeError(Exception):
@@ -64,8 +69,35 @@ def _columnas(path: Path) -> dict[str, str]:
     return {nfc(n): n for n in pq.read_schema(path).names}
 
 
-def _json_de(path: Path) -> Path:
-    return path.with_suffix(".json")
+def _cfg(dataset: str) -> dict:
+    if dataset not in DATASETS:
+        raise UnknownDatasetError("Conjunto desconocido")
+    return DATASETS[dataset]
+
+
+def _copiar(origen: Path, destino: Path) -> None:
+    """Copia conservando fecha (punto único para pruebas de fallos)."""
+    shutil.copy2(origen, destino)
+
+
+def _reemplazar(origen: Path, destino: Path) -> None:
+    """`os.replace`; siempre dentro de la misma carpeta (punto único para pruebas)."""
+    os.replace(origen, destino)
+
+
+def _borrar_silencioso(*rutas: Path | None) -> None:
+    for r in rutas:
+        if r is None:
+            continue
+        try:
+            r.unlink(missing_ok=True)
+        except OSError as e:
+            print(f"[DATOS] no se pudo borrar {r.name}: {e}")
+
+
+def _temporal(carpeta: Path, nombre: str) -> Path:
+    """Nombre único `.<nombre>.<uuid>.tmp` (se barren al arrancar)."""
+    return carpeta / f".{nombre}.{uuid.uuid4().hex}.tmp"
 
 
 def _firma_archivo(path: Path) -> list[int]:
@@ -80,7 +112,7 @@ def _ahora() -> str:
 # ── Validación y resumen ──────────────────────────────────────────────────────
 def _validar(path: Path, dataset: str) -> None:
     """Reglas del spec §4 (la de tamaño se aplica al copiar). Lanza ValidationError."""
-    cfg = DATASETS[dataset]
+    cfg = _cfg(dataset)
 
     with open(path, "rb") as f:
         inicio = f.read(4)
@@ -147,16 +179,21 @@ def _validar(path: Path, dataset: str) -> None:
         for col in numericas:
             v = _ident(real[nfc(col)])
             # Los negativos se aceptan: son ajustes oficiales del SESNSP (se cuentan en el resumen)
-            vacios = con.execute(f"SELECT COUNT(*) FILTER (WHERE {v} IS NULL) FROM {src}").fetchone()[0]
+            vacios, no_finitos = con.execute(
+                f"SELECT COUNT(*) FILTER (WHERE {v} IS NULL), "
+                f"COUNT(*) FILTER (WHERE NOT isfinite(CAST({v} AS DOUBLE))) FROM {src}"
+            ).fetchone()
             if vacios:
                 raise ValidationError(f"La columna {col} tiene {vacios:,} valores vacíos")
+            if no_finitos:
+                raise ValidationError(f"La columna {col} tiene {no_finitos:,} valores no finitos (NaN o infinito)")
     finally:
         con.close()
 
 
 def summarize(path: Path, dataset: str) -> dict:
     """Resumen: filas, años, último mes con total > 0 del año máximo, su total y filas negativas."""
-    cfg = DATASETS[dataset]
+    cfg = _cfg(dataset)
     path = Path(path)
     real = _columnas(path)
     a = _ident(real[nfc(cfg["year_col"])])
@@ -204,6 +241,10 @@ def diff(new: dict, old: dict | None) -> dict:
 
 
 # ── Almacén ───────────────────────────────────────────────────────────────────
+# Regla de movimientos: todo `os.replace` ocurre dentro de una misma carpeta.
+# Entre carpetas solo se copia a un temporal junto al destino y luego se
+# reemplaza; así el publicado nunca queda a medias aunque las carpetas estén
+# en volúmenes distintos (EXDEV) o Windows niegue un renombre.
 class DataStore:
     def __init__(self, root: Path, published_dir: Path, repo_dir: Path,
                  reload: Callable[[], None], persistent: bool):
@@ -218,76 +259,157 @@ class DataStore:
         self._lock = threading.Lock()
         for d in (self.root, self.published_dir, self.staging_dir, self.backup_dir):
             d.mkdir(parents=True, exist_ok=True)
+            # Temporales huérfanos de un proceso interrumpido
+            _borrar_silencioso(*d.glob(".*.tmp"))
 
     # Rutas
     def _pub(self, c: str) -> Path:
-        return self.published_dir / DATASETS[c]["file"]
+        return self.published_dir / _cfg(c)["file"]
 
     def _stg(self, c: str) -> Path:
-        return self.staging_dir / DATASETS[c]["file"]
+        return self.staging_dir / _cfg(c)["file"]
 
     def _bak(self, c: str) -> Path:
-        return self.backup_dir / DATASETS[c]["file"]
+        return self.backup_dir / _cfg(c)["file"]
 
-    # Resúmenes en caché
+    # Resúmenes en caché: `<carpeta>/<conjunto>.json`, válidos si coincide la firma
+    @staticmethod
+    def _json(path: Path, c: str) -> Path:
+        return path.parent / f"{c}.json"
+
+    def _guardar_resumen(self, path: Path, c: str, resumen: dict) -> None:
+        js = self._json(path, c)
+        try:
+            js.write_text(json.dumps({**resumen, "_sig": _firma_archivo(path)}, ensure_ascii=False),
+                          encoding="utf-8")
+        except OSError as e:
+            print(f"[DATOS] no se pudo guardar {js.name}: {e}")
+
     def _resumen(self, path: Path, c: str) -> dict | None:
-        """Lee `<nombre>.json`; lo recalcula si falta o no corresponde al archivo."""
+        """Lee el json; lo recalcula si falta o no corresponde al archivo."""
         if not path.exists():
             return None
-        js = _json_de(path)
         firma = _firma_archivo(path)
         try:
-            datos = json.loads(js.read_text(encoding="utf-8"))
+            datos = json.loads(self._json(path, c).read_text(encoding="utf-8"))
             if datos.get("_sig") == firma:
                 return {k: v for k, v in datos.items() if k != "_sig"}
         except (OSError, ValueError):
             pass
         resumen = summarize(path, c)
-        try:
-            js.write_text(json.dumps({**resumen, "_sig": firma}, ensure_ascii=False), encoding="utf-8")
-        except OSError as e:
-            print(f"[DATOS] no se pudo guardar {js.name}: {e}")
+        self._guardar_resumen(path, c, resumen)
         return resumen
 
-    @staticmethod
-    def _mover(origen: Path, destino: Path) -> None:
-        """Mueve el Parquet y su resumen (si existe)."""
-        os.replace(origen, destino)
-        if _json_de(origen).exists():
-            os.replace(_json_de(origen), _json_de(destino))
-        elif _json_de(destino).exists():
-            _json_de(destino).unlink()
-
-    @staticmethod
-    def _borrar(path: Path) -> None:
-        for p in (path, _json_de(path)):
-            if p.exists():
-                p.unlink()
+    def _resumen_seguro(self, path: Path, c: str) -> dict | None:
+        """Como `_resumen`, pero un archivo que desaparece a media lectura cuenta como ausente."""
+        try:
+            return self._resumen(path, c)
+        except (FileNotFoundError, duckdb.IOException):
+            return None
 
     def _bitacora(self, action: str, dataset: str, user: str | None, summary=None, **extra) -> None:
+        """Agrega una entrada; si no se puede escribir, avisa y sigue (no revierte la operación)."""
         entrada = {"at": _ahora(), "user": user, "action": action, "dataset": dataset, "summary": summary, **extra}
-        with open(self.log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entrada, ensure_ascii=False) + "\n")
+        try:
+            with open(self.log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entrada, ensure_ascii=False) + "\n")
+        except OSError as e:
+            print(f"[DATOS] no se pudo escribir la bitácora ({action} {dataset}): {e}")
 
     def _tomar(self) -> None:
         if not self._lock.acquire(blocking=False):
             raise BusyError("Operación en curso")
 
+    def _poner(self, origen: Path, destino: Path) -> None:
+        """Copia `origen` a un temporal junto a `destino` y lo reemplaza de una vez."""
+        tmp = _temporal(destino.parent, destino.name)
+        try:
+            _copiar(origen, tmp)
+            _reemplazar(tmp, destino)
+        except BaseException:
+            _borrar_silencioso(tmp)
+            raise
+
+    def _cambiar_publicado(self, c: str, nuevo: Path, action: str, user: str) -> tuple[dict, dict | None]:
+        """Pone `nuevo` como publicado y el publicado actual como respaldo.
+
+        Pasos: (1) copia del publicado a un temporal en backup/, (2) copia de
+        `nuevo` a un temporal en parquet/ y un solo `os.replace` sobre el
+        publicado, (3) recarga, (4) el temporal ocupa el lugar del respaldo.
+        Si (1), (2) o (3) fallan, el publicado vuelve a su versión y el
+        respaldo no se toca; si falla (4) solo se avisa. Devuelve (resumen del nuevo publicado, resumen del respaldo).
+        """
+        pub, bak = self._pub(c), self._bak(c)
+        res_nuevo = self._resumen(nuevo, c)
+        res_viejo = self._resumen(pub, c)
+        habia_pub = res_viejo is not None
+
+        bak_tmp = None
+        try:
+            if habia_pub:
+                bak_tmp = _temporal(self.backup_dir, bak.name)
+                _copiar(pub, bak_tmp)
+            self._poner(nuevo, pub)
+        except BaseException:
+            _borrar_silencioso(bak_tmp)
+            raise
+
+        try:
+            self.reload()
+        except Exception as e:
+            try:
+                if habia_pub:
+                    self._poner(bak_tmp, pub)
+                else:
+                    _borrar_silencioso(pub)
+            except Exception as e_rev:
+                print(f"[DATOS] no se pudo revertir {pub.name}: {e_rev}")
+            try:
+                self.reload()
+            except Exception as e2:
+                print(f"[DATOS] la recarga tras revertir también falló: {e2}")
+            _borrar_silencioso(bak_tmp)
+            self._bitacora(f"{action}_failed", c, user, error=str(e))
+            raise
+
+        # El publicado ya cambió: lo que sigue solo avisa si falla
+        self._guardar_resumen(pub, c, res_nuevo)
+        try:
+            if habia_pub:
+                _reemplazar(bak_tmp, bak)
+                self._guardar_resumen(bak, c, res_viejo)
+        except Exception as e:
+            _borrar_silencioso(bak_tmp)
+            print(f"[DATOS] publicado sin actualizar el respaldo de {c}: {e}")
+        return res_nuevo, res_viejo
+
     # Operaciones
     def seed(self) -> list[str]:
-        """Copia desde el repo los conjuntos que falten en publicados."""
+        """Copia desde el repo los conjuntos que falten en publicados (nunca sobrescribe)."""
         copiados = []
-        for c in DATASETS:
-            destino, origen = self._pub(c), self.repo_dir / DATASETS[c]["file"]
-            if not destino.exists() and origen.exists():
-                shutil.copy2(origen, destino)
-                copiados.append(c)
+        with self._lock:
+            for c in DATASETS:
+                destino, origen = self._pub(c), self.repo_dir / DATASETS[c]["file"]
+                if destino.exists() or not origen.exists():
+                    continue
+                tmp = _temporal(destino.parent, destino.name)
+                try:
+                    _copiar(origen, tmp)
+                    if destino.exists():  # apareció mientras se copiaba
+                        continue
+                    _reemplazar(tmp, destino)
+                    copiados.append(c)
+                finally:
+                    _borrar_silencioso(tmp)
         return copiados
 
     def stage(self, dataset: str, fileobj: BinaryIO, max_bytes: int, user: str | None = None) -> dict:
-        """Copia a staging, valida y resume. Devuelve el resumen con `diff` contra el publicado."""
+        """Copia a un temporal único, valida y resume; solo lo validado pasa a staging.
+
+        Devuelve el resumen con `diff` contra el publicado.
+        """
         destino = self._stg(dataset)
-        tmp = destino.with_name(destino.name + ".tmp")
+        tmp = _temporal(self.staging_dir, destino.name)
         try:
             leidos = 0
             with open(tmp, "wb") as out:
@@ -298,27 +420,24 @@ class DataStore:
                     out.write(bloque)
             _validar(tmp, dataset)
             resumen = summarize(tmp, dataset)
-        except Exception:
-            if tmp.exists():
-                tmp.unlink()
-            raise
 
-        self._tomar()
-        try:
-            os.replace(tmp, destino)
-            _json_de(destino).write_text(
-                json.dumps({**resumen, "_sig": _firma_archivo(destino)}, ensure_ascii=False), encoding="utf-8")
-            self._bitacora("upload", dataset, user, resumen)
+            self._tomar()
+            try:
+                _reemplazar(tmp, destino)
+                self._guardar_resumen(destino, dataset, resumen)
+                self._bitacora("upload", dataset, user, resumen)
+            finally:
+                self._lock.release()
         finally:
-            self._lock.release()
-        return {**resumen, "diff": diff(resumen, self._resumen(self._pub(dataset), dataset))}
+            _borrar_silencioso(tmp)
+        return {**resumen, "diff": diff(resumen, self._resumen_seguro(self._pub(dataset), dataset))}
 
     def status(self) -> dict:
         datasets = {}
         for c in DATASETS:
-            pub = self._resumen(self._pub(c), c)
-            stg = self._resumen(self._stg(c), c)
-            bak = self._resumen(self._bak(c), c)
+            pub = self._resumen_seguro(self._pub(c), c)
+            stg = self._resumen_seguro(self._stg(c), c)
+            bak = self._resumen_seguro(self._bak(c), c)
             datasets[c] = {
                 "published": pub,
                 "staging": None if stg is None else {**stg, "diff": diff(stg, pub)},
@@ -328,92 +447,42 @@ class DataStore:
         return {"persistent": self.persistent, "datasets": datasets}
 
     def publish(self, dataset: str, user: str) -> dict:
-        """publicado → backup, staging → publicado, recarga. Si la recarga falla, revierte."""
+        """Staging → publicado (el anterior queda de respaldo) y recarga; revierte si falla."""
+        stg = self._stg(dataset)
         self._tomar()
         try:
-            stg, pub, bak = self._stg(dataset), self._pub(dataset), self._bak(dataset)
             if not stg.exists():
                 raise NothingToDoError("No hay archivo en espera")
-            self._resumen(pub, dataset)  # asegura el json del publicado antes de moverlo
-
-            bak_viejo = bak.with_name(bak.name + ".old")
-            habia_bak, habia_pub = bak.exists(), pub.exists()
-            if habia_bak:
-                self._mover(bak, bak_viejo)
-            if habia_pub:
-                self._mover(pub, bak)
-            self._mover(stg, pub)
-            try:
-                self.reload()
-            except Exception as e:
-                # Revertir: lo nuevo vuelve a espera, el anterior a publicado
-                self._mover(pub, stg)
-                if habia_pub:
-                    self._mover(bak, pub)
-                if habia_bak:
-                    self._mover(bak_viejo, bak)
-                try:
-                    self.reload()
-                except Exception as e2:
-                    print(f"[DATOS] la recarga tras revertir también falló: {e2}")
-                self._bitacora("publish_failed", dataset, user, error=str(e))
-                raise
-            self._borrar(bak_viejo)
-            resumen = self._resumen(pub, dataset)
+            resumen, _ = self._cambiar_publicado(dataset, stg, "publish", user)
+            _borrar_silencioso(stg, self._json(stg, dataset))
             self._bitacora("publish", dataset, user, resumen)
             return resumen
         finally:
             self._lock.release()
 
     def restore(self, dataset: str, user: str) -> dict:
-        """Intercambia backup ↔ publicado y recarga. Si la recarga falla, deshace el cambio."""
+        """Intercambia respaldo ↔ publicado y recarga; revierte si falla."""
+        bak = self._bak(dataset)
         self._tomar()
         try:
-            pub, bak = self._pub(dataset), self._bak(dataset)
             if not bak.exists():
                 raise NothingToDoError("No hay versión anterior para restaurar")
-            self._resumen(pub, dataset)
-            tmp = pub.with_name(pub.name + ".swap")
-            habia_pub = pub.exists()
-
-            def intercambiar():
-                if habia_pub:
-                    self._mover(pub, tmp)
-                self._mover(bak, pub)
-                if habia_pub:
-                    self._mover(tmp, bak)
-
-            def deshacer():
-                if habia_pub:
-                    self._mover(bak, tmp)
-                self._mover(pub, bak)
-                if habia_pub:
-                    self._mover(tmp, pub)
-
-            intercambiar()
-            try:
-                self.reload()
-            except Exception as e:
-                deshacer()
-                try:
-                    self.reload()
-                except Exception as e2:
-                    print(f"[DATOS] la recarga tras revertir también falló: {e2}")
-                self._bitacora("restore_failed", dataset, user, error=str(e))
-                raise
-            resumen = self._resumen(pub, dataset)
+            # El respaldo se copia al publicado antes de que el paso final lo reemplace
+            resumen, viejo = self._cambiar_publicado(dataset, bak, "restore", user)
+            if viejo is None:  # no había publicado: el respaldo pasó a serlo
+                _borrar_silencioso(bak, self._json(bak, dataset))
             self._bitacora("restore", dataset, user, resumen)
             return resumen
         finally:
             self._lock.release()
 
     def discard(self, dataset: str, user: str) -> None:
+        stg = self._stg(dataset)
         self._tomar()
         try:
-            stg = self._stg(dataset)
             if not stg.exists():
                 raise NothingToDoError("No hay archivo en espera")
-            self._borrar(stg)
+            _borrar_silencioso(stg, self._json(stg, dataset))
             self._bitacora("discard", dataset, user)
         finally:
             self._lock.release()

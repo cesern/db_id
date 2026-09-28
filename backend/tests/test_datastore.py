@@ -323,3 +323,173 @@ def test_log_limit(entorno):
     assert len(store.log(limit=2)) == 2
     lineas = (store.root / "admin_log.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(lineas) == 3 and json.loads(lineas[0])["action"] == "upload"
+
+
+# ── Robustez de movimientos ───────────────────────────────────────────────────
+from app.services import datastore as ds  # noqa: E402
+
+
+def _bytes(p):
+    return p.read_bytes() if p.exists() else None
+
+
+def _temporales(store):
+    return [p for d in (store.published_dir, store.staging_dir, store.backup_dir) for p in d.glob(".*.tmp")]
+
+
+def _preparar_con_respaldo(entorno):
+    """Publicado v2, respaldo v1 y v3 en espera."""
+    store, _, _ = entorno
+    store.stage("delitos", a_bytes(df_serie("delitos", PERIODOS_2026, valor=2)), max_bytes=10**7)
+    store.publish("delitos", "admin")
+    store.stage("delitos", a_bytes(df_serie("delitos", PERIODOS_2026, valor=3)), max_bytes=10**7)
+    return store
+
+
+@pytest.mark.parametrize("operacion", ["publish", "restore"])
+@pytest.mark.parametrize("funcion", ["_copiar", "_reemplazar"])
+def test_move_failure_at_each_step_keeps_published(entorno, monkeypatch, operacion, funcion):
+    store = _preparar_con_respaldo(entorno)
+    pub, bak = store._pub("delitos"), store._bak("delitos")
+    pub_antes, bak_antes = _bytes(pub), _bytes(bak)
+    nuevo = _bytes(store._stg("delitos") if operacion == "publish" else bak)
+    original = getattr(ds, funcion)
+
+    paso = 0
+    while True:
+        paso += 1
+        llamadas = {"n": 0}
+
+        def falla(a, b, _paso=paso):
+            llamadas["n"] += 1
+            if llamadas["n"] == _paso:
+                raise PermissionError("[WinError 5] Acceso denegado")
+            return original(a, b)
+
+        monkeypatch.setattr(ds, funcion, falla)
+        try:
+            getattr(store, operacion)("delitos", "admin")
+            exito = True
+        except PermissionError:
+            exito = False
+        monkeypatch.setattr(ds, funcion, original)
+
+        assert _bytes(pub) in (pub_antes, nuevo)
+        assert not _temporales(store)
+        assert not store._lock.locked()
+        if not exito:
+            assert _bytes(pub) == pub_antes
+            assert _bytes(bak) == bak_antes
+        if exito or paso > 10:
+            break
+    assert exito and paso > 1  # se probaron fallos antes de terminar bien
+
+
+def test_publish_first_time_without_published(entorno):
+    store, llamadas, _ = entorno
+    store._pub("delitos").unlink()
+    store.stage("delitos", a_bytes(df_serie("delitos", PERIODOS_2026, valor=3)), max_bytes=10**7)
+    publicado = store.publish("delitos", "admin")
+    assert publicado["year_max"] == 2026
+    assert _total_publicado(store) == 24
+    assert store.status()["datasets"]["delitos"]["has_backup"] is False
+    assert len(llamadas) == 1
+
+
+def test_publish_first_time_rolls_back_to_nothing(entorno):
+    store, _, fallos = entorno
+    store._pub("delitos").unlink()
+    store.stage("delitos", a_bytes(df_serie("delitos", PERIODOS_2026)), max_bytes=10**7)
+    fallos["n"] = 1
+    with pytest.raises(RuntimeError):
+        store.publish("delitos", "admin")
+    assert not store._pub("delitos").exists()
+    assert store._stg("delitos").exists()
+
+
+def test_restore_rolls_back_on_reload_error(entorno):
+    store, llamadas, fallos = entorno
+    store.stage("delitos", a_bytes(df_serie("delitos", PERIODOS_2026, valor=3)), max_bytes=10**7)
+    store.publish("delitos", "admin")
+    pub_antes, bak_antes = _bytes(store._pub("delitos")), _bytes(store._bak("delitos"))
+    fallos["n"] = 1
+    with pytest.raises(RuntimeError, match="fallo de recarga"):
+        store.restore("delitos", "admin")
+    assert _bytes(store._pub("delitos")) == pub_antes
+    assert _bytes(store._bak("delitos")) == bak_antes
+    assert store.log()[0]["action"] == "restore_failed"
+    assert not _temporales(store) and not store._lock.locked()
+
+
+def test_stage_and_discard_busy(entorno):
+    store, _, _ = entorno
+    store.stage("delitos", a_bytes(df_serie("delitos", PERIODOS_2026)), max_bytes=10**7)
+    store._lock.acquire()
+    try:
+        with pytest.raises(BusyError):
+            store.stage("delitos", a_bytes(df_serie("delitos", PERIODOS_2025)), max_bytes=10**7)
+        with pytest.raises(BusyError):
+            store.discard("delitos", "admin")
+    finally:
+        store._lock.release()
+    assert not _temporales(store)
+    assert store.status()["datasets"]["delitos"]["staging"]["year_max"] == 2026
+
+
+def test_unknown_dataset(entorno):
+    store, _, _ = entorno
+    with pytest.raises(ds.UnknownDatasetError, match="Conjunto desconocido"):
+        store.stage("robos", a_bytes(df_poblacion()), max_bytes=10**7)
+    for op in (store.publish, store.restore, store.discard):
+        with pytest.raises(ds.UnknownDatasetError):
+            op("robos", "admin")
+    assert issubclass(ds.UnknownDatasetError, ValidationError)
+
+
+def test_seed_never_overwrites(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    df_serie("delitos", PERIODOS_2025, valor=1).to_parquet(repo / "delitos.parquet", index=False)
+    root = tmp_path / "store"
+    (root / "parquet").mkdir(parents=True)
+    df_serie("delitos", PERIODOS_2026, valor=9).to_parquet(root / "parquet" / "delitos.parquet", index=False)
+    antes = (root / "parquet" / "delitos.parquet").read_bytes()
+
+    store = DataStore(root, root / "parquet", repo, lambda: None, persistent=False)
+    assert "delitos" not in store.seed()
+    assert (root / "parquet" / "delitos.parquet").read_bytes() == antes
+    assert not _temporales(store)
+
+
+def test_rejects_non_finite(entorno):
+    store, _, _ = entorno
+    df = df_serie("delitos", PERIODOS_2026).astype({"Incidencia": "float64"})
+    df.loc[0, "Incidencia"] = float("inf")
+    with pytest.raises(ValidationError, match="no finitos"):
+        store.stage("delitos", a_bytes(df), max_bytes=10**7)
+    assert not _temporales(store)
+
+
+def test_log_failure_does_not_fail_publish(entorno, monkeypatch):
+    store, _, _ = entorno
+    store.stage("delitos", a_bytes(df_serie("delitos", PERIODOS_2026, valor=3)), max_bytes=10**7)
+    store.log_path = store.root / "no-existe" / "admin_log.jsonl"
+    assert store.publish("delitos", "admin")["year_max"] == 2026
+    assert _total_publicado(store) == 24
+
+
+def test_status_tolerates_vanishing_file(entorno, monkeypatch):
+    store, _, _ = entorno
+    real = ds.summarize
+
+    def desaparece(path, c):
+        if c == "victimas":
+            raise FileNotFoundError(path)
+        return real(path, c)
+
+    for js in store.published_dir.glob("*.json"):
+        js.unlink()
+    monkeypatch.setattr(ds, "summarize", desaparece)
+    s = store.status()
+    assert s["datasets"]["victimas"]["published"] is None
+    assert s["datasets"]["delitos"]["published"]["year_max"] == 2025
