@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
 
@@ -15,6 +16,12 @@ class Settings(BaseSettings):
     environment: str = "local"
     # Interruptor del admin: apagado salvo ENABLE_ADMIN=true
     enable_admin: bool = False
+
+    @field_validator("enable_admin", mode="before")
+    @classmethod
+    def _enable_admin_vacio(cls, v):
+        # Una variable vacía (p. ej. en Railway) no debe impedir el arranque: cuenta como apagado
+        return False if isinstance(v, str) and not v.strip() else v
     
     # Rutas por defecto
     uploads_dir: str = str(BASE_DIR / "storage" / "uploads")
