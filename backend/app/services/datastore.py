@@ -146,19 +146,16 @@ def _validar(path: Path, dataset: str) -> None:
 
         for col in numericas:
             v = _ident(real[nfc(col)])
-            vacios, negativos = con.execute(
-                f"SELECT COUNT(*) FILTER (WHERE {v} IS NULL), COUNT(*) FILTER (WHERE {v} < 0) FROM {src}"
-            ).fetchone()
+            # Los negativos se aceptan: son ajustes oficiales del SESNSP (se cuentan en el resumen)
+            vacios = con.execute(f"SELECT COUNT(*) FILTER (WHERE {v} IS NULL) FROM {src}").fetchone()[0]
             if vacios:
                 raise ValidationError(f"La columna {col} tiene {vacios:,} valores vacíos")
-            if dataset != "poblacion" and negativos:
-                raise ValidationError(f"La columna {col} tiene {negativos:,} valores negativos")
     finally:
         con.close()
 
 
 def summarize(path: Path, dataset: str) -> dict:
-    """Resumen: filas, años, último mes con total > 0 del año máximo y su total."""
+    """Resumen: filas, años, último mes con total > 0 del año máximo, su total y filas negativas."""
     cfg = DATASETS[dataset]
     path = Path(path)
     real = _columnas(path)
@@ -168,10 +165,12 @@ def summarize(path: Path, dataset: str) -> dict:
     con = duckdb.connect()
     try:
         filas, anio_min, anio_max = con.execute(f"SELECT COUNT(*), MIN({a}), MAX({a}) FROM {src}").fetchone()
-        ultimo_mes, total = None, None
+        ultimo_mes, total, negativos = None, None, None
+        if cfg["value_col"]:
+            v = _ident(real[nfc(cfg["value_col"])])
+            negativos = int(con.execute(f"SELECT COUNT(*) FROM {src} WHERE {v} < 0").fetchone()[0])
         if cfg["month_col"] and anio_max is not None:
             m = _ident(real[nfc(cfg["month_col"])])
-            v = _ident(real[nfc(cfg["value_col"])])
             por_mes = dict(con.execute(
                 f"SELECT CAST({m} AS VARCHAR), SUM({v}) FROM {src} WHERE {a} = ? GROUP BY 1", [anio_max]
             ).fetchall())
@@ -191,6 +190,7 @@ def summarize(path: Path, dataset: str) -> dict:
         "year_max": None if anio_max is None else int(anio_max),
         "last_month": ultimo_mes,
         "total_last_year": total,
+        "negative_rows": negativos,
         "size_mb": round(st.st_size / (1024 * 1024), 2),
         "at": datetime.fromtimestamp(st.st_mtime).astimezone().isoformat(timespec="seconds"),
     }

@@ -2,6 +2,7 @@
 import io
 import json
 import unicodedata
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -48,6 +49,8 @@ def a_bytes(df) -> io.BytesIO:
     buf.seek(0)
     return buf
 
+
+REPO_PARQUET = Path(__file__).resolve().parent.parent / "storage" / "parquet"
 
 PERIODOS_2025 = [(2025, m) for m in MESES]
 PERIODOS_2026 = [(2026, m) for m in MESES[:8]]
@@ -131,12 +134,45 @@ def test_stage_rejects_bad_month(entorno):
         store.stage("delitos", a_bytes(df), max_bytes=10**7)
 
 
-def test_stage_rejects_bad_year_and_negative(entorno):
+def test_stage_rejects_bad_year(entorno):
     store, _, _ = entorno
     with pytest.raises(ValidationError, match="Año"):
         store.stage("delitos", a_bytes(df_serie("delitos", [(1999, "Enero")])), max_bytes=10**7)
+
+
+def test_stage_rejects_null_value(entorno):
+    store, _, _ = entorno
+    df = df_serie("delitos", PERIODOS_2026).astype({"Incidencia": "float64"})
+    df.loc[0, "Incidencia"] = None
     with pytest.raises(ValidationError, match="Incidencia"):
-        store.stage("delitos", a_bytes(df_serie("delitos", PERIODOS_2026, valor=-1)), max_bytes=10**7)
+        store.stage("delitos", a_bytes(df), max_bytes=10**7)
+
+
+def test_negative_values_allowed_and_counted(entorno):
+    """Los ajustes del SESNSP llegan como -1: se aceptan y se cuentan."""
+    store, _, _ = entorno
+    df = pd.concat([df_serie("delitos", PERIODOS_2026, valor=4),
+                    df_serie("delitos", [(2026, "Marzo")], valor=-1)])
+    summary = store.stage("delitos", a_bytes(df), max_bytes=10**7)
+    assert summary["negative_rows"] == 1
+    assert summary["total_last_year"] == 4 * 8 - 1
+
+
+def test_real_published_files_validate(tmp_path):
+    """Los Parquet reales del repo deben pasar la validación del admin."""
+    archivos = {c: REPO_PARQUET / cfg["file"] for c, cfg in DATASETS.items()}
+    if not all(p.exists() for p in archivos.values()):
+        pytest.skip("Faltan Parquet reales en storage/parquet")
+    root = tmp_path / "store"
+    store = DataStore(root, root / "parquet", tmp_path / "vacio", lambda: None, persistent=False)
+    for c, ruta in archivos.items():
+        with open(ruta, "rb") as f:
+            summary = store.stage(c, f, max_bytes=ruta.stat().st_size + 1)
+        assert summary["rows"] > 0
+        if DATASETS[c]["value_col"]:
+            assert summary["negative_rows"] >= 0
+        else:
+            assert summary["negative_rows"] is None
 
 
 def test_stage_poblacion(entorno):
@@ -145,6 +181,7 @@ def test_stage_poblacion(entorno):
     assert resumen["rows"] == 2
     assert (resumen["year_min"], resumen["year_max"]) == (2024, 2025)
     assert resumen["last_month"] is None and resumen["total_last_year"] is None
+    assert resumen["negative_rows"] is None
 
 
 # ── Resumen ───────────────────────────────────────────────────────────────────
@@ -160,6 +197,7 @@ def test_summary_values(tmp_path):
     assert (r["year_min"], r["year_max"]) == (2025, 2026)
     assert r["last_month"] == "Agosto"
     assert r["total_last_year"] == 7 * 8
+    assert r["negative_rows"] == 0
     assert r["size_mb"] >= 0 and r["at"]
 
 
