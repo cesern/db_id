@@ -3,6 +3,7 @@ import axios from 'axios';
 import { API_URL } from '../api';
 import { ALTO_IMPACTO_PRESETS, parseCapsule } from '../utils/altoImpacto';
 import AltoImpactoModal from './AltoImpactoModal';
+import { monthsLabel } from '../utils/labels';
 
 const MONTHS = [
   { id: 1, label: 'Ene', name: 'Enero' }, { id: 2, label: 'Feb', name: 'Febrero' }, { id: 3, label: 'Mar', name: 'Marzo' },
@@ -258,6 +259,15 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
   // Cantidad de filtros pendientes de aplicar
   const pendingCount = countPendingChanges(selectedFilters, appliedFilters);
 
+  // Resumen de los filtros APLICADOS para el botón plegado: "Filtros · 2026 · Sonora · Mar"
+  const appliedSummary = (() => {
+    const a = appliedFilters || {};
+    const ent = !a.entidad || a.entidad === 'All' ? 'Nacional' : a.entidad;
+    const mun = !isVictimasDataset(dataset) && a.municipio && a.municipio !== 'All'
+      ? String(a.municipio).replace(`, ${a.entidad}`, '') : null;
+    return ['Filtros', a.anio, ent, mun, monthsLabel(a.meses)].filter(Boolean).join(' · ');
+  })();
+
   // ── Efecto 1: Opciones base (año, entidad, bien jurídico) — solo al aplicar filtros
   useEffect(() => {
     const controller = new AbortController();
@@ -425,8 +435,8 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
         aria-controls="filters-body"
         onClick={() => setIsMobileOpen(v => !v)}
       >
-        <span>
-          Filtros{pendingCount > 0 ? ` · ${pendingCount} sin aplicar` : ''}
+        <span className="filters-mobile-summary">
+          {appliedSummary}{pendingCount > 0 ? ` · ${pendingCount} sin aplicar` : ''}
         </span>
         <span aria-hidden="true" style={{ color: 'var(--color-accent)' }}>{isMobileOpen ? '▴' : '▾'}</span>
       </button>

@@ -54,27 +54,19 @@ const DrillDownModal = ({
 
   return (
     <>
-      <style>{`
-        @keyframes ddFadeIn { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes ddSlideUp {
-          from { opacity: 0; transform: translateY(20px) scale(0.97) }
-          to   { opacity: 1; transform: translateY(0)    scale(1)    }
-        }
-        @keyframes ddSpin { to { transform: rotate(360deg) } }
-      `}</style>
-
       <div
+        className="modal-backdrop"
         style={{
           position: 'fixed', inset: 0,
           backgroundColor: 'rgba(15,23,42,0.65)',
           zIndex: 9999,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           backdropFilter: 'blur(4px)',
-          animation: 'ddFadeIn 0.2s ease',
         }}
         onClick={onClose}
       >
         <div
+          className="modal-panel"
           style={{
             backgroundColor: 'white',
             borderRadius: '18px',
@@ -85,7 +77,6 @@ const DrillDownModal = ({
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            animation: 'ddSlideUp 0.28s cubic-bezier(0.23, 1, 0.32, 1)',
           }}
           onClick={e => e.stopPropagation()}
         >
@@ -131,7 +122,7 @@ const DrillDownModal = ({
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {loading ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '220px', gap: '0.75rem', color: 'var(--text-secondary)' }}>
-                <div style={{ width: '34px', height: '34px', border: '3px solid var(--border-color)', borderTopColor: 'var(--color-accent)', borderRadius: '50%', animation: 'ddSpin 0.75s linear infinite' }} />
+                <div style={{ width: '34px', height: '34px', border: '3px solid var(--border-color)', borderTopColor: 'var(--color-accent)', borderRadius: '50%', animation: 'spin 0.75s linear infinite' }} />
                 <span style={{ fontSize: '0.875rem' }}>Cargando datos…</span>
               </div>
             ) : !data || data.length === 0 ? (

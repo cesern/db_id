@@ -10,6 +10,7 @@ import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import DrillDownModal from './DrillDownModal';
 import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
+import { CHART_ANIM } from '../utils/motion';
 
 const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -194,6 +195,8 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
         setError(true);
       })
       .finally(() => {
+        // Cancelada: la petición nueva sigue en curso; no apagar la carga (evita un 'Sin datos' falso)
+        if (controller.signal.aborted) return;
         setLoading(false);
         if (onInitialLoad && !initialLoadCalled.current) {
           initialLoadCalled.current = true;
@@ -398,23 +401,13 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
               onCopyTable={handleCopyData}
             />
             <button
-              onClick={() => setIsFullScreen(true)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-secondary)',
-                display: 'flex',
-                padding: '4px',
-                borderRadius: '4px',
-                transition: 'background 0.2s',
-              }}
+              type="button"
+              className="card-icon-btn"
               title="Ver en pantalla completa"
               aria-label="Ver en pantalla completa"
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
-              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              onClick={() => setIsFullScreen(true)}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
               </svg>
             </button>
@@ -466,11 +459,14 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
             />
             <YAxis hide={true} />
             <Tooltip
+              isAnimationActive={false}
+              separator=": "
               cursor={{ fill: 'var(--bg-main)' }}
               contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow-md)', fontSize: FF(12) }}
               formatter={(value, _name, item) => [formatValue(value), item?.payload?.partial ? `${tooltipLabel} (${item.payload.periodo}, año parcial)` : tooltipLabel]}
             />
             <Bar dataKey="value" radius={[F(6), F(6), 0, 0]} fill="url(#colorBarYears)"
+              {...CHART_ANIM}
               onClick={handleBarClick}
               style={{ cursor: 'pointer' }}
             >

@@ -62,30 +62,7 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
         aria-label="Exportar (CSV, copiar o imagen)"
         aria-haspopup="menu"
         aria-expanded={isOpen}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '32px',
-          height: '32px',
-          borderRadius: '50%',
-          border: '1px solid var(--border-color, #e2e8f0)',
-          background: 'var(--bg-card, #ffffff)',
-          cursor: 'pointer',
-          color: 'var(--text-secondary, #64748b)',
-          transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms cubic-bezier(0.23, 1, 0.32, 1)',
-          boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05))',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = 'var(--color-accent, #2563eb)';
-          e.currentTarget.style.color = 'var(--color-accent, #2563eb)';
-          e.currentTarget.style.backgroundColor = 'var(--color-accent-light, #f0f4ff)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = 'var(--border-color, #e2e8f0)';
-          e.currentTarget.style.color = 'var(--text-secondary, #64748b)';
-          e.currentTarget.style.backgroundColor = 'var(--bg-card, #ffffff)';
-        }}
+        className="card-icon-btn"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"

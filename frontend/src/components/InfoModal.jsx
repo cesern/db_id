@@ -19,6 +19,7 @@ const InfoModal = ({ isOpen, onClose }) => {
 
   return (
     <div
+      className="modal-backdrop"
       style={{
         position: 'fixed',
         top: 0,
@@ -31,12 +32,12 @@ const InfoModal = ({ isOpen, onClose }) => {
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 100000,
-        padding: '1rem',
-        animation: 'fadeIn 0.2s ease-out'
+        padding: '1rem'
       }}
       onClick={onClose}
     >
       <div
+        className="modal-panel"
         style={{
           background: 'var(--bg-card)',
           borderRadius: '16px',
@@ -47,8 +48,7 @@ const InfoModal = ({ isOpen, onClose }) => {
           boxShadow: 'var(--shadow-xl)',
           position: 'relative',
           display: 'flex',
-          flexDirection: 'column',
-          animation: 'slideUp 0.3s ease-out'
+          flexDirection: 'column'
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -167,10 +167,6 @@ const InfoModal = ({ isOpen, onClose }) => {
           </div>
         </div>
       </div>
-      <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-      `}</style>
     </div>
   );
 };

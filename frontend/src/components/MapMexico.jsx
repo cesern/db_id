@@ -263,6 +263,8 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
         setError(true);
       })
       .finally(() => {
+        // Cancelada: la petición nueva sigue en curso; no apagar la carga (evita un 'Sin datos' falso)
+        if (controller.signal.aborted) return;
         setLoading(false);
         if (onInitialLoad && !initialLoadCalled.current) {
           initialLoadCalled.current = true;
@@ -366,11 +368,10 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
             {/* Mapa de referencia: el análisis detallado se hace ampliado */}
             <button
               type="button"
-              className="icon-btn"
+              className="card-icon-btn card-icon-btn--text"
               onClick={() => setIsFullScreen(true)}
               title="Ampliar mapa en pantalla completa"
               aria-label="Ampliar mapa en pantalla completa"
-              style={{ gap: '0.3rem', padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600 }}
             >
               <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />

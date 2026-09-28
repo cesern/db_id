@@ -9,6 +9,7 @@ import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
+import { CHART_ANIM } from '../utils/motion';
 
 // Savitzky-Golay: ajuste polinómico local por mínimos cuadrados sobre una
 // ventana deslizante (default 7 puntos, orden 2). Suaviza conservando mejor
@@ -196,15 +197,10 @@ const RangeSlider = ({ count, start, end, names, pending, onDraft, onCommit, lab
     else { onDraft(start, ne); onCommit(start, ne); }
   };
 
+  // Área de agarre de 24px (40px en pantallas angostas); el círculo visible de 16px es .range-thumb::after
   const thumbBase = {
     position: 'absolute',
     top: '50%',
-    width: '16px',
-    height: '16px',
-    borderRadius: '50%',
-    background: '#ffffff',
-    border: '2px solid var(--color-accent)',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
     cursor: 'ew-resize',
     transform: 'translate(-50%, -50%)',
     zIndex: 2,
@@ -213,6 +209,7 @@ const RangeSlider = ({ count, start, end, names, pending, onDraft, onCommit, lab
 
   const thumbProps = (which, index) => ({
     'data-thumb': which,
+    className: 'range-thumb',
     role: 'slider',
     tabIndex: 0,
     'aria-label': which === 'start' ? 'Inicio del periodo' : 'Fin del periodo',
@@ -440,6 +437,8 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
         setError(true);
       })
       .finally(() => {
+        // Cancelada: la petición nueva sigue en curso; no apagar la carga (evita un 'Sin datos' falso)
+        if (controller.signal.aborted) return;
         setLoading(false);
         if (onInitialLoad && !initialLoadCalled.current) {
           initialLoadCalled.current = true;
@@ -730,23 +729,13 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
                 onCopyTable={handleCopyData}
               />
               <button
-                onClick={() => setIsFullScreen(true)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--text-secondary)',
-                  display: 'flex',
-                  padding: '4px',
-                  borderRadius: '4px',
-                  transition: 'background 0.2s',
-                }}
+                type="button"
+                className="card-icon-btn"
                 title="Ver en pantalla completa"
-              aria-label="Ver en pantalla completa"
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
-                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                aria-label="Ver en pantalla completa"
+                onClick={() => setIsFullScreen(true)}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
                 </svg>
               </button>
@@ -816,14 +805,16 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
               width={F(52)}
               tickFormatter={(val) => {
                 if (metricType === 'rate') return val.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
-                // Sin redondeo engañoso: 1,500 → "1.5K" (no "2K"); múltiplos exactos sin decimal
+                // Sin redondeo engañoso: 1,500 → "1.5 mil" (no "2 mil"); múltiplos exactos sin decimal
                 const compact = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, ''));
-                if (val >= 1_000_000) return `${compact(val / 1_000_000)}M`;
-                if (val >= 1_000) return `${compact(val / 1_000)}K`;
+                if (val >= 1_000_000) return `${compact(val / 1_000_000)} M`;
+                if (val >= 1_000) return `${compact(val / 1_000)} mil`;
                 return val;
               }}
             />
             <Tooltip
+              isAnimationActive={false}
+              separator=": "
               contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow-md)', fontSize: F(12) }}
               formatter={(value, name) => {
                 if (name === 'value') return [formatValue(value), tooltipLabel];
@@ -842,6 +833,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
               strokeOpacity={originalOpacity}
               fillOpacity={originalFillOpacity}
               fill="url(#colorValue)"
+              {...CHART_ANIM}
               activeDot={maWindow ? false : { r: 6, fill: 'var(--color-accent)', stroke: 'white', strokeWidth: 2 }}
             />
 
@@ -856,6 +848,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
                 activeDot={{ r: 5, fill: 'var(--color-accent)', stroke: 'white', strokeWidth: 2 }}
                 connectNulls={false}
                 name="maValue"
+                {...CHART_ANIM}
               />
             )}
 
@@ -941,6 +934,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
                 dot={false}
                 activeDot={false}
                 name="trendValue"
+                {...CHART_ANIM}
               />
             )}
 

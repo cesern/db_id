@@ -6,6 +6,7 @@ import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
+import { PREFERS_REDUCED_MOTION } from '../utils/motion';
 
 const MultiSelectDropdown = ({ label, options, selected, onChange, maxSelection }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -277,9 +278,6 @@ const AxisDirection = ({ axisWidth, gutter, fontSize }) => {
     </g>
   );
 };
-
-const PREFERS_REDUCED_MOTION = typeof window !== 'undefined'
-  && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 // Lista desplegable de periodos adicionales en las tarjetas de posición.
 // El control dice qué hará ("+N periodos más" / "Ocultar periodos") y la flecha gira;
@@ -749,23 +747,13 @@ const HistoryRankings = ({ tempColor }) => {
               isTable={true}
             />
             <button
-              onClick={() => setIsFullScreen(true)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-secondary)',
-                display: 'flex',
-                padding: '4px',
-                borderRadius: '4px',
-                transition: 'background 0.2s',
-              }}
+              type="button"
+              className="card-icon-btn"
               title="Ver en pantalla completa"
               aria-label="Ver en pantalla completa"
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
-              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              onClick={() => setIsFullScreen(true)}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
               </svg>
             </button>
@@ -813,7 +801,7 @@ const HistoryRankings = ({ tempColor }) => {
                   tickLine={false}
                   dx={-5}
                 />
-                <Tooltip content={<CustomTooltip metricType={applied.metricType} selectedEntidad={selectedEntidad} dataset={applied.dataset} fs={fsScale} />} wrapperStyle={{ zIndex: 1000 }} />
+                <Tooltip isAnimationActive={false} content={<CustomTooltip metricType={applied.metricType} selectedEntidad={selectedEntidad} dataset={applied.dataset} fs={fsScale} />} wrapperStyle={{ zIndex: 1000 }} />
 
                 {/* Fondo de un solo color. Divisorias entre los tres niveles (1–10, 11–20, 21–32)
                     en el corte real (10.5 y 20.5): visibles pero discretas. */}

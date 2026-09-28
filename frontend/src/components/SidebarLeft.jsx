@@ -187,6 +187,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
         setError(true);
       })
       .finally(() => {
+        // Cancelada: la petición nueva sigue en curso; no apagar la carga (evita un 'Sin datos' falso)
+        if (controller.signal.aborted) return;
         setLoading(false);
         if (onInitialLoad && !initialLoadCalled.current) {
           initialLoadCalled.current = true;
@@ -599,23 +601,13 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
               isTable={true}
             />
             <button
-              onClick={() => setIsFullScreen(true)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-secondary)',
-                display: 'flex',
-                padding: '4px',
-                borderRadius: '4px',
-                transition: 'background 0.2s',
-              }}
+              type="button"
+              className="card-icon-btn"
               title="Ver en pantalla completa"
               aria-label="Ver en pantalla completa"
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
-              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              onClick={() => setIsFullScreen(true)}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
               </svg>
             </button>

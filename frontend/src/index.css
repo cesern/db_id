@@ -389,8 +389,10 @@ body {
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
-  animation: fadeInFullscreen 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: fadeInFullscreen 0.22s cubic-bezier(0.16, 1, 0.3, 1), fsPointerGuard 150ms;
 }
+/* Los primeros 150ms no recibe puntero: el tooltip solo aparece al mover el cursor */
+@keyframes fsPointerGuard { from, to { pointer-events: none; } }
 
 @keyframes fadeInFullscreen {
   from {
@@ -456,6 +458,77 @@ button:not(:disabled):active { transform: scale(0.97); }
 @media (hover: hover) and (pointer: fine) {
   .icon-btn:hover { background-color: var(--bg-main); color: var(--color-accent); }
 }
+
+/* Botones de tarjeta (exportar, pantalla completa): círculo con borde, el mismo en todas las tarjetas */
+.card-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms var(--ease-out);
+}
+.card-icon-btn--text { width: auto; padding: 0 0.7rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+@media (hover: hover) and (pointer: fine) {
+  .card-icon-btn:hover { border-color: var(--color-accent); color: var(--color-accent); background-color: var(--color-accent-light); }
+}
+@media (max-width: 1023px) {
+  .card-icon-btn { width: 40px; height: 40px; }
+  .card-icon-btn--text { width: auto; }
+}
+
+/* Deslizador de periodo: área de agarre 24px, círculo visible de 16px */
+.range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: transparent;
+}
+.range-thumb::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid var(--color-accent);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+
+/* Velo de carga: aparece a los 200ms; con respuestas rápidas nunca se ve */
+.loading-veil {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(2px);
+  z-index: 20;
+  border-radius: inherit;
+  opacity: 0;
+  animation: veilIn 150ms var(--ease-out) 200ms forwards;
+}
+@keyframes veilIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Modales (Información, desglose): entrada de 200ms */
+.modal-backdrop { animation: modalFadeIn 200ms var(--ease-out); }
+.modal-panel { animation: modalPanelIn 200ms var(--ease-out); }
+@keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modalPanelIn { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
 
 /* Estado vacío / error compartido */
 .state-panel {
@@ -545,6 +618,7 @@ button:not(:disabled):active { transform: scale(0.97); }
   grid-template-columns: minmax(64px, auto) repeat(12, minmax(0, 1fr));
   gap: 0.5rem;
 }
+.month-btn { min-height: 28px; }
 .month-btn-all { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
 .month-btn[aria-pressed="true"] {
   background: var(--color-accent-light);
@@ -570,6 +644,7 @@ button:not(:disabled):active { transform: scale(0.97); }
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  min-height: 28px;
   padding: 2px 4px;
   background: none;
   border: none;
@@ -618,7 +693,11 @@ button:not(:disabled):active { transform: scale(0.97); }
   .dataset-tabs-divider { display: none; }
   .header-actions { width: 100%; }
   .header-actions .dataset-tabs { flex: 1; }
+  .filters-controls-right .btn-toggle button { min-height: 40px; }
+}
 
+/* Filtros plegados en celular vertical u horizontal (932×430): los KPI quedan en la primera pantalla */
+@media (max-width: 767px), (max-height: 500px) {
   .filters-mobile-toggle {
     display: flex;
     align-items: center;
@@ -633,9 +712,19 @@ button:not(:disabled):active { transform: scale(0.97); }
     border: 1px solid var(--border-color);
     border-radius: 10px;
     cursor: pointer;
+    gap: 0.5rem;
+    text-align: left;
   }
   .filters-body[data-open="false"] { display: none; }
-  .filters-controls-right .btn-toggle button { min-height: 40px; }
+}
+/* Resumen de lo aplicado en el botón plegado; se corta con elipsis */
+.filters-mobile-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 480px) {
@@ -649,8 +738,8 @@ button:not(:disabled):active { transform: scale(0.97); }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 22px;
-  min-height: 22px;
+  min-width: 24px;
+  min-height: 24px;
   flex-shrink: 0;
   border-radius: 6px;
   font-size: 0.95rem;
@@ -699,7 +788,10 @@ button:not(:disabled):active { transform: scale(0.97); }
     scroll-behavior: auto !important;
   }
   button:not(:disabled):active { transform: none; }
-  .fullscreen-immersive-overlay { animation: none; }
+  /* Sin fundido, pero se conserva la pausa de puntero (no es movimiento) */
+  .fullscreen-immersive-overlay { animation: fsPointerGuard 150ms !important; }
+  .loading-veil { animation: none !important; opacity: 1; }
+  .modal-backdrop, .modal-panel { animation: none !important; }
 }
 
 /* Pantalla completa en celular (vertical u horizontal): menos margen, encabezado compacto */
@@ -752,6 +844,11 @@ button:not(:disabled):active { transform: scale(0.97); }
   .icon-btn,
   .card button,
   .sidebar-table-card button { min-height: 40px; min-width: 40px; }
+  .filters-group-toggle,
+  .month-btn { min-height: 40px; }
+  /* Mismo tamaño visual; el área de toque crece hacia afuera sin mover la fila */
+  .rank-change { min-width: 40px; min-height: 40px; margin: -8px; }
+  .range-thumb { width: 40px; height: 40px; }
 }
 
 /* ───────── Ranking en pantalla completa: Tabla en columnas / Barras ───────── */

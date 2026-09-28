@@ -8,6 +8,9 @@ import React from 'react';
  * Props:
  *   - size: 'sm' | 'md' | 'lg'  (default: 'md')
  *   - overlay: bool — si true, cubre el contenedor padre con posición absolute
+ *
+ * El velo aparece con 200ms de retraso (.loading-veil en index.css): si el backend responde
+ * rápido (30–50ms) no hay destello blanco.
  */
 const LoadingSpinner = ({ size = 'md', overlay = true }) => {
   const sizeMap = { sm: 20, md: 32, lg: 48 };
@@ -37,32 +40,9 @@ const LoadingSpinner = ({ size = 'md', overlay = true }) => {
   if (!overlay) return spinner;
 
   return (
-    <>
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-      `}</style>
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: 'rgba(255, 255, 255, 0.75)',
-          backdropFilter: 'blur(2px)',
-          zIndex: 20,
-          borderRadius: 'inherit',
-          transition: 'opacity 0.2s ease',
-        }}
-        aria-label="Cargando..."
-        role="status"
-      >
-        {spinner}
-      </div>
-    </>
+    <div className="loading-veil" aria-label="Cargando..." role="status">
+      {spinner}
+    </div>
   );
 };
 
