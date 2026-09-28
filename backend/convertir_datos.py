@@ -36,22 +36,30 @@ DATA_DIR = BASE_DIR / "data"
 UPLOADS_DIR = BASE_DIR / "storage" / "uploads"
 PARQUET_DIR = BASE_DIR / "storage" / "parquet"
 
-MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+# Columnas compartidas con el backend (fuente única en app/schemas_datos.py).
+# Fallback de ruta para ejecutarse suelto desde backend/ (convertir_datos.bat).
+try:
+    from app.schemas_datos import (
+        MESES, COLUMNAS_ID_DELITOS, COLUMNAS_ID_VICTIMAS, COLUMNAS_ID_VICTIMAS_MUN, nfc,
+    )
+except ImportError:
+    sys.path.insert(0, str(BASE_DIR))
+    from app.schemas_datos import (
+        MESES, COLUMNAS_ID_DELITOS, COLUMNAS_ID_VICTIMAS, COLUMNAS_ID_VICTIMAS_MUN, nfc,
+    )
 
-COLUMNAS_ID_DELITOS = [
-    "Año", "Clave_Ent", "Entidad", "Cve. Municipio", "Municipio",
-    "Bien jurídico afectado", "Tipo de delito", "Subtipo de delito", "Modalidad"
-]
+BARRA = "=" * 60
 
-COLUMNAS_ID_VICTIMAS = [
-    "Año", "Clave_Ent", "Entidad", "Bien jurídico afectado", "Tipo de delito", "Subtipo de delito", "Modalidad", "Sexo", "Rango de edad"
-]
 
-COLUMNAS_ID_VICTIMAS_MUN = [
-    "Año", "Clave_Ent", "Entidad", "Cve. Municipio", "Municipio", 
-    "Bien jurídico afectado", "Tipo de delito", "Subtipo de delito", "Modalidad", "Sexo", "Rango de edad"
-]
+def reparar_encoding(s: str) -> str:
+    """Repara columnas con doble-encoding (bytes UTF-8 leidos como latin-1)."""
+    try:
+        # Si el string vino de latin-1 pero los bytes originales eran UTF-8:
+        # re-encode a latin-1 y decodificar como UTF-8.
+        return s.encode("latin-1").decode("utf-8")
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        return s  # ya estaba bien o no se puede reparar
+
 
 # Umbrales de tipos enteros (min, max) para downcast seguro
 INT_RANGES = {
@@ -247,18 +255,6 @@ def convertir_csv(ruta_csv: Path, columnas_id: list, salida_parquet: Path, nombr
     # ── Leer encabezados ──────────────────────────────────────────────────────
     print("  Leyendo encabezados del CSV...")
 
-    def nfc(s: str) -> str:
-        return unicodedata.normalize("NFC", s)
-
-    def reparar_encoding(s: str) -> str:
-        """Repara columnas con doble-encoding (bytes UTF-8 leidos como latin-1)."""
-        try:
-            # Si el string vino de latin-1 pero los bytes originales eran UTF-8:
-            # re-encode a latin-1 y decodificar como UTF-8.
-            return s.encode("latin-1").decode("utf-8")
-        except (UnicodeDecodeError, UnicodeEncodeError):
-            return s  # ya estaba bien o no se puede reparar
-
     # Intentamos utf-8-sig primero (elimina BOM automaticamente),
     # luego latin-1 como fallback.
     for enc in ("utf-8-sig", "latin-1"):
@@ -448,18 +444,17 @@ def convertir_poblacion_csv(ruta_csv: Path, salida_parquet: Path, nombre="Poblac
     print(f"\n{BARRA}\n  Procesando: {nombre}\n  Archivo: {ruta_csv}\n{BARRA}")
     inicio = time.time()
     try:
-        import chardet
-        # Detectar encoding
-        with open(ruta_csv, 'rb') as f:
-            raw = f.read(100000)
-            resultado = chardet.detect(raw)
-            encoding_csv = resultado['encoding'] or 'latin-1'
-            
+        # Leer el CSV: utf-8-sig primero (elimina BOM), latin-1 como fallback
+        # (mismo criterio que convertir_csv, sin dependencias extra).
+        try:
+            df = pd.read_csv(ruta_csv, encoding="utf-8-sig", low_memory=False)
+            encoding_csv = "utf-8-sig"
+        except UnicodeDecodeError:
+            df = pd.read_csv(ruta_csv, encoding="latin-1", low_memory=False)
+            encoding_csv = "latin-1"
+
         print(f"  Encoding detectado: {encoding_csv}")
-        
-        # Leer el CSV
-        df = pd.read_csv(ruta_csv, encoding=encoding_csv, low_memory=False)
-        
+
         # Reparar nombres de columnas (quitar acentos rotos como AO -> AÑO)
         rename_map = {c: nfc(reparar_encoding(c)) for c in df.columns}
         df.rename(columns=rename_map, inplace=True)
