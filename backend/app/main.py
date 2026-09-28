@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 import duckdb
 import pandas as pd
-from app.config import settings
+from app.config import admin_config_problems, settings
 
 class DatasetEnum(str, Enum):
     delitos = "delitos"
@@ -17,11 +17,18 @@ class DatasetEnum(str, Enum):
 
 app = FastAPI()
 
-# Admin apagado por defecto (ENABLE_ADMIN=true lo enciende)
-ADMIN_ACTIVE = settings.enable_admin
+# Admin apagado por defecto: ENABLE_ADMIN=true lo enciende solo si la config es segura
+ADMIN_PROBLEMS = admin_config_problems(settings) if settings.enable_admin else []
+ADMIN_ACTIVE = settings.enable_admin and not ADMIN_PROBLEMS
+ADMIN_CROSS_SITE = bool(settings.get_cors_origins_list)
 
-if ADMIN_ACTIVE:
-    # Con admin: orígenes exactos y cookies permitidas
+if settings.enable_admin and ADMIN_PROBLEMS:
+    print("[ADMIN] deshabilitado: " + "; ".join(ADMIN_PROBLEMS))
+elif ADMIN_ACTIVE:
+    print(f"[ADMIN] habilitado (modo {'dominios distintos' if ADMIN_CROSS_SITE else 'mismo dominio'})")
+
+if ADMIN_ACTIVE and ADMIN_CROSS_SITE:
+    # Admin en otro dominio: orígenes exactos y cookies permitidas
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.get_cors_origins_list,
@@ -30,7 +37,7 @@ if ADMIN_ACTIVE:
         allow_headers=["*"],
     )
 else:
-    # Solo tablero público: GET abiertos, sin credenciales
+    # Tablero público (y admin en el mismo dominio, que no necesita CORS): sin credenciales
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -40,8 +47,8 @@ else:
     )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = Path(settings.data_dir)
-PARQUET_DIR = Path(settings.parquet_dir)
+REPO_PARQUET_DIR = BASE_DIR / "storage" / "parquet"
+PARQUET_DIR = Path(settings.published_dir)
 
 from app.routes import admin
 
@@ -56,7 +63,9 @@ CACHE_MUN_MAP = None
 CACHE_MUN_POB_DF = None
 CACHE_ANIO_RECIENTE = None
 
-def reload_duckdb_views():
+def reload_duckdb_views(strict: bool = False):
+    """Recrea las vistas y caches. Con `strict`, un error en los caches se relanza
+    (lo usa el admin para revertir una publicación que deja el tablero roto)."""
     global CACHE_POB_DF, CACHE_ENT_MAP, CACHE_MERGED_POP, CACHE_MUN_MAP, CACHE_MUN_POB_DF, CACHE_ANIO_RECIENTE
     # Drop existing views to recreate them
     views_to_drop = ["delitos", "victimas", "victimas_mun", "poblacion"]
@@ -102,11 +111,31 @@ def reload_duckdb_views():
             CACHE_MERGED_POP = pd.merge(CACHE_ENT_MAP, CACHE_POB_DF, left_on='Clave_Ent', right_on='CLAVE_ENT')
     except Exception as e:
         print("Error populating backend cache:", e)
+        if strict:
+            raise
+
+# Almacén del admin: se siembra desde el repo antes de la carga inicial
+STORE = None
+if ADMIN_ACTIVE:
+    from app.services.datastore import DataStore
+
+    STORE = DataStore(
+        root=Path(settings.data_store_dir),
+        published_dir=PARQUET_DIR,
+        repo_dir=REPO_PARQUET_DIR,
+        reload=lambda: reload_duckdb_views(strict=True),
+        persistent=settings.store_persistent,
+    )
+    if PARQUET_DIR.resolve() != REPO_PARQUET_DIR.resolve():
+        sembrados = STORE.seed()
+        if sembrados:
+            print(f"[DATOS] sembrado {', '.join(sembrados)} desde el repo")
 
 # Initial load
 reload_duckdb_views()
 
 if ADMIN_ACTIVE:
+    admin.init(STORE)
     app.include_router(admin.router)
 
 def get_columns(dataset_name: str) -> list[str]:

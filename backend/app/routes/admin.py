@@ -1,177 +1,143 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, BackgroundTasks
-from pydantic import BaseModel
-import shutil
-from pathlib import Path
-import subprocess
-import sys
-import pandas as pd
-from datetime import timedelta
-import time
+"""Endpoints del panel de administración de datos (`/api/admin`).
 
-from app.config import settings
-from app.services.auth import create_access_token, get_current_admin
+Capa delgada sobre `services.datastore.DataStore` y `services.auth`. El
+router solo se registra si `main.ADMIN_ACTIVE` (ENABLE_ADMIN=true y config
+segura); `main` le pasa el almacén con `init(store)`.
+"""
+from typing import Literal
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
+from app import config
+from app.services import auth
+from app.services.datastore import (
+    BusyError, DataStore, NothingToDoError, TooLargeError, ValidationError,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+Conjunto = Literal["delitos", "victimas", "victimas_mun", "poblacion"]
+
+_store: DataStore | None = None
+
+
+def init(store: DataStore) -> None:
+    global _store
+    _store = store
+
+
+def _almacen() -> DataStore:
+    if _store is None:
+        raise HTTPException(status_code=503, detail="Almacén de datos no disponible")
+    return _store
+
 
 class LoginRequest(BaseModel):
     username: str
     password: str
 
-# Estado del ETL
-etl_status = {
-    "status": "idle", # idle, processing, completed, error
-    "message": "",
-    "details": ""
-}
 
+# ── Sesión ────────────────────────────────────────────────────────────────────
 @router.post("/login")
-async def login(credentials: LoginRequest, response: Response):
-    if credentials.username == settings.admin_user and credentials.password == settings.admin_password:
-        access_token = create_access_token(
-            data={"sub": credentials.username}, expires_delta=timedelta(hours=8)
+def login(credentials: LoginRequest, request: Request, response: Response):
+    ip = auth.client_ip(request)
+    espera = auth.login_limiter.check(ip)
+    if espera is not None:
+        minutos = max(1, -(-espera // 60))
+        return JSONResponse(
+            status_code=429,
+            content={"detail": f"Demasiados intentos, espera {minutos} minutos", "retry_after": espera},
+            headers={"Retry-After": str(espera)},
         )
 
-        is_secure = settings.environment != "local"
+    s = config.settings
+    usuario_ok = bool(s.admin_user) and credentials.username == s.admin_user
+    # Se verifica siempre para no revelar por tiempo si el usuario existe
+    clave_ok = auth.verify_password(credentials.password, s.admin_password_hash)
+    if not (usuario_ok and clave_ok):
+        auth.login_limiter.fail(ip)
+        if _store is not None:
+            _store._bitacora("login_fail", None, credentials.username[:64], ip=ip)
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
 
-        response.set_cookie(
-            key="admin_session",
-            value=access_token,
-            httponly=True,
-            max_age=8 * 3600,
-            samesite="none" if is_secure else "lax",
-            secure=is_secure
-        )
+    auth.login_limiter.reset(ip)
+    token, csrf = auth.create_session(s.admin_user)
+    response.set_cookie(key=auth.COOKIE_NAME, value=token, **auth.cookie_kwargs())
+    return {"username": s.admin_user, "csrf_token": csrf}
 
-        return {"message": "Login exitoso"}
-
-    raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
 
 @router.post("/logout")
-async def logout(response: Response):
-    response.delete_cookie("admin_session")
+def logout(response: Response):
+    # Sin exigir sesión válida: una cookie vencida o de otro secreto también se borra
+    kw = auth.cookie_kwargs()
+    response.delete_cookie(
+        auth.COOKIE_NAME, path=kw["path"], secure=kw["secure"], httponly=True, samesite=kw["samesite"]
+    )
     return {"message": "Sesión finalizada"}
 
+
 @router.get("/me")
-async def get_me(username: str = Depends(get_current_admin)):
-    return {"username": username}
+def me(request: Request):
+    claims = auth.session_claims(request)
+    return {"username": claims["sub"], "csrf_token": claims.get("csrf")}
 
-@router.post("/upload")
-async def upload_csv(
-    file: UploadFile = File(...), 
-    username: str = Depends(get_current_admin)
-):
-    if not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Solo se permiten archivos CSV")
-    
-    # Restricción de tamaño implícita o leída en chunks
-    uploads_dir = Path(settings.uploads_dir)
-    uploads_dir.mkdir(parents=True, exist_ok=True)
-    
-    file_path = uploads_dir / file.filename
-    
-    # Validar formato con pandas (leer solo primera línea para columnas)
+
+# ── Conjuntos ─────────────────────────────────────────────────────────────────
+def _operar(fn, *args):
+    """Ejecuta una operación del almacén y traduce sus errores a HTTP."""
     try:
-        # Guardar archivo temporal
-        temp_path = file_path.with_suffix('.tmp')
-        with open(temp_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-            
-        # Intentar leer columnas (manejo básico de encodings)
-        try:
-            df_test = pd.read_csv(temp_path, nrows=0, encoding="utf-8-sig")
-        except:
-            df_test = pd.read_csv(temp_path, nrows=0, encoding="latin-1")
-            
-        # Si pasó, renombrar archivo final
-        shutil.move(temp_path, file_path)
-        return {"message": f"Archivo {file.filename} validado y subido con éxito", "columns": df_test.columns.tolist()}
-    
+        return fn(*args)
+    except TooLargeError as e:
+        raise HTTPException(status_code=413, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except BusyError:
+        raise HTTPException(status_code=409, detail="Operación en curso")
+    except NothingToDoError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
-        if temp_path.exists():
-            temp_path.unlink()
-        raise HTTPException(status_code=400, detail=f"Error validando CSV: {str(e)}")
-
-import os
-
-def run_etl_process():
-    global etl_status
-    etl_status["status"] = "processing"
-    etl_status["message"] = "Iniciando conversión de datos..."
-    etl_status["details"] = ""
-    
-    base_dir = Path(__file__).resolve().parent.parent.parent
-    script_path = base_dir / "convertir_datos.py"
-    
-    try:
-        # Forzar UTF-8 para evitar UnicodeEncodeError en Windows
-        env = os.environ.copy()
-        env["PYTHONIOENCODING"] = "utf-8"
-        
-        # Ejecutamos convertir_datos.py como subprocess
-        # Pasamos las rutas para que los archivos vayan a los lugares correctos
-        process = subprocess.Popen(
-            [
-                sys.executable, str(script_path),
-                "--delitos", str(Path(settings.uploads_dir) / "delitos_combinado.csv"),
-                "--victimas", str(Path(settings.uploads_dir) / "victimas_combinado.csv"),
-                "--victimas-mun", str(Path(settings.uploads_dir) / "victimas_combinado_municipal_2026.csv"),
-                "--salida-delitos", str(Path(settings.parquet_dir) / "delitos.parquet"),
-                "--salida-victimas", str(Path(settings.parquet_dir) / "victimas.parquet"),
-                "--salida-victimas-mun", str(Path(settings.parquet_dir) / "victimas_mun.parquet"),
-                "--poblacion", str(Path(settings.data_dir) / "pob_municipios.csv"),
-                "--salida-poblacion", str(Path(settings.parquet_dir) / "pob_municipios.parquet")
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            cwd=str(base_dir),
-            env=env
+        print(f"[ADMIN] error en {getattr(fn, '__name__', 'operación')}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudieron recargar los datos; se conservó la versión publicada anterior",
         )
-        
-        stdout, stderr = process.communicate()
-        
-        if process.returncode == 0:
-            etl_status["status"] = "processing"
-            etl_status["message"] = "ETL exitoso. Recargando base de datos DuckDB..."
-            
-            # Recargar vistas en DuckDB
-            from app.main import reload_duckdb_views
-            reload_duckdb_views()
-            
-            etl_status["status"] = "completed"
-            etl_status["message"] = "Proceso completado exitosamente."
-            etl_status["details"] = stdout
-        else:
-            etl_status["status"] = "error"
-            etl_status["message"] = "Error durante el ETL."
-            etl_status["details"] = stderr
-            
-    except Exception as e:
-        etl_status["status"] = "error"
-        etl_status["message"] = f"Fallo al ejecutar proceso: {str(e)}"
 
-@router.post("/run-etl")
-async def run_etl(
-    background_tasks: BackgroundTasks, 
-    username: str = Depends(get_current_admin)
-):
-    global etl_status
-    if etl_status["status"] == "processing":
-        raise HTTPException(status_code=400, detail="El proceso ya está en ejecución")
-        
-    background_tasks.add_task(run_etl_process)
-    return {"message": "Proceso ETL iniciado en segundo plano"}
 
-@router.get("/etl-status")
-async def get_etl_status(username: str = Depends(get_current_admin)):
-    return etl_status
+@router.get("/datasets")
+def datasets(user: str = Depends(auth.require_admin)):
+    return _almacen().status()
 
-@router.post("/reload-db")
-async def reload_db(username: str = Depends(get_current_admin)):
+
+@router.post("/datasets/{c}/upload")
+def upload(c: Conjunto, file: UploadFile = File(...), user: str = Depends(auth.require_csrf)):
+    store = _almacen()
+    max_bytes = config.settings.max_upload_mb * 1024 * 1024
     try:
-        from app.main import reload_duckdb_views
-        reload_duckdb_views()
-        return {"message": "Base de datos recargada exitosamente"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        resultado = _operar(store.stage, c, file.file, max_bytes, user)
+    finally:
+        file.file.close()
+    cambios = resultado.pop("diff")
+    return {"staging": resultado, "diff": cambios}
+
+
+@router.post("/datasets/{c}/publish")
+def publish(c: Conjunto, user: str = Depends(auth.require_csrf)):
+    return {"published": _operar(_almacen().publish, c, user)}
+
+
+@router.post("/datasets/{c}/restore")
+def restore(c: Conjunto, user: str = Depends(auth.require_csrf)):
+    return {"published": _operar(_almacen().restore, c, user)}
+
+
+@router.delete("/datasets/{c}/staging", status_code=204)
+def discard(c: Conjunto, user: str = Depends(auth.require_csrf)):
+    _operar(_almacen().discard, c, user)
+    return Response(status_code=204)
+
+
+@router.get("/log")
+def log(limit: int = Query(50, ge=1, le=500), user: str = Depends(auth.require_admin)):
+    return _almacen().log(limit)

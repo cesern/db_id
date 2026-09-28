@@ -105,6 +105,11 @@ def _claims(request: Request) -> dict:
     return claims
 
 
+def session_claims(request: Request) -> dict:
+    """Claims de la sesión actual (`sub`, `csrf`, `exp`) o 401."""
+    return _claims(request)
+
+
 def require_admin(request: Request) -> str:
     """Dependencia: usuario de la sesión o 401."""
     return _claims(request)["sub"]
@@ -205,13 +210,3 @@ def client_ip(request) -> str:
                 return valores[-hops]
     cliente = getattr(request, "client", None)
     return getattr(cliente, "host", None) or "desconocida"
-
-
-# --- compatibilidad con routes/admin.py previo (se elimina en Task 5) ---
-
-def create_access_token(data: dict, expires_delta: timedelta = timedelta(hours=SESSION_HOURS)) -> str:
-    token, _ = create_session(data["sub"])
-    return token
-
-
-get_current_admin = require_admin

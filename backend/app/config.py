@@ -1,4 +1,4 @@
-from pydantic import field_validator
+from pydantic import ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
 
@@ -11,8 +11,6 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     # Sin valores por defecto: si faltan, el admin no se registra (ver admin_config_problems)
     admin_user: str = ""
-    # OBSOLETO: contraseña en texto plano; solo la usa routes/admin.py hasta Task 5.
-    admin_password: str = ""
     # Hash scrypt generado con `python -m app.tools.hash_password`
     admin_password_hash: str = ""
     jwt_secret: str = ""
@@ -27,33 +25,43 @@ class Settings(BaseSettings):
     # posición -N desde la derecha de X-Forwarded-For (los primeros son falsificables)
     trusted_proxy_hops: int = 1
 
-    @field_validator("enable_admin", "trust_proxy", mode="before")
-    @classmethod
-    def _enable_admin_vacio(cls, v):
-        # Una variable vacía (p. ej. en Railway) no debe impedir el arranque: cuenta como apagado
-        return False if isinstance(v, str) and not v.strip() else v
-    
-    # Rutas por defecto
-    uploads_dir: str = str(BASE_DIR / "storage" / "uploads")
+    # Compatibilidad: si PARQUET_DIR está definida, es la carpeta de publicados
     parquet_dir: str = str(BASE_DIR / "storage" / "parquet")
-    data_dir: str = str(BASE_DIR / "data")
 
     # Almacén del admin de datos (publicados, en espera, respaldo, bitácora)
     data_store_dir: str = str(BASE_DIR / "storage")
     data_store_persistent: bool = False
     max_upload_mb: int = 100
 
-    @field_validator("data_store_persistent", mode="before")
+    @field_validator("*", mode="before")
     @classmethod
-    def _persistente_vacio(cls, v):
-        # Igual que ENABLE_ADMIN: vacío cuenta como False
-        return False if isinstance(v, str) and not v.strip() else v
-    
+    def _vacio_es_default(cls, v, info: ValidationInfo):
+        # Una variable vacía (p. ej. en Railway) no debe impedir el arranque:
+        # en los campos que no son texto cuenta como su valor por defecto.
+        campo = cls.model_fields[info.field_name]
+        if campo.annotation is not str and isinstance(v, str) and not v.strip():
+            return campo.default
+        return v
+
     @property
     def get_cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    @property
+    def published_dir(self) -> str:
+        """Carpeta de publicados: PARQUET_DIR si se definió; si no, `<DATA_STORE_DIR>/parquet`."""
+        if "parquet_dir" in self.model_fields_set and self.parquet_dir.strip():
+            return self.parquet_dir
+        return str(Path(self.data_store_dir) / "parquet")
+
+    @property
+    def store_persistent(self) -> bool:
+        """Persistente si DATA_STORE_PERSISTENT=true o el almacén está fuera de la app."""
+        if self.data_store_persistent:
+            return True
+        return not Path(self.data_store_dir).resolve().is_relative_to(BASE_DIR.resolve())
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 # Secretos de ejemplo conocidos que nunca deben usarse
 SECRETOS_DE_EJEMPLO = {"secret", "super_secret_key", "change_me"}
