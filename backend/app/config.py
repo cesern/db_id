@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     jwt_secret: str = "secret"
     jwt_algorithm: str = "HS256"
     environment: str = "local"
+    # Interruptor del admin: apagado salvo ENABLE_ADMIN=true
+    enable_admin: bool = False
     
     # Rutas por defecto
     uploads_dir: str = str(BASE_DIR / "storage" / "uploads")

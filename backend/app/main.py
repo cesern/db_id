@@ -17,13 +17,27 @@ class DatasetEnum(str, Enum):
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Admin apagado por defecto (ENABLE_ADMIN=true lo enciende)
+ADMIN_ACTIVE = settings.enable_admin
+
+if ADMIN_ACTIVE:
+    # Con admin: orígenes exactos y cookies permitidas
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.get_cors_origins_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # Solo tablero público: GET abiertos, sin credenciales
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(settings.data_dir)
@@ -92,7 +106,8 @@ def reload_duckdb_views():
 # Initial load
 reload_duckdb_views()
 
-app.include_router(admin.router)
+if ADMIN_ACTIVE:
+    app.include_router(admin.router)
 
 def get_columns(dataset_name: str) -> list[str]:
     try:

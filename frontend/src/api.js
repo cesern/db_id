@@ -9,3 +9,6 @@
  */
 
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000';
+
+// Admin apagado por defecto: solo con VITE_ENABLE_ADMIN=true en el build
+export const ADMIN_ENABLED = import.meta.env.VITE_ENABLE_ADMIN === 'true';

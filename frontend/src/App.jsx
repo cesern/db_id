@@ -4,12 +4,8 @@ import { Toaster } from 'sonner';
 import PublicDashboard from './PublicDashboard';
 import Login from './components/admin/Login';
 import AdminDashboard from './components/admin/AdminDashboard';
+import { ADMIN_ENABLED } from './api';
 import './App.css';
-
-// Componente para proteger rutas administrativas
-const ProtectedRoute = ({ children }) => {
-  return children;
-};
 
 function App() {
   return (
@@ -18,16 +14,14 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<PublicDashboard />} />
-          <Route path="/admin" element={<Login />} />
-          <Route path="/admin/login" element={<Login />} />
-          <Route
-            path="/admin/dashboard"
-            element={
-              <ProtectedRoute>
-                <AdminDashboard />
-              </ProtectedRoute>
-            }
-          />
+          {/* Rutas del admin solo si el build lo habilita; si no, caen en "*" */}
+          {ADMIN_ENABLED && (
+            <>
+              <Route path="/admin" element={<Login />} />
+              <Route path="/admin/login" element={<Login />} />
+              <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            </>
+          )}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
