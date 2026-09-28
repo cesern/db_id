@@ -263,7 +263,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
   const appliedSummary = (() => {
     const a = appliedFilters || {};
     const ent = !a.entidad || a.entidad === 'All' ? 'Nacional' : a.entidad;
-    const mun = !isVictimasDataset(dataset) && a.municipio && a.municipio !== 'All'
+    const mun = dataset !== 'victimas' && a.municipio && a.municipio !== 'All'
       ? String(a.municipio).replace(`, ${a.entidad}`, '') : null;
     return ['Filtros', a.anio, ent, mun, monthsLabel(a.meses)].filter(Boolean).join(' · ');
   })();

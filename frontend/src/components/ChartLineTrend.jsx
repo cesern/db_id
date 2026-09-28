@@ -140,6 +140,13 @@ const RangeSlider = ({ count, start, end, names, pending, onDraft, onCommit, lab
     const thumb = e.target.closest('[data-thumb]');
     if (thumb) {
       dragWhich.current = thumb.dataset.thumb; // 'start' | 'end'
+      // Con las manijas casi juntas sus áreas de agarre se enciman: decide por el lado del puntero
+      const rect = trackRef.current.getBoundingClientRect();
+      const gapPx = ((end - start) / (last || 1)) * rect.width;
+      if (gapPx < 40) {
+        const midX = rect.left + ((start + end) / 2 / (last || 1)) * rect.width;
+        dragWhich.current = e.clientX < midX ? 'start' : 'end';
+      }
     } else {
       // Clic en la pista: mueve la manija más cercana y confirma al instante
       const idx = indexFromClientX(e.clientX);
@@ -807,8 +814,9 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
                 if (metricType === 'rate') return val.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
                 // Sin redondeo engañoso: 1,500 → "1.5 mil" (no "2 mil"); múltiplos exactos sin decimal
                 const compact = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, ''));
-                if (val >= 1_000_000) return `${compact(val / 1_000_000)} M`;
-                if (val >= 1_000) return `${compact(val / 1_000)} mil`;
+                const abs = Math.abs(val), sign = val < 0 ? '-' : '';
+                if (abs >= 1_000_000) return `${sign}${compact(abs / 1_000_000)} M`;
+                if (abs >= 1_000) return `${sign}${compact(abs / 1_000)} mil`;
                 return val;
               }}
             />
