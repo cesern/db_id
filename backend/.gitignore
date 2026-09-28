@@ -4,3 +4,6 @@ venv/
 storage/uploads/
 data/*
 !data/pob_municipios.csv
+
+# Resúmenes en caché del admin de datos (se regeneran solos)
+storage/parquet/*.json

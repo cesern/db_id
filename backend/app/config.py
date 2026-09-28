@@ -27,6 +27,17 @@ class Settings(BaseSettings):
     uploads_dir: str = str(BASE_DIR / "storage" / "uploads")
     parquet_dir: str = str(BASE_DIR / "storage" / "parquet")
     data_dir: str = str(BASE_DIR / "data")
+
+    # Almacén del admin de datos (publicados, en espera, respaldo, bitácora)
+    data_store_dir: str = str(BASE_DIR / "storage")
+    data_store_persistent: bool = False
+    max_upload_mb: int = 100
+
+    @field_validator("data_store_persistent", mode="before")
+    @classmethod
+    def _persistente_vacio(cls, v):
+        # Igual que ENABLE_ADMIN: vacío cuenta como False
+        return False if isinstance(v, str) and not v.strip() else v
     
     @property
     def get_cors_origins_list(self) -> List[str]:
