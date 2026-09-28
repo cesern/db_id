@@ -7,7 +7,6 @@ import SidebarLeft from './components/SidebarLeft';
 import ChartBarYears from './components/ChartBarYears';
 import ChartLineTrend from './components/ChartLineTrend';
 import MapMexico from './components/MapMexico';
-import TableTopCrimes from './components/TableTopCrimes';
 import HistoryRankings from './components/HistoryRankings';
 import { MesFinalContext } from './utils/mesFinalContext';
 
@@ -61,8 +60,7 @@ function PublicDashboard() {
     sidebar: true,
     barChart: true,
     lineChart: true,
-    map: true,
-    topCrimes: false
+    map: true
   });
 
   // selectedFilters: lo que el usuario ve/modifica en tiempo real en la barra de filtros

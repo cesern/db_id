@@ -51,26 +51,26 @@ frontend/
   src/main.jsx (StrictMode + App), App.jsx (router), PublicDashboard.jsx (254 lín, orquestador)
   src/api.js (API_URL, ADMIN_ENABLED, adminClient axios withCredentials + interceptor X-CSRF-Token, setCsrfToken)
   src/components/Header.jsx, Filters.jsx (575), SidebarLeft.jsx (472), ChartBarYears.jsx (336),
-    ChartLineTrend.jsx (702), MapMexico.jsx (419), TableTopCrimes.jsx (213, HUÉRFANO),
+    ChartLineTrend.jsx (702), MapMexico.jsx (419),
     HistoryRankings.jsx (780), DrillDownModal.jsx, ExportMenu.jsx, FullScreenHeader.jsx,
     InfoModal.jsx, LoadingSpinner.jsx
   src/components/admin/Login.jsx, AdminDashboard.jsx, DatasetCard.jsx, ConfirmDialog.jsx
   src/utils/exportUtils.js (214, CSV/PNG/clipboard)
-  src/index.css (382, design system), App.css (40, residuo Vite, colisiona .card)
-  public/mexico_geo.json, sonora_geo.json (usados), mexico.json, sonora.json (no usados),
-    logo.png, fgje_ico.png, mapa.png (no referenciado), vite.svg (residuo)
+  src/index.css (design system; App.css eliminado 2026-09-27)
+  public/mexico_geo.json, sonora_geo.json, logo.png, fgje_ico.png
   vite.config.js, eslint.config.js, package.json, .env.example, index.html
 docs/privado/ (gitignored: guía privada paso a paso para encender el admin en un despliegue)
 raíz/
-  iniciar.bat, setup_backend.bat, setup_frontend.bat, render.yaml, README.md, INSTRUCCIONES.md,
-  fix_quotes.py, refactor.py, generate_pdf_analysis.py, cls/ (no auditado, fuera del runtime)
+  iniciar.bat, setup_backend.bat, setup_frontend.bat, README.md, AGENTS.md
+  (2026-09-27 se eliminaron render.yaml, INSTRUCCIONES.md, fix_quotes.py, refactor.py, generate_pdf_analysis.py,
+   backend/check.py, backend/check_pob.py, frontend/build_output.txt, frontend/README.md, assets sin uso y TableTopCrimes.jsx)
 ```
 
 ## 4. Tecnologías reales (no asumir otras)
 
 Backend (`backend/requirements.txt`): `fastapi==0.136.1, uvicorn==0.46.0, duckdb>=1.0.0, pandas==2.3.3, numpy==2.2.6, pyarrow>=15.0.0, pydantic==2.13.4, pydantic-settings>=2.2.1, python-multipart, PyJWT, openpyxl==3.1.5`. Dev: `requirements-dev.txt` (`-r requirements.txt`, `pytest`, `httpx`). El ETL ya no usa `chardet` (encoding `utf-8-sig -> latin-1`).
 
-Frontend (`frontend/package.json`): `react ^19.2.0, react-dom ^19.2.0, react-router-dom ^7.15.1, vite ^7.3.1, axios ^1.16.0, recharts ^3.8.1, react-simple-maps ^3.0.0, d3-scale ^4.0.2, d3-scale-chromatic ^3.1.0 (instalado pero no importado), html-to-image ^1.11.13, sonner ^2.0.7, prop-types ^15.8.1`.
+Frontend (`frontend/package.json`): `react ^19.2.0, react-dom ^19.2.0, react-router-dom ^7.15.1, vite ^7.3.1, axios ^1.16.0, recharts ^3.8.1, react-simple-maps ^3.0.0, d3-scale ^4.0.2, html-to-image ^1.11.13, sonner ^2.0.7, prop-types ^15.8.1`.
 
 ## 5. Flujo de datos
 
@@ -115,7 +115,6 @@ Consultas principales (todas GET sin auth en `main.py`):
   - `ChartBarYears.jsx`: `/api/incidencia_por_anio` salvo `victimas_mun` que usa `/api/incidencia_por_mes_historico`. Click barra -> `GET /api/incidencia_por_delito?categoria=subtipo_delito` -> `DrillDownModal`.
   - `ChartLineTrend.jsx`: siempre `/api/incidencia_por_mes_historico` (sin param meses). Calcula promedio, max/min, regresión lineal (rojo alza, verde baja), MA 3/6/12.
   - `MapMexico.jsx`: nacional `/api/incidencia_por_entidad`, Sonora `/api/incidencia_por_municipio?entidad=Sonora`. Geo ` /mexico_geo.json` (`properties.nom_ent`) o `/sonora_geo.json` (`properties.MUN`), `geoMercator`, escala color `d3-scale scaleLinear([0,max]->[#eceef5,#455993])`, matching `normalize()` sin diacríticos. Click entidad no-victimas -> drill municipios; click municipio Sonora -> drill subtipos.
-  - `TableTopCrimes.jsx`: `/api/incidencia_por_delito?categoria=...`, cats `bien_juridico|tipo_delito|subtipo_delito`. HUÉRFANO: importado en `PublicDashboard.jsx:8` pero nunca renderizado.
   - `HistoryRankings.jsx`: estado aislado (no usa `appliedFilters`), `selectedEntidad='Sonora'`, `/api/filtros` + `/api/ranking_historico?nivel=entidad&temporalidad=...&meses=Ene,..`. Y invertido `domain[1,32]`, `ReferenceArea 1-10 rojo, 11-20 ámbar, 21-32 verde`.
   - Transversales: `ExportMenu` (CSV/Copiar/PNG via `html-to-image`), `FullScreenHeader` (badges filtros), `DrillDownModal`, `InfoModal` (fuentes SESNSP, tasas CONAPO), `LoadingSpinner`.
 - `utils/exportUtils.js`: `downloadCSV` con bloque `=== FILTROS APLICADOS ===` + BOM `\ufeff`, `downloadImage/toPng`, `downloadPNGFromSVG` (inlina estilos, oculta tooltip), `copyTableToClipboard` (TSV + `sonner` toast).
@@ -162,7 +161,7 @@ python -m pytest
 ## 10. Build / deploy
 
 - Railway (despliegue real, admin apagado): backend `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT` + frontend estático con `VITE_API_URL`. Datos por push de `.parquet` (flujo offline). Encender el admin: `ENABLE_ADMIN/ADMIN_USER/ADMIN_PASSWORD_HASH/JWT_SECRET/CORS_ORIGINS` (+ volumen en `DATA_STORE_DIR`, `TRUST_PROXY=true`) y build con `VITE_ENABLE_ADMIN=true`; la guía paso a paso está en `docs/privado/` (gitignored, no documentar su contenido aquí).
-- `render.yaml`: legado y **desactualizado** (aún usa `UPLOADS_DIR/DATA_DIR/ADMIN_PASSWORD`, que ya no existen; `PARQUET_DIR` sigue valiendo como legado). No verificado en deploy real.
+- `render.yaml` eliminado (2026-09-27): el despliegue real es Railway.
 - Un solo proceso/worker de uvicorn (ver §13).
 - `vite.config.js`: solo `plugins:[react()], server.host 0.0.0.0, preview.host 0.0.0.0`. Sin proxy. `npm run build = vite build`, `preview = vite preview`.
 - Persistencia: `parquet/` del repo commiteado (semilla); `storage/parquet/*.json` (resúmenes) y `storage/uploads/` ignorados (`backend/.gitignore`). Sin volumen, lo publicado desde el admin se pierde al redesplegar (`GET /datasets` → `persistent:false`, aviso ámbar en el panel).
@@ -184,8 +183,8 @@ python -m pytest
 4. No agregar endpoint público sin `DatasetEnum` + `build_where` (verifica columna existente).
 5. No tocar `reload_duckdb_views` sin entender los caches globales y el modo `strict` que usa el `DataStore` para revertir. `routes/admin.py` ya no importa `main` (recibe el almacén con `admin.init(STORE)`).
 6. No tocar CORS/cookie sin probar el admin en ambos modos (`CORS_ORIGINS` vacío vs con valor; `samesite/secure` + `withCredentials` + `X-CSRF-Token`). Correr `python -m pytest` tras cambios en `app/`.
-7. No reintroducir `TableTopCrimes` sin agregarlo al grid + `componentsLoading` en `PublicDashboard`.
-8. No renombrar `victimas`/`victimas_mun` sin revisar `isVictimas/isVictimasMun/isVictimasBase` en 5+ componentes + `val_col` + `exportUtils` + `FullScreenHeader` (ver `refactor.py` como antecedente de migración).
+7. `TableTopCrimes` se eliminó (2026-09-27; nunca se renderizaba). Recuperable desde git si se necesita.
+8. No renombrar `victimas`/`victimas_mun` sin revisar `isVictimas/isVictimasMun/isVictimasBase` en 5+ componentes + `val_col` + `exportUtils` + `FullScreenHeader`.
 9. Ejecutar siempre desde `backend/` para que `.env` cargue; frontend necesita `VITE_API_URL` en build static.
 10. No commitear `.env`, `venv/`, `storage/uploads/`, `storage/parquet/*.json`, `node_modules/`, `dist/`, `docs/privado/`.
 
@@ -203,16 +202,15 @@ python -m pytest
 - Admin apagado es el estado por defecto sin variables: `ENABLE_ADMIN` vacío = false (`config.py` `_vacio_es_default`); el frontend solo registra `/admin*` con `VITE_ENABLE_ADMIN === 'true'` (`App.jsx:18`, `api.js:16`).
 - `"N/D"` string en respuestas numéricas (`total_incidencia`, `incidencia_por_*` rate) — frontend ya hace passthrough en `formatNumber`, pero rompe si se asume number.
 - `ranking_historico`: param `target_state="Sonora"` nunca usado; `entidad` filtro ignorado por diseño. Siempre devuelve lista plana `[{period,name,rank,total}]` (vacía = `[]`; antes devolvía `{"series":[],"target_data":[]}` si no había filas y rompía `HistoryRankings`). El frontend además valida con `Array.isArray`.
-- `App.css` `.card{padding:2em}` colisiona con `.card` de `index.css`. Orden de import (`App.jsx:7` importa `App.css` después de `main.jsx:index.css`) define ganador.
-- `index.html lang="en"` para app española; `build_output.txt` fallo histórico `prop-types` ya resuelto en `package.json` pero exige `npm install` limpio.
-- Archivos muertos con rutas `d:\dev\Dashboard`: `fix_quotes.py, refactor.py, generate_pdf_analysis.py, check_pob.py (ruta data/... obsoleta), INSTRUCCIONES.md`, `render.yaml` (variables legado), `setup_backend.bat py -3.12` vs `render.yaml 3.11.0`.
+- `App.css` eliminado (2026-09-27): todas las `.card` usan padding inline o `--card-padding` de `index.css` (verificado sin cambios visuales).
+- `setup_backend.bat` usa `py -3.12`.
 
 ## 14b. Sección Delitos Alto Impacto (2026-09-12, implementada; el spec de diseño ya se retiró)
 
 - Modo solo-UI `dataset='alto_impacto'` (selector en `Header.jsx`, color `#b91c1c` en `DATASET_COLORS`). Al cable siempre sale `dataset=delitos&altoImpacto=a|b|CUSTOM:json` (`DatasetEnum` rechazaría `alto_impacto` con 422).
 - Backend: `PRESET_ALTO_IMPACTO` + `_build_alto_impacto_clause()` en `main.py`; `build_where(..., altoImpacto=...)` une bloques con OR (AND dentro), todo parametrizado `?`. `CUSTOM:{b,t,s,m}` dinámico; token malformado se ignora; param `""` o sin bloques válidos fuerza `1=0` (vacío=vacío). Los 8 endpoints reenvían el param.
 - Frontend: `INITIAL_FILTERS.altoImpacto`, `ALTO_IMPACTO_DEFAULT` (7 presets activas al entrar), customs `CUSTOM:` en estado `PublicDashboard` (persisten entre datasets). Cada componente que consulta mapea a `wireDataset` y anexa el param, incluidos drills (`ChartBarYears`, `MapMexico` vía `buildFilterParams`). `Filters.jsx` muestra chips + `+ Agregar delito` (conserva año/entidad/municipio/meses/métrica); modal nuevo `AltoImpactoModal.jsx` en cascada vía `/api/filtros?dataset=delitos`, dedup por config exacta (`utils/altoImpacto.js`), prohíbe `|` en nombres. Export con etiqueta `Delitos de Alto Impacto` + filenames `*alto_impacto*`.
-- `HistoryRankings` y `TableTopCrimes` fuera de alcance (no envían ni aceptan `altoImpacto`).
+- `HistoryRankings` fuera de alcance (no envían ni aceptan `altoImpacto`).
 
 ## 14c. Pulido visual — PENDIENTE, NO IMPLEMENTADO (verificado 2026-09-24)
 
@@ -249,7 +247,7 @@ Si se retoma, tratarlo como trabajo nuevo.
 **Ranking en pantalla completa (2026-09-27):** selector "Vista: Tabla/Barras" (`MenuSelect.jsx`, mismo estilo que "Letra chica ▾"; preferencia en `localStorage['rankingFullscreenView']`). Tabla = columnas (`fsColumns` en `SidebarLeft`: nº de columnas según ancho ≥ `FS_COL_MIN` 320px y alto para que quepan todas las filas de `FS_ROW_H` 33px; si no caben, scroll con encabezados sticky; medidas en sync con `.fs-col-*` de index.css) sin barra de dato (las proporciones van en la vista Barras; la tabla normal tampoco lleva barra de fondo). Barras = HTML/CSS (`.fs-bar-*`), todas las filas con scroll, resaltado strong/soft y "—" en gris. En 1920×1080 caben los 73 municipios en 3 columnas sin scroll. Ya no usa `useFullscreenScale`.
 **Periodo en pantalla completa (2026-09-27):** `FullScreenHeader` rotula el periodo con `periodMode`: 'year' (tabla, mapa) → "Periodo: Ene–Ago 2026" / "Mar 2026"; 'series' (barras) → "Año: 2026 (Ene–Ago)" o "Año: 2026" + "Meses: Mar de cada año"; 'history' (histórico, ignora meses) → "Datos hasta: Ago 2026". Ya no hay badge "Meses" con nombres completos. `mesFinal` llega por `MesFinalContext` (`utils/mesFinalContext.js`, provisto por `PublicDashboard`). Rankings no usa `anio` y no cambia.
 **Ronda 8 (2026-09-27, critique 29/40):** Mapa en pantalla completa usa el mismo lienzo proporcional medido que la vista normal (`normalCanvas`, se eliminó `fitScale` en px que recortaba Sonora con el viewBox 800×600). Eje Y del histórico sin redondeo engañoso (1,500 → "1.5K"). `.fs-header` baja a dos renglones en <640px ("Cerrar" siempre visible); conmutador Entidades/Municipios `min(200px,100%)`. "Cerrar" en `#b91c1c` (6.1:1). KPI de Alto Impacto: "Alto impacto". La tabla en columnas con scroll en alturas bajas se deja así (decisión del usuario).
-Pendiente: `App.css` sigue importado; `#2563eb` como fallback en algunos `var(..., #2563eb)`; ChartTooltip compartido; Inter se conserva como fuente de UI (el detector la marca como "overused", decisión deliberada).
+Pendiente: `#2563eb` como fallback en algunos `var(..., #2563eb)`; ChartTooltip compartido; Inter se conserva como fuente de UI (el detector la marca como "overused", decisión deliberada).
 
 ## 14d. Fullscreen con escala (2026-09-12, implementado)
 
@@ -263,5 +261,5 @@ Pendiente: `App.css` sigue importado; `#2563eb` como fallback en algunos `var(..
 ## 14. Dependencias importantes
 
 - No quitar: `duckdb, pandas, pyarrow, fastapi, uvicorn, pydantic-settings, python-multipart, PyJWT` (backend runtime); `axios, react-router-dom, recharts, react-simple-maps, d3-scale, html-to-image, sonner` (frontend runtime).
-- `openpyxl` está en requirements pero no se importa en `app/` ni ETL (posible resto). `d3-scale-chromatic`, `sonora.json/mexico.json`, `mapa.png`, `vite.svg`, `frontend/README.md` plantilla: no usados, candidatos a poda solo tras verificar build.
+- `openpyxl` está en requirements pero no se importa en `app/` ni ETL (posible resto). `d3-scale-chromatic` y los assets sin uso se eliminaron (2026-09-27).
 - Si algo no está claro (ej. contenido `cls/`, datos reales en parquet, Railway deploy), indicarlo explícitamente y leer el archivo/parquet antes de afirmar.

@@ -5,7 +5,6 @@ import PublicDashboard from './PublicDashboard';
 import Login from './components/admin/Login';
 import AdminDashboard from './components/admin/AdminDashboard';
 import { ADMIN_ENABLED } from './api';
-import './App.css';
 
 function App() {
   return (
