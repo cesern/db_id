@@ -1,7 +1,7 @@
 # Dashboard de Incidencia Delictiva
 
-Sistema analítico para visualización y exploración de datos de incidencia delictiva, desarrollado con un backend en FastAPI y un frontend moderno en React + Vite.  
-La plataforma utiliza DuckDB y archivos Parquet optimizados para ofrecer consultas rápidas y eficientes sobre grandes volúmenes de información.
+Sistema analítico para visualización y exploración de datos de incidencia delictiva (SESNSP + población CONAPO), con backend en FastAPI y frontend en React + Vite.
+La plataforma usa DuckDB en memoria sobre archivos Parquet para consultas rápidas sin base de datos tradicional.
 
 ---
 
@@ -9,15 +9,19 @@ La plataforma utiliza DuckDB y archivos Parquet optimizados para ofrecer consult
 
 ```txt
 backend/
-├── app/                  # API FastAPI
-├── storage/
-│   ├── uploads/          # CSV subidos desde el panel admin
-│   └── parquet/          # Archivos parquet optimizados
-├── data/                 # Catálogos estáticos
-└── convertir_datos.py    # Proceso ETL
+├── app/
+│   ├── main.py               # API pública (DuckDB + vistas sobre Parquet)
+│   ├── routes/admin.py       # /api/admin (solo con el admin encendido)
+│   ├── services/auth.py      # contraseña scrypt, sesión JWT + CSRF, límite de intentos
+│   ├── services/datastore.py # almacén: publicados, en espera, respaldo, bitácora
+│   ├── schemas_datos.py      # columnas por conjunto (ETL y admin)
+│   └── tools/hash_password.py
+├── storage/parquet/          # Parquet publicados en el repo (semilla)
+├── tests/                    # pytest
+└── convertir_datos.py/.bat   # ETL offline CSV -> Parquet
 
 frontend/
-├── src/                  # Aplicación React
+├── src/                      # Aplicación React (tablero público + /admin opcional)
 └── public/
 ```
 
@@ -25,31 +29,8 @@ frontend/
 
 # Tecnologías Utilizadas
 
-## Backend
-- Python
-- FastAPI
-- DuckDB
-- pandas
-- PyArrow
-- JWT Authentication
-
-## Frontend
-- React
-- Vite
-- Axios
-- Recharts
-
----
-
-# Características Principales
-
-- Dashboard interactivo de incidencia delictiva.
-- Consultas rápidas usando DuckDB + Parquet.
-- Panel administrativo protegido con autenticación JWT.
-- Subida de archivos CSV desde el navegador.
-- Conversión ETL automática a formato Parquet optimizado.
-- Recarga dinámica de la base analítica sin reiniciar el servidor.
-- Compatible con despliegues cloud ligeros.
+- **Backend:** Python, FastAPI, DuckDB, pandas, PyArrow, PyJWT.
+- **Frontend:** React, Vite, Axios, Recharts, react-simple-maps.
 
 ---
 
@@ -57,181 +38,119 @@ frontend/
 
 ## Backend
 
-### 1. Navegar al backend
 ```bash
 cd backend
-```
-
-### 2. Crear archivo de entorno
-```bash
-cp .env.example .env
-```
-
-### 3. Instalar dependencias
-```bash
+cp .env.example .env            # opcional; sin .env el tablero funciona y el admin queda apagado
 pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 4. Ejecutar servidor
+Ejecutar siempre desde `backend/` para que se lea `.env`.
+
+## Frontend
+
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+cd frontend
+cp .env.example .env            # VITE_API_URL=http://127.0.0.1:8000
+npm install
+npm run dev
+```
+
+## Pruebas
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+python -m pytest
 ```
 
 ---
 
-## Frontend
+# Actualización de datos
 
-### 1. Navegar al frontend
-```bash
-cd frontend
-```
+Hay dos caminos; ambos terminan en los mismos cuatro archivos:
+`delitos.parquet`, `victimas.parquet`, `victimas_mun.parquet`, `pob_municipios.parquet`.
 
-### 2. Crear archivo de entorno
-```bash
-cp .env.example .env
-```
+## 1. Offline (flujo habitual)
 
-### 3. Configurar URL del backend
-```env
-VITE_API_URL=http://localhost:8000
-```
+1. Convertir los CSV anchos (meses como columnas) a Parquet en la computadora del analista:
+   ```bash
+   cd backend
+   python convertir_datos.py --delitos ruta/delitos.csv --victimas ruta/victimas.csv \
+     --victimas-mun ruta/victimas_mun.csv --poblacion ruta/pob_municipios.csv
+   # o en Windows: convertir_datos.bat
+   ```
+   Por defecto escribe en `backend/storage/parquet/`.
+2. Revisar el tablero en local, hacer commit de los `.parquet` y push. El despliegue (p. ej. Railway) se reconstruye con los nuevos archivos.
 
-### 4. Instalar dependencias
-```bash
-npm install
-```
+El servidor ya no ejecuta el ETL ni recibe CSV.
 
-### 5. Ejecutar entorno de desarrollo
-```bash
-npm run dev
-```
+## 2. Desde el panel `/admin` (si está encendido)
+
+Por conjunto (`delitos`, `victimas`, `victimas_mun`, `poblacion`):
+
+1. **Subir** un Parquet ya convertido (límite `MAX_UPLOAD_MB`, 100 MB por defecto). Se valida (firma Parquet, columnas requeridas, años, meses, valores numéricos) y queda **en espera**.
+2. **Revisar** el resumen (filas, años, último mes con datos, total, filas con valores negativos) y su diferencia contra lo publicado.
+3. **Publicar**: la versión publicada pasa a respaldo y la nueva se activa sin reiniciar. Si la recarga falla, se revierte sola.
+4. **Restaurar**: intercambia el respaldo con la versión publicada.
+
+También se puede descartar lo que está en espera. Todas las operaciones quedan en la bitácora (`admin_log.jsonl`).
+
+---
+
+# Panel administrativo
+
+**Apagado por defecto.** Sin variables nuevas, `/api/admin/*` responde 404 y `/admin` redirige a `/`.
+
+Para encenderlo:
+
+- **Backend:** `ENABLE_ADMIN=true`, `ADMIN_USER`, `ADMIN_PASSWORD_HASH` (generar con `python -m app.tools.hash_password` desde `backend/`) y `JWT_SECRET` de 32 caracteres o más. Si falta algo o es inseguro, el admin no se registra y el log indica el motivo.
+- **Frontend:** construir con `VITE_ENABLE_ADMIN=true`.
+- **Modo de sesión:** `CORS_ORIGINS` vacío = mismo dominio (cookie `SameSite=Strict`); con valor = dominios distintos (orígenes exactos, cookie `SameSite=None; Secure` y token CSRF).
+- **Almacenamiento:** `DATA_STORE_DIR` (por defecto `backend/storage`). En producción conviene un volumen persistente; sin él, lo publicado desde el admin se pierde al redesplegar (el panel lo advierte).
+
+Todas las variables están explicadas en `backend/.env.example` y `frontend/.env.example`.
+La guía paso a paso para encenderlo en un despliegue está en `docs/privado/` (no se versiona).
 
 ---
 
 # Variables de Entorno
 
-## Backend
+## Backend (resumen; detalle en `backend/.env.example`)
 
-```env
-ADMIN_USER=admin
-ADMIN_PASSWORD=tu_password
-JWT_SECRET=tu_secret
-ENVIRONMENT=local
-
-UPLOADS_DIR=/app/storage/uploads
-PARQUET_DIR=/app/storage/parquet
-DATA_DIR=/app/data
-
-CORS_ORIGINS=http://localhost:5173
-```
-
----
+| Variable | Uso |
+|---|---|
+| `ENVIRONMENT` | `local` o `production` (cookie `Secure` fuera de local) |
+| `CORS_ORIGINS` | Orígenes exactos (dominios distintos) o vacío (mismo dominio) |
+| `ENABLE_ADMIN`, `ADMIN_USER`, `ADMIN_PASSWORD_HASH`, `JWT_SECRET` | Admin |
+| `DATA_STORE_DIR`, `DATA_STORE_PERSISTENT`, `MAX_UPLOAD_MB` | Almacén del admin |
+| `TRUST_PROXY`, `TRUSTED_PROXY_HOPS` | IP real detrás de proxy (límite de intentos) |
+| `PARQUET_DIR` | Legado: carpeta de publicados |
 
 ## Frontend
 
 ```env
 VITE_API_URL=http://localhost:8000
+# VITE_ENABLE_ADMIN=true
 ```
 
 ---
 
-# Despliegue en Railway
+# Despliegue
 
-El proyecto está preparado para despliegue automático mediante GitHub + Railway.
-
-## Backend
-- Servicio Python/FastAPI.
-- Requiere configurar:
-  - `ADMIN_USER`
-  - `ADMIN_PASSWORD`
-  - `JWT_SECRET`
-  - `PARQUET_DIR`
-  - `UPLOADS_DIR`
-  - `DATA_DIR`
-  - `CORS_ORIGINS`
-
-## Frontend
-- Servicio React/Vite.
-- Requiere:
-  - `VITE_API_URL`
+- **Backend:** `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT`, **un solo worker** (el candado del almacén es por proceso).
+- **Frontend:** estático (`npm run build`, publicar `frontend/dist`) con `VITE_API_URL` definido en el build.
+- Con volumen: los Parquet del repo solo siembran los archivos que falten; ya no sobrescriben lo publicado desde el admin.
 
 ---
 
-# Persistencia de Datos
+# Git y archivos ignorados
 
-Los archivos CSV originales se almacenan en:
-
-```txt
-storage/uploads/
-```
-
-Los archivos optimizados utilizados por DuckDB se almacenan en:
-
-```txt
-storage/parquet/
-```
-
-Para entornos con almacenamiento limitado, se recomienda:
-- generar los archivos Parquet localmente,
-- subir únicamente los `.parquet`,
-- evitar almacenar CSV pesados en producción.
-
----
-
-# Panel Administrativo
-
-Ruta:
-
-```txt
-/admin
-```
-
-Funciones:
-- autenticación segura,
-- subida de CSV,
-- ejecución de ETL,
-- recarga de vistas DuckDB,
-- monitoreo del estado del procesamiento.
-
----
-
-# Git y Archivos Ignorados
-
-El proyecto ignora:
-- archivos temporales,
-- entornos virtuales,
-- uploads pesados,
-- archivos sensibles.
-
-Ejemplo:
-
-```gitignore
-.env
-venv/
-__pycache__/
-storage/uploads/
-```
-
----
-
-# Datos Estáticos
-
-El archivo:
-
-```txt
-backend/data/pob_municipios.csv
-```
-
-sí se incluye en el repositorio debido a que:
-- es pequeño,
-- funciona como catálogo base,
-- es necesario para cálculos de tasas poblacionales.
-
+`.env`, `venv/`, `node_modules/`, `dist/`, `storage/uploads/`, `storage/parquet/*.json` (resúmenes en caché) y `docs/privado/`.
 
 ---
 
 # Notas
 
-- El sistema está optimizado para consultas analíticas rápidas.
-- DuckDB funciona directamente sobre archivos Parquet sin necesidad de un motor SQL tradicional.
-- Railway Free tiene limitaciones de almacenamiento; para producción se recomienda persistencia adicional o almacenamiento externo.
+- DuckDB trabaja directamente sobre Parquet, sin motor SQL tradicional.
+- Los valores negativos en los datos son ajustes oficiales del SESNSP y se aceptan.

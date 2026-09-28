@@ -1,56 +1,66 @@
 # AGENTS.md — Dashboard Incidencia Delictiva
 
-Guía práctica para agentes IA que trabajen en ESTE repositorio. Basada en el código real al 2026-09-12. No modificar código sin leer esta guía.
+Guía práctica para agentes IA que trabajen en ESTE repositorio. Basada en el código real al 2026-09-12 (admin de datos por Parquet actualizado al 2026-09-27). No modificar código sin leer esta guía.
 
 ## 1. Propósito
 
 Sistema analítico de incidencia delictiva (fuentes SESNSP + población CONAPO):
 
 - Dashboard público con filtros, KPI, tablas, gráficas de barras/años, tendencia mensual, mapa México/Sonora, rankings históricos.
-- Panel admin en `/admin` con login JWT en cookie HttpOnly, subida CSV, ETL a Parquet y recarga DuckDB sin reiniciar.
+- Panel admin de datos en `/admin`, **apagado por defecto** (`ENABLE_ADMIN` backend + `VITE_ENABLE_ADMIN` build). Encendido: login scrypt + JWT en cookie HttpOnly con CSRF, subir un **Parquet ya convertido** por conjunto → revisar resumen/diferencia → publicar sin reiniciar → restaurar la versión anterior. Ya no recibe CSV ni ejecuta ETL en el servidor.
+- Flujo habitual de datos: ETL offline (`convertir_datos.py/.bat`) en la PC del analista → commit de `.parquet` → push → redeploy.
 - Sin base de datos tradicional: DuckDB in-memory lee Parquet columnares.
 
 ## 2. Arquitectura
 
 ```
 CSV anchos (meses como columnas)
-  -> backend/convertir_datos.py (melt + NFC + downcast/category + zstd/snappy)
-  -> backend/storage/parquet/*.parquet
-  -> backend/app/main.py: reload_duckdb_views() crea VIEWS delitos,victimas,victimas_mun,poblacion sobre read_parquet()
+  -> backend/convertir_datos.py OFFLINE (melt + NFC + downcast/category + zstd/snappy; columnas de app/schemas_datos.py)
+  -> backend/storage/parquet/*.parquet (repo = semilla)
+  -> backend/app/main.py: reload_duckdb_views() crea VIEWS delitos,victimas,victimas_mun,poblacion sobre read_parquet(PARQUET_DIR)
   -> FastAPI GET /api/* (DuckDB + pandas merge para tasas)
   -> frontend (axios + VITE_API_URL) React + Recharts + react-simple-maps
-Admin: POST /api/admin/upload -> storage/uploads/ -> POST /run-etl (subprocess convertir_datos.py) -> POST /reload-db
+Admin (solo ADMIN_ACTIVE): POST /api/admin/datasets/{c}/upload (Parquet) -> <DATA_STORE_DIR>/staging/ (valida + resumen)
+  -> POST /publish (publicado -> backup/, staging -> parquet/, reload_duckdb_views(strict=True), revierte si falla)
+  -> POST /restore (backup <-> publicado) ; DELETE /staging ; bitácora admin_log.jsonl
 ```
 
-Decisión clave: todo el estado analítico vive en `db = duckdb.connect(':memory:')` global en `backend/app/main.py:33` + caches pandas globales `CACHE_POB_DF, CACHE_ENT_MAP, CACHE_MUN_MAP, CACHE_MUN_POB_DF, CACHE_MERGED_POP`. Se pueblan en import (`reload_duckdb_views()` línea 87).
+Decisión clave: todo el estado analítico vive en `db = duckdb.connect(':memory:')` global en `backend/app/main.py:56` + caches pandas globales `CACHE_POB_DF, CACHE_ENT_MAP, CACHE_MUN_MAP, CACHE_MUN_POB_DF, CACHE_MERGED_POP, CACHE_ANIO_RECIENTE`. Se pueblan en import (`reload_duckdb_views()` `main.py:66`, llamada inicial `main.py:135`). `PARQUET_DIR = settings.published_dir` (`main.py:51`): `PARQUET_DIR` legado si está definida, si no `<DATA_STORE_DIR>/parquet`.
+
+Interruptor (`main.py:20-47`): `ADMIN_ACTIVE = enable_admin and not admin_config_problems(settings)` (`config.py:78`). Apagado o config insegura: router no registrado (404), aviso `[ADMIN] deshabilitado: ...` en log y CORS `*` **sin** credenciales. Encendido + `CORS_ORIGINS` con valor (dominios distintos): CORS con la lista exacta y `allow_credentials=True`. Encendido + `CORS_ORIGINS` vacío (mismo dominio): CORS público sin credenciales. Con admin activo se crea `STORE = DataStore(...)` (`main.py:117-132`), se siembra si `PARQUET_DIR != backend/storage/parquet`, y `admin.init(STORE)` + `include_router` (`main.py:137-139`).
 
 ## 3. Estructura de carpetas (real)
 
 ```
 backend/
-  app/main.py (732 líneas, núcleo API, 9 endpoints GET públicos)
-  app/config.py (BaseSettings, singleton settings)
-  app/routes/admin.py (177 líneas, prefix /api/admin)
+  app/main.py (880 líneas, núcleo API, interruptor admin, 9 endpoints GET públicos)
+  app/config.py (110, BaseSettings + admin_config_problems + SECRETOS_DE_EJEMPLO, singleton settings)
+  app/schemas_datos.py (74, DATASETS: archivo, columnas requeridas, col año/mes/valor; fuente única ETL+admin)
+  app/routes/admin.py (185, prefix /api/admin, capa delgada sobre DataStore; RutaConLimite 413 por Content-Length)
   app/routes/__init__.py (solo "# Init")
-  app/services/auth.py (29 líneas, JWT cookie)
-  convertir_datos.py (482 líneas, ETL)
+  app/services/auth.py (212, scrypt, sesión JWT+CSRF, cookie_kwargs, LoginLimiter, client_ip)
+  app/services/datastore.py (521, DataStore: validar, resumir, stage/publish/restore/discard, seed, bitácora)
+  app/tools/hash_password.py (genera ADMIN_PASSWORD_HASH: python -m app.tools.hash_password)
+  tests/ (conftest, test_admin_api, test_auth, test_datastore, test_etl_poblacion, test_schemas, test_switch)
+  convertir_datos.py (477 líneas, ETL offline)
   convertir_datos.bat (solo Windows, usa venv\Scripts\python.exe)
-  requirements.txt, .env.example, .gitignore
-  storage/parquet/delitos.parquet, victimas.parquet, victimas_mun.parquet, pob_municipios.parquet
-  # NO existen en repo: storage/uploads/, data/, .env, venv/ (se crean on-demand)
+  requirements.txt, requirements-dev.txt (pytest, httpx), .env.example, .gitignore
+  storage/parquet/delitos.parquet, victimas.parquet, victimas_mun.parquet, pob_municipios.parquet (semilla)
+  # NO existen en repo: storage/staging|backup/, admin_log.jsonl, storage/parquet/*.json (resúmenes, ignorados), data/, .env, venv/
 frontend/
   src/main.jsx (StrictMode + App), App.jsx (router), PublicDashboard.jsx (254 lín, orquestador)
-  src/api.js (solo export API_URL)
+  src/api.js (API_URL, ADMIN_ENABLED, adminClient axios withCredentials + interceptor X-CSRF-Token, setCsrfToken)
   src/components/Header.jsx, Filters.jsx (575), SidebarLeft.jsx (472), ChartBarYears.jsx (336),
     ChartLineTrend.jsx (702), MapMexico.jsx (419), TableTopCrimes.jsx (213, HUÉRFANO),
     HistoryRankings.jsx (780), DrillDownModal.jsx, ExportMenu.jsx, FullScreenHeader.jsx,
     InfoModal.jsx, LoadingSpinner.jsx
-  src/components/admin/Login.jsx, AdminDashboard.jsx
+  src/components/admin/Login.jsx, AdminDashboard.jsx, DatasetCard.jsx, ConfirmDialog.jsx
   src/utils/exportUtils.js (214, CSV/PNG/clipboard)
   src/index.css (382, design system), App.css (40, residuo Vite, colisiona .card)
   public/mexico_geo.json, sonora_geo.json (usados), mexico.json, sonora.json (no usados),
     logo.png, fgje_ico.png, mapa.png (no referenciado), vite.svg (residuo)
   vite.config.js, eslint.config.js, package.json, .env.example, index.html
+docs/privado/ (gitignored: guía privada paso a paso para encender el admin en un despliegue)
 raíz/
   iniciar.bat, setup_backend.bat, setup_frontend.bat, render.yaml, README.md, INSTRUCCIONES.md,
   fix_quotes.py, refactor.py, generate_pdf_analysis.py, cls/ (no auditado, fuera del runtime)
@@ -58,7 +68,7 @@ raíz/
 
 ## 4. Tecnologías reales (no asumir otras)
 
-Backend (`backend/requirements.txt`): `fastapi==0.136.1, uvicorn==0.46.0, duckdb>=1.0.0, pandas==2.3.3, numpy==2.2.6, pyarrow>=15.0.0, pydantic==2.13.4, pydantic-settings>=2.2.1, python-multipart, PyJWT, openpyxl==3.1.5`. Falta `chardet` aunque `convertir_datos.py:451` hace `import chardet`.
+Backend (`backend/requirements.txt`): `fastapi==0.136.1, uvicorn==0.46.0, duckdb>=1.0.0, pandas==2.3.3, numpy==2.2.6, pyarrow>=15.0.0, pydantic==2.13.4, pydantic-settings>=2.2.1, python-multipart, PyJWT, openpyxl==3.1.5`. Dev: `requirements-dev.txt` (`-r requirements.txt`, `pytest`, `httpx`). El ETL ya no usa `chardet` (encoding `utf-8-sig -> latin-1`).
 
 Frontend (`frontend/package.json`): `react ^19.2.0, react-dom ^19.2.0, react-router-dom ^7.15.1, vite ^7.3.1, axios ^1.16.0, recharts ^3.8.1, react-simple-maps ^3.0.0, d3-scale ^4.0.2, d3-scale-chromatic ^3.1.0 (instalado pero no importado), html-to-image ^1.11.13, sonner ^2.0.7, prop-types ^15.8.1`.
 
@@ -78,21 +88,26 @@ Consultas principales (todas GET sin auth en `main.py`):
 
 ## 6. Backend — cómo funciona
 
-- Entrada: `uvicorn app.main:app` desde `backend/`. `BASE_DIR=backend/`, `PARQUET_DIR/ DATA_DIR` vienen de `settings`.
-- `DatasetEnum` en `main.py:11`: solo `delitos, victimas, victimas_mun`. `poblacion` es vista interna, no enum.
-- `build_where()` (`main.py:160`): solo filtra si columna existe en `PRAGMA table_info` (permite esquemas distintos). `anio` es `"Año" = ?`, resto `IN (?)`. `additional_clause` se concatena crudo (solo uso interno).
+- Entrada: `uvicorn app.main:app` desde `backend/`. `BASE_DIR=backend/`, `PARQUET_DIR = settings.published_dir`, `REPO_PARQUET_DIR = backend/storage/parquet`.
+- `DatasetEnum` en `main.py:13`: solo `delitos, victimas, victimas_mun`. `poblacion` es vista interna, no enum.
+- `build_where()` (`main.py:274`): solo filtra si columna existe en `PRAGMA table_info` (permite esquemas distintos). `anio` es `"Año" = ?`, resto `IN (?)`. `additional_clause` se concatena crudo (solo uso interno).
 - `obtener_filtros`: cascada (anios global; entidades por anio/sexo/edad; bienes +entidad; municipios solo si `entidad!=All`; tipos +bien; subtipos +tipo; modalidades +subtipo; sexos/rangos globales).
 - `incidencia_por_entidad` ignora filtro `entidad/municipio` a propósito y fuerza `Entidad IS NOT NULL`. `incidencia_por_anio` ignora `anio` y agrupa todo. `ranking_historico` filtra municipios a `*, Sonora` + top3 si `nivel==municipio`.
 - Columna valor: `'Víctimas' if 'victimas' in dataset.value else 'Incidencia'` — aplica a `victimas` y `victimas_mun`.
 - Rate: si `pop<=0` retorna `{"total_incidencia":"N/D"}` o `"N/D"` por celda (string, no número). Entidades usan `fillna(1)`, municipios `fillna(0)->None`.
-- Admin (`routes/admin.py`): `POST /login` compara texto plano con `settings`, cookie `admin_session` HttpOnly 8h (`samesite=lax` local, `none+secure` si `environment!=local`); `GET /me`, `POST /logout`, `POST /upload` (solo `.endswith(".csv")`, guarda `.tmp` luego valida `pd.read_csv(nrows=0)`, `shutil.move`), `POST /run-etl` (BackgroundTasks -> `run_etl_process()` con `Popen([sys.executable, convertir_datos.py, --delitos uploads/delitos_combinado.csv, --victimas uploads/victimas_combinado.csv, --victimas-mun uploads/victimas_combinado_municipal_2026.csv, --salida-* parquet/*.parquet, --poblacion data/pob_municipios.csv, ...])` + `reload_duckdb_views()`), `GET /etl-status` (dict global `idle|processing|completed|error`), `POST /reload-db`.
-- Auth (`services/auth.py`): `APIKeyCookie(name="admin_session", auto_error=False)`, `jwt.encode/decode` con `settings.jwt_secret/jwt_algorithm`, valida `sub==admin_user`. Usa `datetime.utcnow()` (deprecado).
+- `reload_duckdb_views(strict=False)` (`main.py:66`): con `strict=True` relanza errores de caches; solo lo usa el `DataStore` (`reload=lambda: reload_duckdb_views(strict=True)`) para revertir una publicación que rompe el tablero. La carga inicial es no estricta y traga errores con `print`.
+- Admin (`routes/admin.py`, solo si `ADMIN_ACTIVE`; conjuntos `Literal["delitos","victimas","victimas_mun","poblacion"]`):
+  - `POST /login` (limiter por `client_ip` → 429 + `Retry-After`; verifica scrypt siempre para no filtrar por tiempo; fallo → bitácora `login_fail`; éxito → cookie + `{username, csrf_token}`), `POST /logout` (borra cookie sin exigir sesión), `GET /me` (`{username, csrf_token}`).
+  - `GET /datasets` (`{persistent, datasets:{c:{published, staging(+diff), has_backup, backup}}}`), `POST /datasets/{c}/upload` (multipart `file`; 413 temprano por `Content-Length` > `MAX_UPLOAD_MB`+1MB en `RutaConLimite`, y recontado al copiar), `POST /datasets/{c}/publish`, `POST /datasets/{c}/restore`, `DELETE /datasets/{c}/staging` (204), `GET /log?limit=1..500`. Las que modifican exigen `require_csrf`.
+  - `_operar()` traduce errores: `TooLargeError→413, ValidationError→400, BusyError→409 "Operación en curso", NothingToDoError→409, ReloadError→500 (se mantuvo la versión anterior), otro→500 "Error de almacenamiento: <Tipo>"` (el mensaje con rutas solo va al log).
+- `DataStore` (`services/datastore.py:252`): `<DATA_STORE_DIR>/{parquet/ (publicados, o PARQUET_DIR legado), staging/, backup/, admin_log.jsonl}`; resúmenes `<conjunto>.json` junto a cada Parquet. `_validar` (`:117`): firma `PAR1` inicio/fin, `read_schema`, columnas requeridas (NFC), año entero sin nulos (2000–2100 salvo población), `Mes` ∈ Enero…Diciembre, valores numéricos finitos; **negativos permitidos** (ajustes SESNSP) y contados en `negative_rows` de `summarize` (`:198`). Todo movimiento = copia a temporal único `.<nombre>.<uuid>.tmp` + `os.replace` (atómico en el mismo volumen); `_cambiar_publicado` (`:341`) respalda, reemplaza, recarga y revierte (si falla también la reversión, conserva el temporal y lo avisa en log). `threading.Lock` no bloqueante (`_tomar` → `BusyError`). El constructor barre `.*.tmp` huérfanos. `seed()` (`:408`) copia desde el repo **solo** los conjuntos que falten; nunca sobrescribe.
+- Auth (`services/auth.py`): contraseña `scrypt$16384$8$1$<sal>$<hash>` (stdlib, `hmac.compare_digest`); `admin_config_problems` exige n ≥ 2^14. Sesión JWT HS256 fijo (`auth.JWT_ALGORITHM`; `settings.jwt_algorithm` obsoleto) con `sub, csrf, exp` (8h) en cookie `admin_session` vía `cookie_kwargs()`: mismo dominio `SameSite=Strict` (`Secure` si `environment!=local`), dominios distintos `SameSite=None; Secure` siempre. `require_admin` (401) y `require_csrf` (403; header `X-CSRF-Token` obligatorio en dominios distintos, opcional pero verificado si viene en mismo dominio). `LoginLimiter` 5 fallos / 15 min por IP, en memoria. `client_ip`: con `TRUST_PROXY`, valor en posición `-TRUSTED_PROXY_HOPS` desde la derecha de `X-Forwarded-For` (los primeros son falsificables); si la lista es más corta, IP de la conexión.
 - Errores: endpoints públicos casi sin try/except (500 si falta tabla). Solo rate tiene fallback `"N/D"`. `reload_duckdb_views` traga errores con `print`.
 
 ## 7. Frontend — cómo funciona
 
-- Entrada `index.html -> /src/main.jsx -> App.jsx`. Rutas en `App.jsx:19-31`: `/ -> PublicDashboard`, `/admin,/admin/login -> Login`, `/admin/dashboard -> AdminDashboard` (envuelto en `ProtectedRoute` que es no-op, retorna `children`), `* -> /`.
-- `src/api.js:11`: `export const API_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000'`. Excepciones: `admin/Login.jsx` usa `VITE_API_URL` sin fallback, `admin/AdminDashboard.jsx` usa `|| 'http://localhost:8000'` (host distinto).
+- Entrada `index.html -> /src/main.jsx -> App.jsx`. Rutas en `App.jsx:16-24`: `/ -> PublicDashboard`, `/admin,/admin/login -> Login`, `/admin/dashboard -> AdminDashboard` **solo si `ADMIN_ENABLED`** (`VITE_ENABLE_ADMIN==='true'`), `* -> /`. Sin `ProtectedRoute`: la protección real es `/api/admin/me` (401 → login).
+- `src/api.js:11`: `export const API_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000'`. El admin usa `adminClient` (`withCredentials`; añade `X-CSRF-Token` en métodos no GET con el token de `/login` o `/me` guardado por `setCsrfToken`).
 - `PublicDashboard.jsx`: `INITIAL_FILTERS={dataset:"delitos", anio:null (se fija al año más reciente vía /api/filtros), entidad:"Sonora", municipio:"All", resto []}`, `DATASET_COLORS={delitos:#455993, victimas:#ef4444, victimas_mun:#7c3aed, alto_impacto:#b91c1c}`. Patrón central `selectedFilters` (edición) vs `appliedFilters` (consultas) + `handleApply/handleClear/handleDatasetChange` (este último aplica inmediato). Splash `#081C3A/#C8A96B` con timeout 10s + `componentsLoading {filters,sidebar,barChart,lineChart,map:true, topCrimes:false}`.
 - Componentes y endpoints:
   - `Filters.jsx`: 2 llamadas a `/api/filtros` (base por `applied`, cascada por `selected` + purga inválidos). `MultiSelectDropdown` con buscador + master checkbox indeterminate. Meses `MONTHS[12]` nombres completos. Municipio oculto si `dataset==victimas`, deshabilitado si `entidad==All`.
@@ -109,15 +124,18 @@ Consultas principales (todas GET sin auth en `main.py`):
 
 ## 8. Configuración
 
-Backend `.env` (ver `.env.example`, `config.py:9-20`, `model_config env_file=".env"` relativo al cwd):
+Backend `.env` (ver `backend/.env.example`, `config.py:9-33`, `model_config env_file=".env"` relativo al cwd). Variable vacía en campo no-texto = default (no rompe el arranque):
 ```
-CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
-ADMIN_USER=admin / ADMIN_PASSWORD=change_me (defaults código admin/admin)
-JWT_SECRET=super_secret_key (default código "secret") / JWT_ALGORITHM=HS256
 ENVIRONMENT=local
-# UPLOADS_DIR, PARQUET_DIR, DATA_DIR (defaults backend/storage/uploads, backend/storage/parquet, backend/data)
+CORS_ORIGINS  default http://localhost:5173,http://127.0.0.1:5173; definida vacía = mismo dominio; con valor = dominios distintos + CSRF; nunca '*' con admin
+ENABLE_ADMIN=false (default)  ADMIN_USER=""  ADMIN_PASSWORD_HASH=""  JWT_SECRET=""  (sin defaults; secreto ≥32 chars y no "secret/super_secret_key/change_me")
+DATA_STORE_DIR (default backend/storage)  DATA_STORE_PERSISTENT=false (fuera de backend/ ya cuenta como persistente)  MAX_UPLOAD_MB=100
+TRUST_PROXY=false  TRUSTED_PROXY_HOPS=1
+PARQUET_DIR (legado: si se define, es la carpeta de publicados)
+# ADMIN_PASSWORD, UPLOADS_DIR, DATA_DIR ya no existen
 ```
-Frontend `.env`: solo `VITE_API_URL` (ej local `http://127.0.0.1:8000`).
+Hash: `python -m app.tools.hash_password` (desde `backend/`). Secreto: `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+Frontend `.env`: `VITE_API_URL` (ej local `http://127.0.0.1:8000`) y opcional `VITE_ENABLE_ADMIN=true` en el build (sin él `/admin*` redirige a `/`).
 
 ## 9. Ejecución local
 
@@ -135,15 +153,19 @@ iniciar.bat (lanza ambos con start cmd /k)
 setup_backend.bat (rmdir venv, py -3.12 -m venv venv, pip install)
 setup_frontend.bat (npm install)
 convertir_datos.bat / python convertir_datos.py [--delitos --victimas --victimas-mun --salida-* --poblacion --salida-poblacion]
+# Tests (desde backend/):
+pip install -r requirements-dev.txt
+python -m pytest
 ```
 `config.py:env_file=".env"` solo funciona si cwd es `backend/`. `iniciar.bat` ya hace `cd backend/frontend`.
 
 ## 10. Build / deploy
 
-- `render.yaml`: `dashboard-backend (python, PYTHON_VERSION 3.11.0, build pip install -r backend/requirements.txt, start cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT, env ENVIRONMENT=production + UPLOADS/PARQUET/DATA_DIR=/opt/render/... + CORS_ORIGINS=https://tu-frontend.onrender.com + disk 1GB en .../storage)` + `dashboard-frontend (static, build npm install && npm run build, publish frontend/dist, VITE_API_URL=https://dashboard-backend.onrender.com)`.
-- `README.md` documenta también Railway (vars `ADMIN_USER/PASSWORD/JWT_SECRET/PARQUET/UPLOADS/DATA_DIR/CORS_ORIGINS` + `VITE_API_URL`). No verificado en deploy real.
+- Railway (despliegue real, admin apagado): backend `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT` + frontend estático con `VITE_API_URL`. Datos por push de `.parquet` (flujo offline). Encender el admin: `ENABLE_ADMIN/ADMIN_USER/ADMIN_PASSWORD_HASH/JWT_SECRET/CORS_ORIGINS` (+ volumen en `DATA_STORE_DIR`, `TRUST_PROXY=true`) y build con `VITE_ENABLE_ADMIN=true`; la guía paso a paso está en `docs/privado/` (gitignored, no documentar su contenido aquí).
+- `render.yaml`: legado y **desactualizado** (aún usa `UPLOADS_DIR/DATA_DIR/ADMIN_PASSWORD`, que ya no existen; `PARQUET_DIR` sigue valiendo como legado). No verificado en deploy real.
+- Un solo proceso/worker de uvicorn (ver §13).
 - `vite.config.js`: solo `plugins:[react()], server.host 0.0.0.0, preview.host 0.0.0.0`. Sin proxy. `npm run build = vite build`, `preview = vite preview`.
-- Persistencia: `storage/uploads/` ignorado por git (`backend/.gitignore`), `parquet/` sí commiteado. Recomendación README: generar Parquet local y subir solo `.parquet` en prod.
+- Persistencia: `parquet/` del repo commiteado (semilla); `storage/parquet/*.json` (resúmenes) y `storage/uploads/` ignorados (`backend/.gitignore`). Sin volumen, lo publicado desde el admin se pierde al redesplegar (`GET /datasets` → `persistent:false`, aviso ámbar en el panel).
 
 ## 11. Convenciones del proyecto
 
@@ -158,30 +180,32 @@ convertir_datos.bat / python convertir_datos.py [--delitos --victimas --victimas
 
 1. No cambiar nombres de columnas Parquet sin actualizar `COLUMNAS_ID_*` (ETL), `build_where`, `get_columns`, `Filters.jsx` y GeoJSON `nom_ent/MUN`.
 2. No cambiar separadores `|`/`,` ni `metric_type` sin actualizar ambos lados.
-3. No mover `backend/storage/parquet` sin actualizar `config.py` + `render.yaml` + `admin.py run_etl_process` args.
+3. No mover `backend/storage/parquet` sin actualizar `config.py` (`published_dir`), `main.py REPO_PARQUET_DIR` (semilla) y los defaults `--salida-*` de `convertir_datos.py`.
 4. No agregar endpoint público sin `DatasetEnum` + `build_where` (verifica columna existente).
-5. No tocar `reload_duckdb_views` sin entender import circular `main<->admin` (import diferido dentro de función) y caches globales.
-6. No endurecer CORS sin probar admin cookie (`samesite/secure` + `withCredentials`).
+5. No tocar `reload_duckdb_views` sin entender los caches globales y el modo `strict` que usa el `DataStore` para revertir. `routes/admin.py` ya no importa `main` (recibe el almacén con `admin.init(STORE)`).
+6. No tocar CORS/cookie sin probar el admin en ambos modos (`CORS_ORIGINS` vacío vs con valor; `samesite/secure` + `withCredentials` + `X-CSRF-Token`). Correr `python -m pytest` tras cambios en `app/`.
 7. No reintroducir `TableTopCrimes` sin agregarlo al grid + `componentsLoading` en `PublicDashboard`.
 8. No renombrar `victimas`/`victimas_mun` sin revisar `isVictimas/isVictimasMun/isVictimasBase` en 5+ componentes + `val_col` + `exportUtils` + `FullScreenHeader` (ver `refactor.py` como antecedente de migración).
 9. Ejecutar siempre desde `backend/` para que `.env` cargue; frontend necesita `VITE_API_URL` en build static.
-10. No commitear `.env`, `venv/`, `storage/uploads/`, `node_modules/`, `dist/`.
+10. No commitear `.env`, `venv/`, `storage/uploads/`, `storage/parquet/*.json`, `node_modules/`, `dist/`, `docs/privado/`.
 
 ## 13. Áreas delicadas (no modificar sin entender dependencias)
 
-- `main.py:18-24` CORS `*` + `allow_credentials=True` ignora `settings.get_cors_origins_list`. Intencional en dev, inválido en spec prod.
-- `main.py:81-82` `CACHE_MERGED_POP` se calcula pero nunca se usa.
+- `main.py:111` `CACHE_MERGED_POP` se calcula pero nunca se usa.
 - Año por defecto (resuelto 2026-09-24): backend usa `anio_por_defecto()` en `main.py` (= `CACHE_ANIO_RECIENTE`, `MAX("Año")` de delitos calculado en `reload_duckdb_views`; fallback año en curso) cuando `anio` es None. Frontend arranca con `INITIAL_FILTERS.anio=null`; `PublicDashboard` pide `/api/filtros?dataset=delitos` y fija `max(anios)` (fallback año en curso) en selected+applied; Filters y grid no se renderizan hasta tener año (splash lo cubre). No reintroducir años fijos.
 - Rate con `anio=None` suma todos los años y divide por la población de un solo año (cifra inflada). El frontend siempre manda `anio` en KPI/entidad/municipio, así que no se nota; no llamar esos endpoints en modo rate sin `anio`.
-- `convertir_datos.py:444-465` `convertir_poblacion_csv` referencia `BARRA,nfc,reparar_encoding` definidos solo dentro de `convertir_csv` + `import chardet` no declarado -> `NameError/ImportError` seguro al procesar población. No tocar sin mover helpers a scope global y agregar `chardet` a requirements.
-- `admin.py:70` `uploads_dir / file.filename` sin sanitizar (path traversal `../../`) + sin límite tamaño + validación solo headers `nrows=0`.
-- `db` DuckDB global sin pool, `etl_status` dict global sin lock (raza en `run-etl` concurrente, mitigado parcialmente con check `processing`).
+- `db` DuckDB global sin pool. El candado del `DataStore` es `threading.Lock` **por proceso** y el constructor barre `.*.tmp` huérfanos: con varios workers de uvicorn un proceso borraría temporales de otro, las publicaciones simultáneas no se excluirían y cada worker tendría su propio `db` sin recargar. Siempre **un solo worker**. `LoginLimiter` también vive en memoria por proceso.
+- `reload_duckdb_views(strict=True)` solo lo usa el `DataStore`; la carga inicial y cualquier otro llamador quedan no estrictos para que el tablero arranque aunque falte un Parquet.
+- `CORS_ORIGINS` debe estar **definida y vacía** para modo mismo dominio; si no se define toma el default de localhost (= dominios distintos). `*` con admin encendido lo deshabilita (`admin_config_problems`).
+- Dominios distintos ⇒ cookie `SameSite=None; Secure` siempre (`auth.cookie_kwargs`). Chrome/Firefox la aceptan en `http://localhost`; Safari no, así que para probar en local usar Chrome o modo mismo dominio.
+- Con volumen (`DATA_STORE_DIR` fuera del repo o `PARQUET_DIR` distinto), los `.parquet` del repo ya **no** reemplazan a los publicados: `seed()` solo llena los que falten. Un push de Parquet nuevo no se verá ahí; hay que subirlo por el admin (o borrar el publicado del volumen).
+- Valores negativos se aceptan a propósito (ajustes oficiales SESNSP); `summarize` los cuenta en `negative_rows` y el panel los muestra. No reintroducir la regla `>= 0`.
+- Admin apagado es el estado por defecto sin variables: `ENABLE_ADMIN` vacío = false (`config.py` `_vacio_es_default`); el frontend solo registra `/admin*` con `VITE_ENABLE_ADMIN === 'true'` (`App.jsx:18`, `api.js:16`).
 - `"N/D"` string en respuestas numéricas (`total_incidencia`, `incidencia_por_*` rate) — frontend ya hace passthrough en `formatNumber`, pero rompe si se asume number.
 - `ranking_historico`: param `target_state="Sonora"` nunca usado; `entidad` filtro ignorado por diseño. Siempre devuelve lista plana `[{period,name,rank,total}]` (vacía = `[]`; antes devolvía `{"series":[],"target_data":[]}` si no había filas y rompía `HistoryRankings`). El frontend además valida con `Array.isArray`.
-- `App.jsx:10-12` `ProtectedRoute` no protege; auth real en `AdminDashboard` vía `/api/admin/me -> navigate('/admin/login')`.
 - `App.css` `.card{padding:2em}` colisiona con `.card` de `index.css`. Orden de import (`App.jsx:7` importa `App.css` después de `main.jsx:index.css`) define ganador.
 - `index.html lang="en"` para app española; `build_output.txt` fallo histórico `prop-types` ya resuelto en `package.json` pero exige `npm install` limpio.
-- Archivos muertos con rutas `d:\dev\Dashboard`: `fix_quotes.py, refactor.py, generate_pdf_analysis.py, check_pob.py (ruta data/... obsoleta), INSTRUCCIONES.md, README.md` (rutas ejemplo desactualizadas), `setup_backend.bat py -3.12` vs `render.yaml 3.11.0`.
+- Archivos muertos con rutas `d:\dev\Dashboard`: `fix_quotes.py, refactor.py, generate_pdf_analysis.py, check_pob.py (ruta data/... obsoleta), INSTRUCCIONES.md`, `render.yaml` (variables legado), `setup_backend.bat py -3.12` vs `render.yaml 3.11.0`.
 
 ## 14b. Sección Delitos Alto Impacto (2026-09-12, implementada; el spec de diseño ya se retiró)
 
