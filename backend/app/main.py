@@ -62,11 +62,13 @@ CACHE_MERGED_POP = None
 CACHE_MUN_MAP = None
 CACHE_MUN_POB_DF = None
 CACHE_ANIO_RECIENTE = None
+# Último mes con datos por conjunto y año, SIN filtros: {dataset: {año: mes 1-12}}
+CACHE_MES_FINAL = {}
 
 def reload_duckdb_views(strict: bool = False):
     """Recrea las vistas y caches. Con `strict`, un error en los caches se relanza
     (lo usa el admin para revertir una publicación que deja el tablero roto)."""
-    global CACHE_POB_DF, CACHE_ENT_MAP, CACHE_MERGED_POP, CACHE_MUN_MAP, CACHE_MUN_POB_DF, CACHE_ANIO_RECIENTE
+    global CACHE_POB_DF, CACHE_ENT_MAP, CACHE_MERGED_POP, CACHE_MUN_MAP, CACHE_MUN_POB_DF, CACHE_ANIO_RECIENTE, CACHE_MES_FINAL
     # Drop existing views to recreate them
     views_to_drop = ["delitos", "victimas", "victimas_mun", "poblacion"]
     for v in views_to_drop:
@@ -106,6 +108,22 @@ def reload_duckdb_views(strict: bool = False):
 
             res = db.cursor().execute('SELECT MAX("Año") FROM delitos').fetchone()
             CACHE_ANIO_RECIENTE = int(res[0]) if res and res[0] is not None else None
+
+        # Hasta qué mes publica la fuente cada año (sobre todo el conjunto, no sobre los filtros):
+        # un delito poco frecuente con 0 casos en diciembre no debe marcar el año como parcial
+        mes_final = {}
+        meses_sql = ", ".join(f"('{m}', {i})" for i, m in enumerate(
+            ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto',
+             'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'], start=1))
+        for ds, val_col in (("delitos", "Incidencia"), ("victimas", "Víctimas"), ("victimas_mun", "Víctimas")):
+            if not (PARQUET_DIR / f"{ds}.parquet").exists():
+                continue
+            rows = db.cursor().execute(
+                f'SELECT t."Año", MAX(m.n) FROM {ds} t JOIN (VALUES {meses_sql}) m(nombre, n) ON t.Mes = m.nombre '
+                f'WHERE t."{val_col}" > 0 GROUP BY t."Año"'
+            ).fetchall()
+            mes_final[ds] = {int(a): int(n) for a, n in rows if a is not None and n is not None}
+        CACHE_MES_FINAL = mes_final
 
         if CACHE_ENT_MAP is not None and CACHE_POB_DF is not None:
             CACHE_MERGED_POP = pd.merge(CACHE_ENT_MAP, CACHE_POB_DF, left_on='Clave_Ent', right_on='CLAVE_ENT')
@@ -227,11 +245,6 @@ PRESET_ALTO_IMPACTO = {
 }
 
 # Claves del JSON CUSTOM:{...} -> columna Parquet
-MES_NUM = {
-    'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6,
-    'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
-}
-
 CUSTOM_COLUMNAS = {
     "b": "Bien jurídico afectado",
     "t": "Tipo de delito",
@@ -586,14 +599,9 @@ async def obtener_incidencia_por_anio(
     
     if df_res.empty: return []
 
-    # Último mes con datos (>0) por año: permite marcar el año en curso como parcial
-    mes_final = {}
-    if 'Mes' in get_columns(dataset.value):
-        q_mes = f'SELECT "Año", Mes, SUM("{val_col}") as total FROM {dataset.value} {w_sql} GROUP BY "Año", Mes'
-        df_mes = db.cursor().execute(q_mes, params).df()
-        df_mes = df_mes[df_mes['total'] > 0]
-        df_mes['mes_num'] = df_mes['Mes'].map(MES_NUM)
-        mes_final = df_mes.dropna(subset=['mes_num']).groupby('Año')['mes_num'].max().astype(int).to_dict()
+    # Último mes publicado por año en TODO el conjunto (no con los filtros): así un delito con
+    # 0 casos en diciembre no marca el año como parcial; solo el año en curso queda "Ene–Ago"
+    mes_final = CACHE_MES_FINAL.get(dataset.value, {})
     df_res['mes_final'] = df_res['Año'].map(lambda y: int(mes_final.get(y, 12)))
     
     if metric_type == "rate":
