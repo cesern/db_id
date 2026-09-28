@@ -1,13 +1,18 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminClient } from '../../api';
+import { adminClient, setCsrfToken } from '../../api';
 import ConfirmDialog from './ConfirmDialog';
 import { fmtDate, num, shortMonth, signed, summaryLine, yearRange } from './format';
 
 const errorText = (err, fallback) => {
-  if (!err?.response) return 'No se pudo conectar con el servidor. Intenta de nuevo.';
+  if (!err?.response) return 'Sin conexión con el servidor';
   const d = err.response.data?.detail;
-  return typeof d === 'string' && d ? d : fallback;
+  if (typeof d === 'string' && d) return d;
+  const st = err.response.status;
+  if (st === 413) return 'El archivo supera el tamaño máximo permitido';
+  if (st === 409) return 'Operación en curso, intenta de nuevo';
+  if (st >= 500) return 'Error del servidor';
+  return fallback;
 };
 
 /** Cambio marcado (fondo dorado tenue) o texto atenuado si no cambió. */
@@ -99,6 +104,7 @@ const DatasetCard = ({ id, label, info, onChanged }) => {
 
   const handleError = (err, fallback) => {
     if (err?.response?.status === 401) {
+      setCsrfToken(null);
       navigate('/admin/login', { replace: true });
       return;
     }
@@ -112,7 +118,7 @@ const DatasetCard = ({ id, label, info, onChanged }) => {
       return;
     }
     setBusy('upload');
-    setProgress(0);
+    setProgress(null); // null = sin total conocido
     setMessage({ kind: 'info', text: `Subiendo ${file.name}…` });
     const form = new FormData();
     form.append('file', file);
@@ -238,14 +244,14 @@ const DatasetCard = ({ id, label, info, onChanged }) => {
       >
         {busy === 'upload' ? (
           <div className="adm-progress-wrap">
-            <span>{progress != null && progress < 100 ? `Subiendo… ${progress}%` : 'Validando archivo…'}</span>
+            <span>{progress == null ? 'Subiendo…' : progress < 100 ? `Subiendo… ${progress}%` : 'Validando archivo…'}</span>
             <div
               className="adm-progress"
               role="progressbar"
               aria-label={`Subida de ${label}`}
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-valuenow={progress ?? 0}
+              aria-valuenow={progress ?? undefined}
             >
               <div className="adm-progress-bar" style={{ transform: `scaleX(${(progress ?? 0) / 100})` }} />
             </div>

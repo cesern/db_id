@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * Diálogo modal de confirmación accesible.
@@ -17,6 +18,10 @@ const ConfirmDialog = ({ open, title, body, confirmLabel = 'Confirmar', onConfir
   useEffect(() => {
     if (!open) return undefined;
     const trigger = document.activeElement;
+    // El resto de la app queda inerte (ni foco ni lector de pantalla) mientras el diálogo está abierto
+    const appRoot = document.getElementById('root');
+    const wasInert = appRoot?.hasAttribute('inert');
+    if (appRoot && !wasInert) appRoot.setAttribute('inert', '');
     cancelRef.current?.focus();
 
     const onKey = (e) => {
@@ -47,6 +52,7 @@ const ConfirmDialog = ({ open, title, body, confirmLabel = 'Confirmar', onConfir
     document.addEventListener('keydown', onKey, true);
     return () => {
       document.removeEventListener('keydown', onKey, true);
+      if (appRoot && !wasInert) appRoot.removeAttribute('inert');
       if (trigger && typeof trigger.focus === 'function' && document.contains(trigger)) {
         trigger.focus();
       }
@@ -55,7 +61,8 @@ const ConfirmDialog = ({ open, title, body, confirmLabel = 'Confirmar', onConfir
 
   if (!open) return null;
 
-  return (
+  // Se monta fuera de #root para que no herede el atributo inert
+  return createPortal(
     <div
       className="adm-dialog-backdrop"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel?.(); }}
@@ -79,7 +86,8 @@ const ConfirmDialog = ({ open, title, body, confirmLabel = 'Confirmar', onConfir
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

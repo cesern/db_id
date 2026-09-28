@@ -43,6 +43,8 @@ const AdminDashboard = () => {
   const [log, setLog] = useState([]);
   const [phase, setPhase] = useState('loading'); // loading | ready | error
   const [attempt, setAttempt] = useState(0);
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const toLogin = useCallback(() => {
     setCsrfToken(null);
@@ -51,6 +53,7 @@ const AdminDashboard = () => {
 
   // Datos de las tarjetas y bitácora (sin esqueleto; se usa tras cada operación)
   const refresh = useCallback(async () => {
+    setRefreshing(true);
     try {
       const [ds, lg] = await Promise.all([
         adminClient.get('/api/admin/datasets'),
@@ -58,8 +61,13 @@ const AdminDashboard = () => {
       ]);
       setStatus(ds.data);
       setLog(Array.isArray(lg.data) ? lg.data : []);
+      setRefreshFailed(false);
     } catch (err) {
+      // 401 → login; otro error: se conservan las tarjetas actuales y se avisa
       if (err?.response?.status === 401) toLogin();
+      else setRefreshFailed(true);
+    } finally {
+      setRefreshing(false);
     }
   }, [toLogin]);
 
@@ -145,6 +153,25 @@ const AdminDashboard = () => {
 
         {phase === 'ready' && status && (
           <>
+            <div aria-live="polite">
+              {refreshFailed && (
+                <p
+                  className="adm-msg adm-msg-error"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}
+                >
+                  No se pudo actualizar el estado.
+                  <button
+                    type="button"
+                    className="state-panel-retry"
+                    style={{ marginTop: 0 }}
+                    onClick={refresh}
+                    disabled={refreshing}
+                  >
+                    {refreshing ? 'Reintentando…' : 'Reintentar'}
+                  </button>
+                </p>
+              )}
+            </div>
             {status.persistent === false && (
               <div className="adm-notice" role="note">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
