@@ -89,7 +89,12 @@ def _claims(request: Request) -> dict:
     if not token:
         raise HTTPException(status_code=401, detail="No autenticado")
     try:
-        claims = jwt.decode(token, config.settings.jwt_secret, algorithms=[JWT_ALGORITHM])
+        claims = jwt.decode(
+            token,
+            config.settings.jwt_secret,
+            algorithms=[JWT_ALGORITHM],
+            options={"require": ["exp", "sub"]},
+        )
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Sesión expirada")
     except jwt.PyJWTError:
@@ -184,13 +189,20 @@ login_limiter = LoginLimiter()
 
 
 def client_ip(request) -> str:
-    """IP del cliente; X-Forwarded-For (primer valor) solo con TRUST_PROXY."""
+    """IP del cliente para el límite de intentos.
+
+    Con TRUST_PROXY, cada proxy agrega al final de X-Forwarded-For la IP de
+    quien le habló, así que los primeros valores los controla el cliente. La
+    IP real está en la posición -TRUSTED_PROXY_HOPS desde la derecha; si la
+    lista es más corta se usa la IP de la conexión.
+    """
     if config.settings.trust_proxy:
         xff = request.headers.get("x-forwarded-for") or request.headers.get("X-Forwarded-For")
+        hops = max(1, int(config.settings.trusted_proxy_hops))
         if xff:
-            primera = xff.split(",")[0].strip()
-            if primera:
-                return primera
+            valores = [v.strip() for v in xff.split(",") if v.strip()]
+            if len(valores) >= hops:
+                return valores[-hops]
     cliente = getattr(request, "client", None)
     return getattr(cliente, "host", None) or "desconocida"
 

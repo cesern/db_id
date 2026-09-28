@@ -25,7 +25,7 @@ Fuera de alcance: varios usuarios, subida de CSV, ETL en servidor, cambios al ta
 **Modo de sesión** (se deduce de `CORS_ORIGINS`):
 - **Mismo dominio** (`CORS_ORIGINS` vacío): cookie `SameSite=Strict`, sin CORS para admin.
 - **Dominios distintos** (`CORS_ORIGINS` con valor, p. ej. Railway): cookie `SameSite=None; Secure`, CORS con `allow_origins` = lista exacta y `allow_credentials=True`, y **token CSRF** obligatorio en operaciones que modifican.
-- `ENVIRONMENT=local` permite `Secure=false` para pruebas en `http://localhost`.
+- En modo de dominios distintos la cookie siempre es `Secure` (`SameSite=None` lo exige). Chrome y Firefox la aceptan en `http://localhost`; Safari no, así que para pruebas locales usar Chrome o el modo de mismo dominio.
 
 Los endpoints públicos (GET) siguen aceptando cualquier origen **sin credenciales**.
 
@@ -98,7 +98,7 @@ Se eliminan: `/upload` (CSV), `/run-etl`, `/etl-status`, `/reload-db`, el estado
 
 - Contraseña: `ADMIN_PASSWORD_HASH` en formato `scrypt$n$r$p$salt_b64$hash_b64` (stdlib `hashlib.scrypt`, n=2^14, r=8, p=1). Comparación con `hmac.compare_digest`. Generador: `python -m app.tools.hash_password` (pide la contraseña sin eco).
 - JWT HS256 con `sub`, `csrf`, `exp` (8 h); `datetime.now(timezone.utc)`.
-- Límite de intentos: 5 fallos por IP en 15 min (memoria). IP de `X-Forwarded-For` solo si `TRUST_PROXY=true`.
+- Límite de intentos: 5 fallos por IP en 15 min (memoria). IP de `X-Forwarded-For` solo si `TRUST_PROXY=true`, contando `TRUSTED_PROXY_HOPS` valores desde la derecha (default 1).
 - Subidas: el nombre del archivo se ignora; tamaño limitado; se lee solo con pyarrow/DuckDB.
 - Bitácora: fecha ISO, usuario, acción (`upload|publish|restore|discard|login_fail`), conjunto, resumen corto; sin datos sensibles.
 

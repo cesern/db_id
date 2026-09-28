@@ -173,7 +173,7 @@ def test_public_cors_without_credentials_when_admin_off(make_client):
   - `test_token_from_other_secret_rejected` (token firmado con otro secreto → `require_admin` lanza 401)
   - `test_csrf_required_cross_site` (con `CORS_ORIGINS` definido, header ausente o distinto → 403; igual → OK)
 - [ ] **Step 2:** Run → FAIL.
-- [ ] **Step 3: Implementar.** `hashlib.scrypt(n=2**14, r=8, p=1, dklen=32)`, sal 16 bytes, base64 urlsafe. JWT HS256 con `sub`, `csrf` (`secrets.token_urlsafe(24)`), `exp` con `datetime.now(timezone.utc)`. IP: `X-Forwarded-For` (primer valor) solo si `trust_proxy`. `hash_password.py`: `getpass` dos veces, compara, imprime el hash.
+- [ ] **Step 3: Implementar.** `hashlib.scrypt(n=2**14, r=8, p=1, dklen=32)`, sal 16 bytes, base64 urlsafe. JWT HS256 con `sub`, `csrf` (`secrets.token_urlsafe(24)`), `exp` con `datetime.now(timezone.utc)`. IP: `X-Forwarded-For` solo si `trust_proxy`, tomando el valor en la posición `-TRUSTED_PROXY_HOPS` desde la derecha (default 1; el cliente puede falsificar los primeros valores); si la lista es más corta, `request.client.host`. `hash_password.py`: `getpass` dos veces, compara, imprime el hash.
 - [ ] **Step 4:** Run → PASS. `python -m app.tools.hash_password` imprime una línea `scrypt$...`.
 - [ ] **Step 5: Commit** `feat(admin): contraseña scrypt, sesión con CSRF y límite de intentos`.
 

@@ -16,12 +16,16 @@ class Settings(BaseSettings):
     # Hash scrypt generado con `python -m app.tools.hash_password`
     admin_password_hash: str = ""
     jwt_secret: str = ""
+    # OBSOLETO: el algoritmo está fijo en HS256 (auth.JWT_ALGORITHM); se ignora.
     jwt_algorithm: str = "HS256"
     environment: str = "local"
     # Interruptor del admin: apagado salvo ENABLE_ADMIN=true
     enable_admin: bool = False
     # Tomar la IP de X-Forwarded-For (solo detrás de un proxy de confianza)
     trust_proxy: bool = False
+    # Proxies de confianza delante del backend: la IP real es el valor en la
+    # posición -N desde la derecha de X-Forwarded-For (los primeros son falsificables)
+    trusted_proxy_hops: int = 1
 
     @field_validator("enable_admin", "trust_proxy", mode="before")
     @classmethod
@@ -63,10 +67,22 @@ def admin_config_problems(s: Settings) -> list[str]:
     problemas: list[str] = []
     if not s.admin_user.strip():
         problemas.append("falta ADMIN_USER")
-    if not s.admin_password_hash.startswith("scrypt$"):
+    h = s.admin_password_hash
+    if not h.startswith("scrypt$"):
         problemas.append(
             "falta ADMIN_PASSWORD_HASH (formato scrypt$...; generar con python -m app.tools.hash_password)"
         )
+    else:
+        partes = h.split("$")
+        try:
+            n_ok = len(partes) == 6 and int(partes[1]) >= 2**14
+        except ValueError:
+            n_ok = False
+        if not n_ok:
+            problemas.append(
+                "ADMIN_PASSWORD_HASH mal formado o con parámetro n menor a 16384 "
+                "(regenerar con python -m app.tools.hash_password)"
+            )
     if s.jwt_secret in SECRETOS_DE_EJEMPLO:
         problemas.append("JWT_SECRET es un valor de ejemplo")
     elif len(s.jwt_secret) < 32:

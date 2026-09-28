@@ -81,6 +81,12 @@ def test_config_problems(cfg):
     sin_usuario = cfg.model_copy(update={"admin_user": ""})
     assert config.admin_config_problems(sin_usuario)
 
+    mal_formado = cfg.model_copy(update={"admin_password_hash": "scrypt$16384$abc"})
+    assert config.admin_config_problems(mal_formado)
+
+    n_bajo = cfg.model_copy(update={"admin_password_hash": "scrypt$1024$8$1$c2Fs$aGFzaA=="})
+    assert config.admin_config_problems(n_bajo)
+
     comodin = cfg.model_copy(update={"cors_origins": "*"})
     assert config.admin_config_problems(comodin)
 
@@ -129,7 +135,26 @@ def test_client_ip_trust_proxy(cfg, monkeypatch):
 
     assert auth.client_ip(Req) == "10.0.0.1"
     monkeypatch.setattr(cfg, "trust_proxy", True)
+    monkeypatch.setattr(cfg, "trusted_proxy_hops", 1)
+    assert auth.client_ip(Req) == "10.0.0.1"
+    monkeypatch.setattr(cfg, "trusted_proxy_hops", 2)
     assert auth.client_ip(Req) == "9.9.9.9"
+    # Lista más corta que los saltos: IP de la conexión
+    monkeypatch.setattr(cfg, "trusted_proxy_hops", 3)
+    assert auth.client_ip(Req) == "10.0.0.1"
+
+
+def test_client_ip_ignores_spoofed_prefix(cfg, monkeypatch):
+    class Req:
+        # El cliente mandó "1.2.3.4"; el proxy agregó la IP real al final
+        headers = {"x-forwarded-for": "1.2.3.4, 203.0.113.7"}
+
+        class client:
+            host = "10.0.0.2"
+
+    monkeypatch.setattr(cfg, "trust_proxy", True)
+    monkeypatch.setattr(cfg, "trusted_proxy_hops", 1)
+    assert auth.client_ip(Req) == "203.0.113.7"
 
 
 # --- sesión ---
@@ -163,6 +188,11 @@ def test_expired_token_401(client):
         algorithm="HS256",
     )
     assert _con_sesion(client, viejo).get("/me").status_code == 401
+
+
+def test_token_without_exp_rejected(client):
+    sin_exp = jwt.encode({"sub": "admin", "csrf": "x"}, SECRETO, algorithm="HS256")
+    assert _con_sesion(client, sin_exp).get("/me").status_code == 401
 
 
 def test_other_user_401(client, cfg, monkeypatch):
