@@ -1,203 +1,94 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { adminClient, setCsrfToken } from '../../api';
 
-// Configurar axios para enviar cookies en todas las peticiones
-axios.defaults.withCredentials = true;
-
-// URL del backend desde variables de entorno
-const API_URL = import.meta.env.VITE_API_URL;
+const loginError = (err) => {
+  const res = err?.response;
+  if (!res) return 'No se pudo conectar con el servidor. Intenta de nuevo.';
+  if (res.status === 401) return 'Usuario o contraseña incorrectos';
+  if (res.status === 429) {
+    const segundos = Number(res.data?.retry_after);
+    const n = Number.isFinite(segundos) && segundos > 0 ? Math.max(1, Math.ceil(segundos / 60)) : null;
+    if (n == null) return res.data?.detail || 'Demasiados intentos, espera unos minutos';
+    return `Demasiados intentos, espera ${n} ${n === 1 ? 'minuto' : 'minutos'}`;
+  }
+  if (res.status === 404) return 'El panel de administración no está habilitado en el servidor';
+  return 'No se pudo iniciar sesión. Intenta de nuevo.';
+};
 
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
   const navigate = useNavigate();
+
+  // Con sesión vigente se pasa directo al panel
+  useEffect(() => {
+    let cancelled = false;
+    adminClient.get('/api/admin/me')
+      .then((res) => {
+        if (cancelled) return;
+        setCsrfToken(res.data.csrf_token);
+        navigate('/admin/dashboard', { replace: true });
+      })
+      .catch(() => { /* sin sesión: se queda en el formulario */ });
+    return () => { cancelled = true; };
+  }, [navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
     try {
-      const response = await axios.post(
-        `${API_URL}/api/admin/login`,
-        {
-          username,
-          password
-        }
-      );
-
-      if (response.data.message === "Login exitoso") {
-        navigate('/admin/dashboard');
-      }
+      const res = await adminClient.post('/api/admin/login', { username, password });
+      setCsrfToken(res.data.csrf_token);
+      navigate('/admin/dashboard', { replace: true });
     } catch (err) {
-      setError(
-        err.response?.data?.detail ||
-        'Error al iniciar sesión'
-      );
-    } finally {
+      setError(loginError(err));
       setLoading(false);
     }
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        backgroundColor: '#081C3A'
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: 'white',
-          padding: '2.5rem',
-          borderRadius: '12px',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-          width: '100%',
-          maxWidth: '400px'
-        }}
-      >
-        <div
-          style={{
-            textAlign: 'center',
-            marginBottom: '2rem'
-          }}
-        >
-          <img
-            src="/logo.png"
-            alt="Logo"
-            style={{
-              height: '60px',
-              marginBottom: '1rem'
-            }}
-          />
-
-          <h2
-            style={{
-              margin: 0,
-              color: '#1e293b',
-              fontSize: '1.5rem'
-            }}
-          >
-            Administración
-          </h2>
-
-          <p
-            style={{
-              margin: '0.5rem 0 0',
-              color: '#64748b',
-              fontSize: '0.9rem'
-            }}
-          >
-            Ingresa tus credenciales para continuar
-          </p>
+    <div className="adm-login-page">
+      <div className="adm-login-card">
+        <div className="adm-login-head">
+          <img src="/logo.png" alt="Fiscalía General de Justicia del Estado de Sonora" className="adm-login-img" />
+          <h1>Administración de datos</h1>
+          <span className="adm-header-rule" aria-hidden="true" />
+          <p>Ingresa tus credenciales para continuar</p>
         </div>
 
-        {error && (
-          <div
-            style={{
-              backgroundColor: '#fef2f2',
-              color: '#ef4444',
-              padding: '0.75rem',
-              borderRadius: '6px',
-              marginBottom: '1rem',
-              fontSize: '0.9rem',
-              border: '1px solid #fee2e2'
-            }}
-          >
-            {error}
-          </div>
-        )}
+        <div aria-live="polite">
+          {error && <p className="adm-msg adm-msg-error" role="alert">{error}</p>}
+        </div>
 
-        <form
-          onSubmit={handleLogin}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1.25rem'
-          }}
-        >
+        <form onSubmit={handleLogin} className="adm-login-form">
           <div>
-            <label
-              style={{
-                display: 'block',
-                marginBottom: '0.5rem',
-                fontSize: '0.9rem',
-                fontWeight: 600,
-                color: '#334155'
-              }}
-            >
-              Usuario
-            </label>
-
+            <label htmlFor="adm-user">Usuario</label>
             <input
+              id="adm-user"
               type="text"
+              autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '6px',
-                border: '1px solid #cbd5e1',
-                outline: 'none',
-                boxSizing: 'border-box'
-              }}
               required
             />
           </div>
-
           <div>
-            <label
-              style={{
-                display: 'block',
-                marginBottom: '0.5rem',
-                fontSize: '0.9rem',
-                fontWeight: 600,
-                color: '#334155'
-              }}
-            >
-              Contraseña
-            </label>
-
+            <label htmlFor="adm-pass">Contraseña</label>
             <input
+              id="adm-pass"
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '6px',
-                border: '1px solid #cbd5e1',
-                outline: 'none',
-                boxSizing: 'border-box'
-              }}
               required
             />
           </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              marginTop: '1rem',
-              padding: '0.75rem',
-              backgroundColor: '#C8A96B',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1,
-              transition: 'background-color 0.2s'
-            }}
-          >
-            {loading ? 'Iniciando...' : 'Iniciar Sesión'}
+          <button type="submit" className="btn btn-primary adm-login-submit" disabled={loading}>
+            {loading ? 'Iniciando sesión…' : 'Iniciar sesión'}
           </button>
         </form>
       </div>
