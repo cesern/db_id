@@ -217,6 +217,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
       if (v.length > 0) base[k] = v.join('|');
     }
     const entityName = (!selectedFilters.entidad || selectedFilters.entidad === 'All') ? 'Sonora' : selectedFilters.entidad;
+    let mfResolved = false;
     (async () => {
       try {
         let meses = Array.isArray(selectedFilters.meses) ? selectedFilters.meses : [];
@@ -226,7 +227,9 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
         const mf = cur && typeof cur.mes_final === 'number' ? cur.mes_final : null;
         setCurMesFinal(mf);
         setMesFinalFor(`${wireDataset}|${anio}`);
-        if (onMesFinal) onMesFinal(mf);
+        mfResolved = true;
+        // Se reporta con su conjunto y año: PublicDashboard solo lo reenvía si coinciden con lo aplicado
+        if (onMesFinal) onMesFinal({ dataset: selectedFilters.dataset || 'delitos', anio, mesFinal: mf });
         if (!cur || !rows.some(d => Number(d.year) === anio - 1)) { setPrevRank(null); return; }
         if (meses.length === 0 && cur.mes_final && cur.mes_final < 12) meses = MESES.slice(0, cur.mes_final);
         const params = { ...base, anio: anio - 1 };
@@ -237,7 +240,14 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
         const periodo = idx.length > 0 && idx.length < 12 ? `${MESES_CORTOS[idx[0]]}–${MESES_CORTOS[idx[idx.length - 1]]}` : null;
         setPrevRank(row ? { anio: anio - 1, rank: row.id, periodo, value: row.value } : null);
       } catch (err) {
-        if (!axios.isCancel(err)) setPrevRank(null);
+        if (axios.isCancel(err)) return;
+        setPrevRank(null);
+        // Falló la consulta del último mes: desconocido pero resuelto (texto neutro, no "Consultando…")
+        if (!mfResolved) {
+          setCurMesFinal(undefined);
+          setMesFinalFor(`${wireDataset}|${anio}`);
+          if (onMesFinal) onMesFinal({ dataset: selectedFilters.dataset || 'delitos', anio, mesFinal: undefined });
+        }
       }
     })();
     return () => controller.abort();
@@ -266,8 +276,9 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
   const entidadesEnCero = !error && todoEnCero(entidades);
   // Último mes publicado solo si ya se resolvió para el conjunto y año actuales (si no: undefined =
   // desconocido, texto neutro; nunca "Sin datos publicados" con un dato viejo o pendiente)
-  const mesFinalActual = mesFinalFor === `${wireDataset}|${Number(selectedFilters?.anio)}` ? curMesFinal : undefined;
-  const sinDatos = sinDatosCopy(selectedFilters?.anio ?? '', selectedFilters?.meses, mesFinalActual);
+  const mesFinalResuelto = mesFinalFor === `${wireDataset}|${Number(selectedFilters?.anio)}`;
+  const mesFinalActual = mesFinalResuelto ? curMesFinal : undefined;
+  const sinDatos = sinDatosCopy(selectedFilters?.anio ?? '', selectedFilters?.meses, mesFinalActual, !mesFinalResuelto);
   const sinPublicar = entidadesEnCero && periodoSinPublicar(selectedFilters?.meses, mesFinalActual);
   const rankShown = entidadesEnCero ? null : activeEntityRank;
   const rankCriterion = metricType === 'rate' ? 'mayor tasa' : (isVictimasBase ? 'más víctimas' : 'mayor incidencia');

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useId } from 'react';
 import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
 import { scaleSqrt } from 'd3-scale';
 
@@ -36,6 +36,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
   const [tooltipData, setTooltipData] = useState(null);
   // Tabulación itinerante: una sola región es parada de Tab; las flechas mueven el foco entre regiones
   const [rovingKey, setRovingKey] = useState(null);
+  const keysHintId = useId(); // ayuda de flechas: un solo texto, referido por las regiones
   const [stateData, setStateData] = useState([]);
   const [maxVal, setMaxVal] = useState(100);
   // true desde el inicio: antes de la primera respuesta no se muestra un "sin datos" falso
@@ -410,6 +411,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
       )}
 
       <div ref={mapWrapRef} style={{ flex: isDesktopLayout || isFullScreen ? 1 : 'none', position: 'relative', width: '100%', minHeight: 0 }}>
+        <p id={keysHintId} className="sr-only">Usa las flechas para cambiar de región; Enter abre el desglose.</p>
         {loading && <LoadingSpinner size="md" />}
         {!loading && error && <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />}
         {!loading && !error && stateData.length === 0 && <EmptyState />}
@@ -480,7 +482,8 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
                     // flechas/Inicio/Fin cambian de región y Enter/Espacio abre el desglose
                     tabIndex={regionsFocusable && geo.rsmKey === tabKey ? 0 : -1}
                     role="button"
-                    aria-label={`${stateName}: ${formatValue(realValue)}. ${drillHint}. Flechas para cambiar de región`}
+                    aria-label={`${stateName}: ${formatValue(realValue)}. ${drillHint}`}
+                    aria-describedby={keysHintId}
                     onFocus={() => { setRovingKey(geo.rsmKey); setTooltipData({ name: stateName, value: realValue }); }}
                     onBlur={() => setTooltipData(null)}
                     onKeyDown={(e) => handleRegionKeyDown(e, stateName)}

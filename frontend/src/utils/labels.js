@@ -66,10 +66,17 @@ export const todoEnCero = (list) =>
  * Texto del estado vacío cuando todo vale 0: "Sin datos publicados para Dic 2026" si el periodo
  * aún no se publica; si ya se publicó, "Sin registros para …" (cero real con estos filtros).
  */
-export const sinDatosCopy = (anio, meses, mesFinal) => {
+export const sinDatosCopy = (anio, meses, mesFinal, pending = false) => {
   const periodo = periodLabel(anio, meses, mesFinal);
-  // Último mes publicado aún desconocido: texto neutro, sin afirmar que falta publicar
-  if (mesFinal === undefined) return { short: '', title: `Sin datos para ${periodo}`, detail: 'Consultando qué meses están publicados…' };
+  // Último mes publicado desconocido (consultándose o sin respuesta): texto neutro, sin afirmar que
+  // falta publicar. "Consultando…" solo mientras la consulta sigue en curso (pending).
+  if (mesFinal === undefined) {
+    return {
+      short: '',
+      title: `Sin datos para ${periodo}`,
+      detail: pending ? 'Consultando qué meses están publicados…' : 'No hay cifras para este periodo con estos filtros.'
+    };
+  }
   return periodoSinPublicar(meses, mesFinal)
     ? { short: 'Sin datos publicados', title: `Sin datos publicados para ${periodo}`, detail: 'La fuente aún no publica ese periodo. Elige meses anteriores u otro año.' }
     : { short: 'Sin registros', title: `Sin registros para ${periodo}`, detail: 'Ningún lugar registra casos con estos filtros.' };
