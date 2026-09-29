@@ -6,6 +6,15 @@ import { monthsLabel } from '../utils/labels';
 const NOMBRES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const INICIALES = ['E', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+// Regla de periodos: fila 1 = trimestres, fila 2 = semestres (desde = índice del primer mes)
+const TRAMOS = [
+  { id: 't1', fila: 1, desde: 0, largo: 3, largoTexto: '1er trimestre', corto: 'T1', rango: 'Ene–Mar', meses: 'enero a marzo' },
+  { id: 't2', fila: 1, desde: 3, largo: 3, largoTexto: '2º trimestre', corto: 'T2', rango: 'Abr–Jun', meses: 'abril a junio' },
+  { id: 't3', fila: 1, desde: 6, largo: 3, largoTexto: '3er trimestre', corto: 'T3', rango: 'Jul–Sep', meses: 'julio a septiembre' },
+  { id: 't4', fila: 1, desde: 9, largo: 3, largoTexto: '4º trimestre', corto: 'T4', rango: 'Oct–Dic', meses: 'octubre a diciembre', ultimo: true },
+  { id: 's1', fila: 2, desde: 0, largo: 6, largoTexto: '1er semestre', corto: '1er sem', rango: 'Ene–Jun', meses: 'enero a junio' },
+  { id: 's2', fila: 2, desde: 6, largo: 6, largoTexto: '2º semestre', corto: '2º sem', rango: 'Jul–Dic', meses: 'julio a diciembre', ultimo: true },
+];
 
 const rango = (a, b) => {
   const [lo, hi] = a <= b ? [a, b] : [b, a];
@@ -32,8 +41,8 @@ const anuncioDe = (set) => {
  * ancla; Ctrl/Cmd+clic = alterna uno. Táctil: toque = alterna ese mes (conserva el resto); deslizar en
  * horizontal = rango. Selección vacía = año completo. Meses posteriores al último publicado (si el
  * año/dataset elegidos coinciden con los aplicados) llevan rayado y la pista "Aún no publicado".
- * onApplyShortcut(meses): periodos rápidos (Ene–{último publicado}, trimestres, semestres, año) que
- * eligen y aplican en un solo paso.
+ * onApplyShortcut(meses): periodos rápidos que eligen y aplican en un solo paso: chips "Ene–{último
+ * publicado}" y "Año" junto al resumen, y regla de trimestres/semestres alineada bajo la tira.
  */
 const MonthStrip = ({ meses, mesesAplicados, onChange, onApplyShortcut, mesFinalAplica }) => {
   const mesFinalCtx = useContext(MesFinalContext);
@@ -83,6 +92,14 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, onApplyShortcut, mesFinal
     anclaRef.current = i;
     setCursor(i);
     emitir(s);
+  };
+
+  // Periodos rápidos: cada botón elige y aplica en un paso (onApplyShortcut → handleApply(nextFilters)).
+  const aplicarPeriodo = (set) => {
+    anclaRef.current = set.size ? Math.min(...set) : 0;
+    setAnuncio(`${anuncioDe(set)}, aplicado`);
+    onApplyShortcut(aNombres(set));
+    stripRef.current?.focus({ preventScroll: true });
   };
 
   const onPointerDown = (e, i) => {
@@ -184,31 +201,20 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, onApplyShortcut, mesFinal
   const pendiente = !mismos(seleccion, aplicados);
   const idBase = `${uid}-opt-`;
 
-  // Periodos rápidos: cada chip elige y aplica en un paso (onApplyShortcut → handleApply(nextFilters)).
-  // "Ene–{último publicado}" solo con año incompleto y último mes conocido; "Año" = sin filtro de meses.
-  const tramo = (a, b) => new Set(rango(a, b));
-  const grupos = [
-    mesFinal !== null && mesFinal >= 1 && mesFinal < 12
-      ? [{ id: 'pub', texto: mesFinal === 1 ? 'Ene' : `Ene–${CORTOS[mesFinal - 1]}`, titulo: 'Hasta el último mes publicado', set: tramo(0, mesFinal - 1) }]
-      : [],
-    [
-      { id: 't1', texto: 'T1', titulo: '1er trimestre: Ene–Mar', set: tramo(0, 2) },
-      { id: 't2', texto: 'T2', titulo: '2º trimestre: Abr–Jun', set: tramo(3, 5) },
-      { id: 't3', texto: 'T3', titulo: '3er trimestre: Jul–Sep', set: tramo(6, 8) },
-      { id: 't4', texto: 'T4', titulo: '4º trimestre: Oct–Dic', set: tramo(9, 11) },
-    ],
-    [
-      { id: 's1', texto: '1er sem', titulo: '1er semestre: Ene–Jun', set: tramo(0, 5) },
-      { id: 's2', texto: '2º sem', titulo: '2º semestre: Jul–Dic', set: tramo(6, 11) },
-    ],
-    // "Año" no lleva rayado: significa "sin filtro de meses", no un periodo concreto
-    [{ id: 'anio', texto: 'Año', titulo: 'Año completo (sin filtro de meses)', set: new Set(), anio: true }],
-  ].filter(g => g.length > 0);
-  const aplicarPeriodo = (set) => {
-    anclaRef.current = set.size ? Math.min(...set) : 0;
-    setAnuncio(`${anuncioDe(set)}, aplicado`);
-    onApplyShortcut(aNombres(set));
-    stripRef.current?.focus({ preventScroll: true });
+  // Chips junto al resumen: "Ene–{último publicado}" (solo con año incompleto y último mes conocido) y "Año"
+  const hastaPublicado = mesFinal !== null && mesFinal >= 1 && mesFinal < 12 ? new Set(rango(0, mesFinal - 1)) : null;
+  const chips = [
+    ...(hastaPublicado ? [{
+      id: 'pub', texto: mesFinal === 1 ? 'Ene' : `Ene–${CORTOS[mesFinal - 1]}`, titulo: 'Hasta el último mes publicado',
+      etiqueta: `Hasta el último mes publicado: enero a ${NOMBRES[mesFinal - 1].toLowerCase()}`,
+      set: hastaPublicado, activo: mismos(seleccion, hastaPublicado)
+    }] : []),
+    { id: 'anio', texto: 'Año', titulo: 'Año completo (sin filtro de meses)', etiqueta: 'Año completo, sin filtro de meses', set: new Set(), activo: n === 0 },
+  ];
+  // Un solo manejador: el chip se identifica por data-periodo
+  const onChipClick = (e) => {
+    const chip = chips.find(c => c.id === e.currentTarget.dataset.periodo);
+    if (chip) aplicarPeriodo(chip.set);
   };
 
   return (
@@ -217,44 +223,40 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, onApplyShortcut, mesFinal
         <span className="month-strip-status">
           <span className="tabular">
             {resumenDe(seleccion)}
+            {n === 0 && (
+              // Pista de gesto: solo sin meses elegidos, en texto secundario dentro del propio resumen
+              <span className="month-strip-hint" aria-hidden="true">
+                <span className="month-strip-hint-fine"> · Arrastra para elegir un rango · Ctrl+clic para sumar</span>
+                <span className="month-strip-hint-coarse"> · Toca para elegir meses · desliza para un rango</span>
+              </span>
+            )}
             {pendiente && <span className="month-strip-pending"> · sin aplicar</span>}
           </span>
-          {/* Siempre montado: reserva su espacio para que el resumen no salte */}
-          <button
-            type="button"
-            className={`month-strip-clear${n === 0 ? ' is-hidden' : ''}`}
-            onClick={() => emitir(new Set())}
-            aria-hidden={n === 0 || undefined}
-            tabIndex={n === 0 ? -1 : undefined}
-          >
-            Limpiar meses
-          </button>
+          {onApplyShortcut && chips.map(c => (
+            <button
+              key={c.id}
+              type="button"
+              className={`month-chip${c.activo ? ' is-active' : ''}`}
+              aria-pressed={c.activo}
+              aria-label={c.etiqueta}
+              title={c.titulo}
+              data-periodo={c.id}
+              onClick={onChipClick}
+            >
+              {c.texto}
+            </button>
+          ))}
         </span>
-        {onApplyShortcut && (
-          <div className="month-quick" role="group" aria-label="Periodos rápidos (eligen y aplican)">
-            {grupos.map((grupo, gi) => (
-              <React.Fragment key={grupo[0].id}>
-                {gi > 0 && <span className="month-quick-sep" aria-hidden="true" />}
-                {grupo.map(p => {
-                  const activo = p.anio ? n === 0 : mismos(seleccion, p.set);
-                  const noPublicado = !p.anio && mesFinal !== null && [...p.set].some(i => i + 1 > mesFinal);
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      className={`month-chip${activo ? ' is-active' : ''}${noPublicado ? ' is-unpublished' : ''}`}
-                      aria-pressed={activo}
-                      title={noPublicado ? `${p.titulo} · aún no publicado` : p.titulo}
-                      onClick={() => aplicarPeriodo(p.set)}
-                    >
-                      {p.texto}
-                    </button>
-                  );
-                })}
-              </React.Fragment>
-            ))}
-          </div>
-        )}
+        {/* Siempre montado: reserva su espacio para que el resumen no salte */}
+        <button
+          type="button"
+          className={`month-strip-clear${n === 0 ? ' is-hidden' : ''}`}
+          onClick={() => emitir(new Set())}
+          aria-hidden={n === 0 || undefined}
+          tabIndex={n === 0 ? -1 : undefined}
+        >
+          Limpiar meses
+        </button>
       </div>
       <div
         ref={stripRef}
@@ -294,11 +296,31 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, onApplyShortcut, mesFinal
           );
         })}
       </div>
-      {n === 0 && (
-        <p className="month-strip-hint" aria-hidden="true">
-          <span className="month-strip-hint-fine">Arrastra para elegir un rango · Ctrl+clic para sumar meses</span>
-          <span className="month-strip-hint-coarse">Toca para elegir meses · desliza para un rango</span>
-        </p>
+      {/* Regla de periodos bajo la tira: misma rejilla de 12 columnas, así los bordes coinciden con los meses */}
+      {onApplyShortcut && (
+        <div className="month-ruler" role="group" aria-label="Periodos rápidos">
+          {TRAMOS.map(t => {
+            const set = new Set(rango(t.desde, t.desde + t.largo - 1));
+            const activo = mismos(seleccion, set);
+            // Meses del tramo posteriores al último publicado: se rayan solo esas columnas (desde la derecha)
+            const sinPublicar = mesFinal === null ? 0 : Math.max(0, Math.min(t.largo, t.desde + t.largo - mesFinal));
+            return (
+              <button
+                key={t.id}
+                type="button"
+                className={`month-tramo fila-${t.fila}${activo ? ' is-active' : ''}${sinPublicar > 0 ? ' is-unpublished' : ''}${t.ultimo ? ' is-last' : ''}`}
+                style={{ gridColumn: `${t.desde + 1} / span ${t.largo}`, gridRow: t.fila, ...(sinPublicar > 0 ? { '--sin-publicar': `${(sinPublicar / t.largo) * 100}%` } : {}) }}
+                aria-pressed={activo}
+                aria-label={`${t.largoTexto}: ${t.meses}${sinPublicar > 0 ? ', con meses aún no publicados' : ''}`}
+                title={`${t.largoTexto}: ${t.rango}${sinPublicar > 0 ? ' · aún no publicado' : ''}`}
+                onClick={() => aplicarPeriodo(set)}
+              >
+                <span className="month-tramo-long" aria-hidden="true">{t.largoTexto}</span>
+                <span className="month-tramo-short" aria-hidden="true">{t.corto}</span>
+              </button>
+            );
+          })}
+        </div>
       )}
       {/* Anuncio para lector de pantalla: al soltar un arrastre, con teclado, toque o atajo */}
       <span className="sr-only" aria-live="polite">{anuncio}</span>

@@ -649,7 +649,8 @@ select:focus:not(:focus-visible) {
 }
 /* Selección distinta de la aplicada */
 .month-strip-pending { color: var(--color-accent); font-weight: 600; }
-.month-strip-status { display: inline-flex; align-items: baseline; gap: 0.75rem; min-width: 0; }
+.month-strip-status { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0.25rem 0.4rem; min-width: 0; }
+.month-strip-status > .tabular { color: var(--text-primary); }
 .month-strip-clear {
   background: none; border: 0; padding: 0; cursor: pointer;
   font: inherit; font-size: 0.78rem; color: var(--color-accent); text-decoration: underline;
@@ -658,11 +659,9 @@ select:focus:not(:focus-visible) {
 }
 /* Oculto sin desmontar: conserva su espacio y se desvanece */
 .month-strip-clear.is-hidden { visibility: hidden; opacity: 0; }
-/* Periodos rápidos: chips compactos que eligen y aplican (Ene–último publicado | T1–T4 | semestres | Año) */
-.month-quick { display: flex; align-items: center; gap: 0.25rem; margin-left: auto; }
-.month-quick-sep { width: 1px; height: 18px; background: var(--border-color); margin: 0 0.3rem; flex-shrink: 0; }
+/* Chips junto al resumen: "Ene–{último publicado}" y "Año" (eligen y aplican) */
 .month-chip {
-  min-height: 30px; padding: 0 0.55rem; cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  min-height: 24px; padding: 0 0.5rem; cursor: pointer; white-space: nowrap;
   font: inherit; font-size: 0.75rem; font-weight: 500; color: var(--text-primary);
   background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-sm);
   transition: background-color 120ms var(--ease-out), border-color 120ms var(--ease-out), color 120ms var(--ease-out), transform 100ms var(--ease-out);
@@ -670,24 +669,7 @@ select:focus:not(:focus-visible) {
 .month-chip:hover { background-color: var(--color-accent-light); border-color: var(--color-accent); }
 .month-chip:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .month-chip:active { transform: scale(0.97); }
-/* Periodo total o parcialmente sin publicar: mismo rayado que los meses */
-.month-chip.is-unpublished {
-  background-image: repeating-linear-gradient(135deg, rgb(82 96 117 / 0.24) 0 2px, transparent 2px 7px);
-  background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--text-secondary) 24%, transparent) 0 2px, transparent 2px 7px);
-}
 .month-chip.is-active { background-color: var(--color-accent); border-color: var(--color-accent); color: white; font-weight: 700; }
-.month-chip.is-active.is-unpublished {
-  background-image: repeating-linear-gradient(135deg, rgb(255 255 255 / 0.14) 0 2px, transparent 2px 7px);
-}
-/* <1024px: la fila de chips va sola sobre la tira y se desplaza en horizontal (sin salto de línea) */
-@media (max-width: 1023px) {
-  .month-strip-summary { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
-  .month-quick {
-    margin-left: 0; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: thin;
-    padding: 3px 3px 6px; margin: -3px -3px 0; /* espacio para el anillo de foco y la barra de desplazamiento */
-  }
-  .month-chip { min-height: 40px; }
-}
 .month-strip {
   display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
   border: 1px solid var(--border-color); border-radius: var(--radius-md);
@@ -722,16 +704,58 @@ select:focus:not(:focus-visible) {
 .month-strip:focus-visible .month-seg.is-cursor { box-shadow: inset 0 0 0 2px var(--color-gold, #C8A96B); }
 .month-strip.is-dragging .month-seg { transition: transform 100ms var(--ease-out); }
 .month-seg-short { display: none; }
-/* Pista bajo la tira (solo sin meses elegidos): texto según el tipo de puntero */
-.month-strip-hint { margin: 0; font-size: 0.75rem; color: var(--text-secondary); }
+/* Pista de gesto dentro del resumen (solo sin meses elegidos): texto según el tipo de puntero */
+.month-strip-hint { font-size: 0.75rem; color: var(--text-secondary); }
 .month-strip-hint-coarse { display: none; }
 @media (pointer: coarse) {
   .month-strip-hint-fine { display: none; }
   .month-strip-hint-coarse { display: inline; }
 }
+/* Regla de periodos: misma rejilla y mismo borde lateral de 1px que .month-strip → columnas alineadas */
+.month-ruler {
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); row-gap: 2px;
+  border: solid transparent; border-width: 0 1px;
+}
+.month-tramo {
+  position: relative; min-height: 26px; padding: 0 0.25rem; cursor: pointer; min-width: 0;
+  font: inherit; font-size: 0.75rem; font-weight: 500; color: var(--text-secondary);
+  background-color: transparent; border: 0; border-top: 1px solid var(--border-color); border-radius: 0 0 6px 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: background-color 120ms var(--ease-out), color 120ms var(--ease-out), transform 100ms var(--ease-out);
+}
+/* Marcas de regla: tic vertical en el borde izquierdo de cada tramo y en el derecho del último de la fila */
+.month-tramo::before, .month-tramo.is-last::after {
+  content: ''; position: absolute; top: -1px; width: 1px; height: 7px; background: var(--text-secondary); opacity: 0.45;
+}
+.month-tramo::before { left: 0; }
+.month-tramo.is-last::after { right: 0; }
+.month-tramo:hover { background-color: var(--color-accent-light); color: var(--text-primary); }
+.month-tramo:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.month-tramo:active { transform: scale(0.97); }
+/* Solo las columnas posteriores al último publicado: capa de rayas con ancho --sin-publicar, pegada a la derecha */
+.month-tramo.is-unpublished {
+  background-image: repeating-linear-gradient(135deg, rgb(82 96 117 / 0.24) 0 2px, transparent 2px 7px);
+  background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--text-secondary) 24%, transparent) 0 2px, transparent 2px 7px);
+  background-size: var(--sin-publicar, 100%) 100%; background-position: right top; background-repeat: no-repeat;
+  color: var(--text-primary);
+}
+.month-tramo.is-active { background-color: var(--color-accent); color: white; font-weight: 600; border-top-color: var(--color-accent); }
+.month-tramo.is-active.is-unpublished {
+  background-image: repeating-linear-gradient(135deg, rgb(255 255 255 / 0.14) 0 2px, transparent 2px 7px);
+}
+.month-tramo-short { display: none; }
+@media (max-width: 767px) {
+  .month-tramo-long { display: none; }
+  .month-tramo-short { display: inline; }
+  .month-tramo.fila-2 { display: none; }
+}
+@media (max-width: 1023px), (pointer: coarse) {
+  .month-tramo.fila-1,
+  .month-chip { min-height: 40px; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .month-seg, .month-strip.is-dragging .month-seg, .month-strip-clear, .month-chip { transition: none; }
-  .month-seg.is-pressed, .month-chip:active { transform: none; }
+  .month-seg, .month-strip.is-dragging .month-seg, .month-strip-clear, .month-chip, .month-tramo { transition: none; }
+  .month-seg.is-pressed, .month-chip:active, .month-tramo:active { transform: none; }
 }
 @media (max-width: 767px) {
   .month-seg { min-height: 40px; font-size: 0.8rem; }
