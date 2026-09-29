@@ -298,6 +298,10 @@ body {
   .sidebar-table-card {
     max-height: none;
   }
+  /* Mínimos menores para que barras + histórico quepan en el alto de la columna aun con los
+     filtros abiertos: así la columna central termina donde terminan tabla y mapa (el histórico
+     cede alto a su gráfica; el desplazamiento de la columna queda solo como respaldo). */
+  .dashboard-grid { --chart-card-min-height: 150px; --chart-trend-card-min-height: 180px; }
 }
 
 /* Pantallas de escritorio BAJAS (con scroll de body completo para ver todas las tarjetas sin colapsar) */
@@ -314,10 +318,14 @@ body {
   .dashboard-col:nth-child(1) { overflow-y: visible; }
   .dashboard-col:nth-child(2) { overflow-y: visible; padding-right: 0; }
   .dashboard-col:nth-child(3) { overflow-y: visible; }
-  .dashboard-col-map { height: 480px; min-height: 400px; }
-  .sidebar-table-card {
-    max-height: 400px; /* Para que la tabla de municipios no se extienda infinitamente */
-  }
+  /* Las tres columnas terminan a la misma altura: la fila la marca la columna central (barras +
+     histórico, que crecen con su contenido; mínimo 480px). Tabla y mapa no aportan alto propio
+     (contain: size) y se estiran a la fila: la tabla desplaza dentro y el mapa llena su tarjeta. */
+  .dashboard-grid { grid-auto-rows: minmax(480px, auto); }
+  .dashboard-col:nth-child(1),
+  .dashboard-col:nth-child(3) { contain: size; }
+  .dashboard-col-map { height: auto; min-height: 0; }
+  .sidebar-table-card { max-height: none; }
 }
 
 .filters-controls-right {
