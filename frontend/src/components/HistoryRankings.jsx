@@ -332,9 +332,10 @@ const HistoryRankings = ({ tempColor }) => {
   const [rankingData, setRankingData] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const headerRef = useRef(null);
-  // Pantalla completa: fsOpen es la intención; isFullScreen sigue montado ~140ms al cerrar (fundido de salida)
+  // Pantalla completa: aquí el overlay es la propia tarjeta, así que se cierra sin fundido (0ms):
+  // un fundido dejaría ver la tarjeta vacía detrás. SidebarLeft sí se desvanece (pinta la vista normal debajo).
   const [fsOpen, setFsOpen] = useState(false);
-  const { mounted: isFullScreen, closing: fsClosing } = useExitAnimation(fsOpen, 140);
+  const { mounted: isFullScreen, closing: fsClosing } = useExitAnimation(fsOpen, 0);
   const fsTriggerRef = useRef(null); // botón que abre la vista: recibe el foco al cerrar
 
   // Factor de escala fullscreen (1 en vista normal)

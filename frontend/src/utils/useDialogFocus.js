@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react';
 
+// Disparador de menú abierto (MenuSelect, letra, exportar, suavizado, multiselección) o menú visible
+const OPEN_POPUP = '[aria-haspopup][aria-expanded="true"], [role="menu"], [role="listbox"]';
+
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 // Pila de diálogos abiertos: solo el de arriba atrapa Tab y responde a Escape
@@ -42,6 +45,9 @@ export function useDialogFocus(active, { containerRef, initialFocusRef, returnFo
     const onKey = (e) => {
       if (stack[stack.length - 1] !== token) return;
       if (e.key === 'Escape') {
+        // Un menú abierto dentro del diálogo consume Escape: solo se cierra el menú
+        if (e.defaultPrevented) return;
+        if (containerRef?.current?.querySelector(OPEN_POPUP)) return;
         if (onEscapeRef.current) {
           e.preventDefault();
           onEscapeRef.current();

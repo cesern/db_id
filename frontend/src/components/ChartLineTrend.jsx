@@ -273,7 +273,7 @@ const SmoothingMenu = ({ maWindow, onSelect, btnStyle }) => {
 
   useEffect(() => {
     if (!isOpen) return undefined;
-    const handleKey = (e) => { if (e.key === 'Escape') setIsOpen(false); };
+    const handleKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); setIsOpen(false); } };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
   }, [isOpen]);
@@ -285,6 +285,7 @@ const SmoothingMenu = ({ maWindow, onSelect, btnStyle }) => {
         style={btnStyle(maWindow !== null)}
         title="Método de suavizado"
         aria-haspopup="dialog"
+        aria-expanded={isOpen}
       >
         {`Suavizado: ${active.label} ▾`}
       </button>
@@ -356,9 +357,10 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [data, setData] = useState([]);
   // true desde el inicio: antes de la primera respuesta no se muestra un "sin datos" falso
   const [loading, setLoading] = useState(true);
-  // Pantalla completa: fsOpen es la intención; isFullScreen sigue montado ~140ms al cerrar (fundido de salida)
+  // Pantalla completa: aquí el overlay es la propia tarjeta, así que se cierra sin fundido (0ms):
+  // un fundido dejaría ver la tarjeta vacía detrás. SidebarLeft sí se desvanece (pinta la vista normal debajo).
   const [fsOpen, setFsOpen] = useState(false);
-  const { mounted: isFullScreen, closing: fsClosing } = useExitAnimation(fsOpen, 140);
+  const { mounted: isFullScreen, closing: fsClosing } = useExitAnimation(fsOpen, 0);
   const fsTriggerRef = useRef(null); // botón que abre la vista: recibe el foco al cerrar
 
   const [activeToggles, setActiveToggles] = useState({
@@ -737,7 +739,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
                 title="Ver en pantalla completa"
                 aria-label="Ver en pantalla completa"
                 ref={fsTriggerRef}
-              onClick={() => setFsOpen(true)}
+                onClick={() => setFsOpen(true)}
               >
                 <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />

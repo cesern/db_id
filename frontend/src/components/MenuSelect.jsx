@@ -14,7 +14,7 @@ const MenuSelect = ({ value, options, onChange, title, prefix = '' }) => {
     const handleClickOutside = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) setIsOpen(false);
     };
-    const handleKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); setIsOpen(false); } };
+    const handleKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setIsOpen(false); } };
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKey, true);
     return () => {

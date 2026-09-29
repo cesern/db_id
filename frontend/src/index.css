@@ -451,7 +451,8 @@ select:focus:not(:focus-visible) {
 .btn-toggle button:not(:disabled):active,
 .dataset-tabs button:not(:disabled):active,
 .state-panel-retry:not(:disabled):active,
-.fs-close:not(:disabled):active { transform: scale(0.97); }
+.fs-close:not(:disabled):active,
+.table-more-btn:not(:disabled):active { transform: scale(0.97); }
 
 /* Botón de icono (pantalla completa, exportar, info): objetivo de 32px y hover solo con puntero fino */
 .icon-btn {
@@ -849,7 +850,6 @@ select:focus:not(:focus-visible) {
   cursor: pointer;
   transition: background-color 160ms var(--ease-out), transform 120ms var(--ease-out);
 }
-.table-more-btn:active { transform: scale(0.97); }
 @media (max-width: 1023px) {
   .sidebar-table-rows { overflow-y: visible !important; flex: none !important; }
   .table-more-btn { display: block; }

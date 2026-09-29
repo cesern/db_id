@@ -18,6 +18,19 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
     };
   }, []);
 
+  // Escape cierra solo el menú (preventDefault: la pantalla completa no se cierra con él)
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const handleKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [isOpen]);
+
   const handleExportImage = () => {
     if (elementRef && elementRef.current) {
       // Ocultar temporalmente el menú de exportación antes de capturar la imagen

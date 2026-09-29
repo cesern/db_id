@@ -34,13 +34,16 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
   const geoUrl = isSonora ? "/sonora_geo.json" : "/mexico_geo.json";
   
   const [tooltipData, setTooltipData] = useState(null);
+  // Tabulación itinerante: una sola región es parada de Tab; las flechas mueven el foco entre regiones
+  const [rovingKey, setRovingKey] = useState(null);
   const [stateData, setStateData] = useState([]);
   const [maxVal, setMaxVal] = useState(100);
   // true desde el inicio: antes de la primera respuesta no se muestra un "sin datos" falso
   const [loading, setLoading] = useState(true);
-  // Pantalla completa: fsOpen es la intención; isFullScreen sigue montado ~140ms al cerrar (fundido de salida)
+  // Pantalla completa: aquí el overlay es la propia tarjeta, así que se cierra sin fundido (0ms):
+  // un fundido dejaría ver la tarjeta vacía detrás. SidebarLeft sí se desvanece (pinta la vista normal debajo).
   const [fsOpen, setFsOpen] = useState(false);
-  const { mounted: isFullScreen, closing: fsClosing } = useExitAnimation(fsOpen, 140);
+  const { mounted: isFullScreen, closing: fsClosing } = useExitAnimation(fsOpen, 0);
   const fsTriggerRef = useRef(null); // botón que abre la vista: recibe el foco al cerrar
 
   const [drillModal, setDrillModal] = useState(null);
@@ -333,6 +336,24 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
   const drillHint = (isSonora || isVictimas) ? 'Clic para ver subtipos' : 'Clic para ver municipios';
   const openDrill = (name) => (isSonora ? handleMunicipioClick(name) : handleEntityClick(name));
 
+  // Sin regiones enfocables mientras hay estado vacío/error o carga inicial
+  const regionsFocusable = !loading && !error && stateData.length > 0 && !mapEnCero;
+  const handleRegionKeyDown = (e, name) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openDrill(name);
+      return;
+    }
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (step === undefined && e.key !== 'Home' && e.key !== 'End') return;
+    e.preventDefault();
+    const paths = [...(mapWrapRef.current?.querySelectorAll('path.rsm-geography') || [])];
+    const i = paths.indexOf(e.currentTarget);
+    if (i < 0 || paths.length === 0) return;
+    const next = e.key === 'Home' ? 0 : e.key === 'End' ? paths.length - 1 : (i + step + paths.length) % paths.length;
+    paths[next].focus();
+  };
+
   return (
     <div 
       ref={cardRef} 
@@ -430,8 +451,12 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
           style={{ width: "100%", height: isDesktopLayout || isFullScreen ? "100%" : "auto", display: "block" }}
         >
           <Geographies geography={geoUrl}>
-            {({ geographies }) =>
-              geographies.map((geo) => {
+            {({ geographies }) => {
+              // Parada de Tab: la última región enfocada; si no, el municipio elegido o la primera región
+              const selMun = isSonora && selectedFilters?.municipio && selectedFilters.municipio !== 'All' ? normalize(selectedFilters.municipio) : null;
+              const selGeo = selMun ? geographies.find(g => normalize(g.properties.MUN || '') === selMun) : null;
+              const tabKey = geographies.some(g => g.rsmKey === rovingKey) ? rovingKey : (selGeo || geographies[0])?.rsmKey;
+              return geographies.map((geo) => {
                 const stateName = isSonora ? (geo.properties.MUN || "Desconocido") : (geo.properties.nom_ent || "Desconocido");
 
                 const mapName = normalize(stateName);
@@ -451,17 +476,14 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
                     onMouseEnter={() => setTooltipData({ name: stateName, value: realValue })}
                     onMouseLeave={() => setTooltipData(null)}
                     onClick={() => openDrill(stateName)}
-                    // react-simple-maps ya da tabIndex=0: con foco muestra el tooltip y Enter/Espacio abre el desglose
+                    // Tabulación itinerante (una parada de Tab); con foco muestra el tooltip,
+                    // flechas/Inicio/Fin cambian de región y Enter/Espacio abre el desglose
+                    tabIndex={regionsFocusable && geo.rsmKey === tabKey ? 0 : -1}
                     role="button"
-                    aria-label={`${stateName}: ${formatValue(realValue)}. ${drillHint}`}
-                    onFocus={() => setTooltipData({ name: stateName, value: realValue })}
+                    aria-label={`${stateName}: ${formatValue(realValue)}. ${drillHint}. Flechas para cambiar de región`}
+                    onFocus={() => { setRovingKey(geo.rsmKey); setTooltipData({ name: stateName, value: realValue }); }}
                     onBlur={() => setTooltipData(null)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        openDrill(stateName);
-                      }
-                    }}
+                    onKeyDown={(e) => handleRegionKeyDown(e, stateName)}
                     style={{
                       default: {
                         fill: getFillColor(realValue),
@@ -485,8 +507,8 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
                     }}
                   />
                 );
-              })
-            }
+              });
+            }}
           </Geographies>
         </ComposableMap>
 

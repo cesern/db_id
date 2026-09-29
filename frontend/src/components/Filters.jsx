@@ -103,6 +103,7 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
           aria-label={`Opciones de ${label}`}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
+              e.preventDefault();
               e.stopPropagation();
               setIsOpen(false);
               document.getElementById(`${uid}-trigger`)?.focus();

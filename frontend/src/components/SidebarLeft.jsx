@@ -200,6 +200,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
   const [showRankTip, setShowRankTip] = useState(false);
   // Último mes con datos del año seleccionado (con los filtros): para rotular el periodo real
   const [curMesFinal, setCurMesFinal] = useState(null);
+  // Para qué conjunto|año se resolvió curMesFinal: mientras no coincida, el último mes es desconocido
+  const [mesFinalFor, setMesFinalFor] = useState(null);
   useEffect(() => {
     if (!selectedFilters || selectedFilters.anio == null) return undefined;
     const controller = new AbortController();
@@ -223,6 +225,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
         const cur = rows.find(d => Number(d.year) === anio);
         const mf = cur && typeof cur.mes_final === 'number' ? cur.mes_final : null;
         setCurMesFinal(mf);
+        setMesFinalFor(`${wireDataset}|${anio}`);
         if (onMesFinal) onMesFinal(mf);
         if (!cur || !rows.some(d => Number(d.year) === anio - 1)) { setPrevRank(null); return; }
         if (meses.length === 0 && cur.mes_final && cur.mes_final < 12) meses = MESES.slice(0, cur.mes_final);
@@ -261,8 +264,11 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
   // Periodo sin datos (p. ej. solo Dic en un año publicado hasta Ago): con todo en 0 las 32 entidades
   // empatarían en el lugar 1. Se muestra "—" y un estado vacío en lugar de lugares falsos.
   const entidadesEnCero = !error && todoEnCero(entidades);
-  const sinDatos = sinDatosCopy(selectedFilters?.anio ?? '', selectedFilters?.meses, curMesFinal);
-  const sinPublicar = entidadesEnCero && periodoSinPublicar(selectedFilters?.meses, curMesFinal);
+  // Último mes publicado solo si ya se resolvió para el conjunto y año actuales (si no: undefined =
+  // desconocido, texto neutro; nunca "Sin datos publicados" con un dato viejo o pendiente)
+  const mesFinalActual = mesFinalFor === `${wireDataset}|${Number(selectedFilters?.anio)}` ? curMesFinal : undefined;
+  const sinDatos = sinDatosCopy(selectedFilters?.anio ?? '', selectedFilters?.meses, mesFinalActual);
+  const sinPublicar = entidadesEnCero && periodoSinPublicar(selectedFilters?.meses, mesFinalActual);
   const rankShown = entidadesEnCero ? null : activeEntityRank;
   const rankCriterion = metricType === 'rate' ? 'mayor tasa' : (isVictimasBase ? 'más víctimas' : 'mayor incidencia');
 
@@ -532,7 +538,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
           {!error && rankShown !== null && (
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{periodLabel}</span>
           )}
-          {entidadesEnCero && !loading && (
+          {entidadesEnCero && !loading && sinDatos.short && (
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{sinDatos.short}</span>
           )}
         </div>

@@ -48,17 +48,19 @@ export const chartTitle = (dataset, metricType, complement) =>
 
 /**
  * true si ninguno de los meses pedidos está publicado aún (mesFinal = último mes publicado del año).
- * Sin meses elegidos basta con que enero esté publicado. Sin mesFinal (año sin datos) = sin publicar.
+ * Sin meses elegidos basta con que enero esté publicado. mesFinal null (año sin datos) = sin publicar;
+ * undefined (todavía consultándose) = desconocido → false.
  */
 export const periodoSinPublicar = (meses, mesFinal) => {
+  if (mesFinal === undefined) return false; // aún sin consultar: desconocido, no "sin publicar"
   if (!mesFinal) return true;
   const idx = (Array.isArray(meses) ? meses : []).map(m => MESES.indexOf(m)).filter(i => i >= 0);
   return (idx.length ? idx : [0]).every(i => i + 1 > mesFinal);
 };
 
-/** true si la lista trae filas y todas valen 0 (los lugares serían un empate falso en 1). */
+/** true si la lista trae filas y todas valen 0 numérico (null o "N/D" = sin dato evaluable, no cero). */
 export const todoEnCero = (list) =>
-  Array.isArray(list) && list.length > 0 && list.every(r => Number(r?.value) === 0);
+  Array.isArray(list) && list.length > 0 && list.every(r => typeof r?.value === 'number' && r.value === 0);
 
 /**
  * Texto del estado vacío cuando todo vale 0: "Sin datos publicados para Dic 2026" si el periodo
@@ -66,6 +68,8 @@ export const todoEnCero = (list) =>
  */
 export const sinDatosCopy = (anio, meses, mesFinal) => {
   const periodo = periodLabel(anio, meses, mesFinal);
+  // Último mes publicado aún desconocido: texto neutro, sin afirmar que falta publicar
+  if (mesFinal === undefined) return { short: '', title: `Sin datos para ${periodo}`, detail: 'Consultando qué meses están publicados…' };
   return periodoSinPublicar(meses, mesFinal)
     ? { short: 'Sin datos publicados', title: `Sin datos publicados para ${periodo}`, detail: 'La fuente aún no publica ese periodo. Elige meses anteriores u otro año.' }
     : { short: 'Sin registros', title: `Sin registros para ${periodo}`, detail: 'Ningún lugar registra casos con estos filtros.' };

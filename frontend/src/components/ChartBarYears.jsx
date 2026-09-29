@@ -35,7 +35,7 @@ const FontSizeSelect = ({ value, onChange }) => {
     const handleClickOutside = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) setIsOpen(false);
     };
-    const handleKey = (e) => { if (e.key === 'Escape') setIsOpen(false); };
+    const handleKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); setIsOpen(false); } };
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKey);
     return () => {
@@ -111,9 +111,10 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [data, setData] = useState([]);
   // true desde el inicio: antes de la primera respuesta no se muestra un "sin datos" falso
   const [loading, setLoading] = useState(true);
-  // Pantalla completa: fsOpen es la intención; isFullScreen sigue montado ~140ms al cerrar (fundido de salida)
+  // Pantalla completa: aquí el overlay es la propia tarjeta, así que se cierra sin fundido (0ms):
+  // un fundido dejaría ver la tarjeta vacía detrás. SidebarLeft sí se desvanece (pinta la vista normal debajo).
   const [fsOpen, setFsOpen] = useState(false);
-  const { mounted: isFullScreen, closing: fsClosing } = useExitAnimation(fsOpen, 140);
+  const { mounted: isFullScreen, closing: fsClosing } = useExitAnimation(fsOpen, 0);
   const fsTriggerRef = useRef(null); // botón que abre la vista: recibe el foco al cerrar
   const [drillModal, setDrillModal] = useState(null);
   const [error, setError] = useState(false);
