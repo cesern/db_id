@@ -6,8 +6,9 @@ import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import EmptyState from './EmptyState';
 import MenuSelect from './MenuSelect';
-import { metricPhrase, periodLabel as formatPeriod } from '../utils/labels';
+import { metricPhrase, periodLabel as formatPeriod, todoEnCero, sinDatosCopy, periodoSinPublicar } from '../utils/labels';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
+import { useExitAnimation } from '../utils/useExitAnimation';
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -62,7 +63,10 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
   }, []);
   // true desde el inicio: antes de la primera respuesta no se muestra un "sin datos" falso
   const [loading, setLoading] = useState(true);
-  const [isFullScreen, setIsFullScreen] = useState(false);
+  // Pantalla completa: fsOpen es la intención; isFullScreen sigue montado ~140ms al cerrar (fundido de salida)
+  const [fsOpen, setFsOpen] = useState(false);
+  const { mounted: isFullScreen, closing: fsClosing } = useExitAnimation(fsOpen, 140);
+  const fsTriggerRef = useRef(null); // botón que abre la vista: recibe el foco al cerrar
   const [error, setError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
@@ -92,15 +96,6 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
     return () => ro.disconnect();
   }, [isFullScreen, fsView, tableView]);
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') setIsFullScreen(false);
-    };
-    if (isFullScreen) {
-      window.addEventListener('keydown', handleKeyDown);
-    }
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullScreen]);
 
   // Auto-switch to municipios when a specific entity is selected
   useEffect(() => {
@@ -263,6 +258,12 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
   const activeEntityData = entidades.find(e => e.name === activeEntityName);
   const activeEntityRank = activeEntityData ? activeEntityData.id : null;
   const totalEntidades = entidades.length;
+  // Periodo sin datos (p. ej. solo Dic en un año publicado hasta Ago): con todo en 0 las 32 entidades
+  // empatarían en el lugar 1. Se muestra "—" y un estado vacío en lugar de lugares falsos.
+  const entidadesEnCero = !error && todoEnCero(entidades);
+  const sinDatos = sinDatosCopy(selectedFilters?.anio ?? '', selectedFilters?.meses, curMesFinal);
+  const sinPublicar = entidadesEnCero && periodoSinPublicar(selectedFilters?.meses, curMesFinal);
+  const rankShown = entidadesEnCero ? null : activeEntityRank;
   const rankCriterion = metricType === 'rate' ? 'mayor tasa' : (isVictimasBase ? 'más víctimas' : 'mayor incidencia');
 
   // Periodo explícito del KPI: meses seleccionados (o todos) + año
@@ -296,6 +297,9 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
     return Array.from({ length: cols }, (_, i) => rows.slice(i * per, (i + 1) * per)).filter(c => c.length > 0);
   })();
 
+  // Tabla con todas las filas en 0: estado vacío en vez de un empate en 1
+  const tablaEnCero = !error && !loading && todoEnCero(rows);
+
   const maxVal = rows.reduce((mx, r) => (typeof r.value === 'number' && r.value > mx ? r.value : mx), 0);
 
   const baseValLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
@@ -322,17 +326,19 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
     copyTableToClipboard(dataForExport, headers);
   };
 
-  if (isFullScreen) {
-    return (
+  // Pantalla completa. Al cerrar, el overlay se queda ~140ms encima de la vista normal (ya montada)
+  // mientras se desvanece; en ese lapso no toma tableCardRef, que vuelve a la tarjeta normal.
+  const overlay = isFullScreen ? (
       <div 
-        ref={tableCardRef} 
-        className="fullscreen-immersive-overlay"
+        ref={fsClosing ? undefined : tableCardRef} 
+        className={`fullscreen-immersive-overlay${fsClosing ? ' is-closing' : ''}`}
       >
         <FullScreenHeader
           title={`Ranking de ${metricPhrase(dataset, metricType).toLowerCase()} por ${isEntidades ? 'entidad' : 'municipio'}`}
           selectedFilters={selectedFilters}
           metricType={metricType}
-          onClose={() => setIsFullScreen(false)}
+          onClose={() => setFsOpen(false)}
+          returnFocusRef={fsTriggerRef}
           extraActions={
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <MenuSelect
@@ -403,6 +409,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
             <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />
           ) : (rows.length === 0 && !loading) ? (
             <EmptyState />
+          ) : tablaEnCero ? (
+            <EmptyState title={sinDatos.title} detail={sinDatos.detail} />
           ) : fsView === 'barras' ? (
             <div className="fs-bars">
               {rows.map((m) => {
@@ -453,11 +461,15 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
           )}
         </div>
       </div>
-    );
-  }
+  ) : null;
+
+  // La vista normal se oculta mientras la pantalla completa está abierta; el overlay ocupa siempre
+  // la misma posición en el árbol (no se vuelve a montar al empezar el fundido de salida)
+  const showNormal = !isFullScreen || fsClosing;
 
   return (
     <>
+      {showNormal && (<>
       {/* KPI Cards: total del periodo + lugar nacional de la entidad activa */}
       <div style={{ display: 'flex', gap: 'var(--grid-gap, 1rem)' }}>
         {/* La posición nacional va primero: "Sonora · 21 de 32" + indicador vs año anterior.
@@ -474,7 +486,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
             <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {activeEntityName}
             </span>
-              {!error && activeEntityRank !== null && prevRank && (() => {
+              {!error && rankShown !== null && prevRank && (() => {
                 const diff = prevRank.rank - activeEntityRank; // > 0: subió hacia el 1
                 const up = diff > 0, down = diff < 0;
                 const cmpPrev = `${prevRank.periodo ? prevRank.periodo + ' ' : ''}${prevRank.anio}`;
@@ -511,14 +523,17 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
           <span className="tabular" style={{ lineHeight: 1.1, display: 'flex', alignItems: 'baseline', gap: '0.3rem' }}>
             {/* Cifra principal: mismo color oscuro que el total (el azul se reserva a lo interactivo) */}
             <span style={{ fontSize: 'clamp(1.5rem, 2.4vw, 1.9rem)', fontWeight: 700, color: 'var(--color-primary)', letterSpacing: '-0.02em' }}>
-              {error || activeEntityRank === null ? '—' : activeEntityRank}
+              {error || rankShown === null ? '—' : rankShown}
             </span>
-            {!error && activeEntityRank !== null && totalEntidades > 0 && (
+            {!error && rankShown !== null && totalEntidades > 0 && (
               <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>de {totalEntidades}</span>
             )}
           </span>
-          {!error && activeEntityRank !== null && (
+          {!error && rankShown !== null && (
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{periodLabel}</span>
+          )}
+          {entidadesEnCero && !loading && (
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{sinDatos.short}</span>
           )}
         </div>
         {/* El total lleva la cifra larga: tarjeta más ancha que la del lugar (siempre corta) */}
@@ -530,12 +545,12 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
           <span
             title={totalIsND ? 'Sin población CONAPO para calcular la tasa en este periodo' : undefined}
             className="tabular kpi-value"
-            style={{ '--chars': String(error || totalIncidencia === null ? '—' : formatNumber(totalIncidencia)).length, fontWeight: 700, color: 'var(--color-primary)', lineHeight: 1.1, letterSpacing: '-0.02em' }}
+            style={{ '--chars': String(error || totalIncidencia === null || sinPublicar ? '—' : formatNumber(totalIncidencia)).length, fontWeight: 700, color: 'var(--color-primary)', lineHeight: 1.1, letterSpacing: '-0.02em' }}
           >
-            {error || totalIncidencia === null ? '—' : formatNumber(totalIncidencia)}
+            {error || totalIncidencia === null || sinPublicar ? '—' : formatNumber(totalIncidencia)}
           </span>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-            {totalIsND && !error ? 'Sin población CONAPO para la tasa' : periodLabel}
+            {totalIsND && !error ? 'Sin población CONAPO para la tasa' : sinPublicar ? 'Sin datos publicados' : periodLabel}
           </span>
         </div>
       </div>
@@ -605,7 +620,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
               className="card-icon-btn"
               title="Ver en pantalla completa"
               aria-label="Ver en pantalla completa"
-              onClick={() => setIsFullScreen(true)}
+              ref={fsTriggerRef}
+              onClick={() => setFsOpen(true)}
             >
               <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
@@ -630,6 +646,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
             <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />
           ) : (rows.length === 0 && !loading) ? (
             <EmptyState />
+          ) : tablaEnCero ? (
+            <EmptyState title={sinDatos.title} detail={sinDatos.detail} />
           ) : visibleRows.map((m) => {
             const level = rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio, entidadFiltrada);
               const hl = level === 'strong';
@@ -673,17 +691,19 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
             );
           })}
         </div>
-        {hiddenCount > 0 && !error && (
+        {hiddenCount > 0 && !error && !tablaEnCero && (
           <button type="button" className="table-more-btn" onClick={() => setShowAllRows(true)}>
             Ver todos ({rows.length})
           </button>
         )}
-        {isNarrow && showAllRows && rows.length > MOBILE_ROWS && !error && (
+        {isNarrow && showAllRows && rows.length > MOBILE_ROWS && !error && !tablaEnCero && (
           <button type="button" className="table-more-btn" onClick={() => setShowAllRows(false)}>
             Ver solo los primeros {MOBILE_ROWS}
           </button>
         )}
       </div>
+      </>)}
+      {overlay}
     </>
   );
 };

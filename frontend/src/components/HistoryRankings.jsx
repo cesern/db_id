@@ -7,6 +7,7 @@ import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
 import { PREFERS_REDUCED_MOTION } from '../utils/motion';
+import { useExitAnimation } from '../utils/useExitAnimation';
 
 const MultiSelectDropdown = ({ label, options, selected, onChange, maxSelection }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -189,7 +190,7 @@ const MultiSelectDropdown = ({ label, options, selected, onChange, maxSelection 
   );
 };
 
-const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, dataset, fs = 1 }) => {
+const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, dataset, fs = 1, partialYears = {} }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const top3 = data._top3 || [];
@@ -212,6 +213,10 @@ const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, da
       <div style={{ background: 'rgba(255, 255, 255, 0.95)', border: '1px solid rgba(0,0,0,0.1)', padding: '12px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', minWidth: '220px' }}>
         <p style={{ fontWeight: '700', margin: '0 0 10px 0', fontSize: `${14 * fs}px`, color: '#1e293b', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px', textTransform: 'capitalize' }}>
           {displayLabel}
+          {/* Año aún incompleto en la fuente: "2026 (Ene–Ago, año parcial)" */}
+          {partialYears[label] && (
+            <span style={{ textTransform: 'none' }}> ({partialYears[label]}, año parcial)</span>
+          )}
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
@@ -327,21 +332,15 @@ const HistoryRankings = ({ tempColor }) => {
   const [rankingData, setRankingData] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const headerRef = useRef(null);
-  const [isFullScreen, setIsFullScreen] = useState(false);
+  // Pantalla completa: fsOpen es la intención; isFullScreen sigue montado ~140ms al cerrar (fundido de salida)
+  const [fsOpen, setFsOpen] = useState(false);
+  const { mounted: isFullScreen, closing: fsClosing } = useExitAnimation(fsOpen, 140);
+  const fsTriggerRef = useRef(null); // botón que abre la vista: recibe el foco al cerrar
 
   // Factor de escala fullscreen (1 en vista normal)
   const fsScale = useFullscreenScale(isFullScreen);
   const F = (base) => scaleSize(base, fsScale);
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') setIsFullScreen(false);
-    };
-    if (isFullScreen) {
-      window.addEventListener('keydown', handleKeyDown);
-    }
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullScreen]);
 
   const [filters, setFilters] = useState({
     bienJuridico: [], tipoDelito: [], subtipoDelito: [], modalidad: [], sexo: [], rangoEdad: []
@@ -419,6 +418,37 @@ const HistoryRankings = ({ tempColor }) => {
     };
     fetchRanking();
   }, [applied]);
+
+  // Último mes publicado por año del conjunto aplicado (mes_final sale del conjunto completo, sin filtros)
+  const [mesFinalPorAnio, setMesFinalPorAnio] = useState({});
+  useEffect(() => {
+    const controller = new AbortController();
+    axios.get(`${API_URL}/api/incidencia_por_anio`, { params: { dataset: applied.dataset }, signal: controller.signal })
+      .then(res => {
+        const map = {};
+        (Array.isArray(res.data) ? res.data : []).forEach(d => {
+          if (typeof d.mes_final === 'number') map[String(d.year)] = d.mes_final;
+        });
+        setMesFinalPorAnio(map);
+      })
+      .catch(err => { if (!axios.isCancel(err)) setMesFinalPorAnio({}); });
+    return () => controller.abort();
+  }, [applied.dataset]);
+
+  // Años parciales en Anual (se piden los 12 meses) y Acumulado (se piden Ene–mes de corte):
+  // { '2026': 'Ene–Ago' } si la fuente aún no publica todos los meses pedidos. Mensual no aplica.
+  const partialYears = useMemo(() => {
+    if (applied.temporalidad === 'mensual') return {};
+    const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const ultimoPedido = applied.temporalidad === 'acumulado' ? MESES_LARGOS.indexOf(applied.mesAcumulado) + 1 : 12;
+    const out = {};
+    Object.entries(mesFinalPorAnio).forEach(([year, mf]) => {
+      if (mf >= 1 && mf < ultimoPedido) out[year] = mf === 1 ? 'Ene' : `Ene–${MESES_CORTOS[mf - 1]}`;
+    });
+    return out;
+  }, [mesFinalPorAnio, applied.temporalidad, applied.mesAcumulado]);
+  const hasPartialTick = Object.keys(partialYears).length > 0;
 
   const chartData = useMemo(() => {
     if (!rankingData.length) return [];
@@ -593,7 +623,7 @@ const HistoryRankings = ({ tempColor }) => {
   return (
     <div
       ref={headerRef}
-      className={isFullScreen ? "fullscreen-immersive-overlay" : "card"}
+      className={isFullScreen ? `fullscreen-immersive-overlay${fsClosing ? ' is-closing' : ''}` : "card"}
       style={isFullScreen ? {} : { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}
     >
       {isFullScreen ? (
@@ -607,7 +637,8 @@ const HistoryRankings = ({ tempColor }) => {
             filters: applied.filters
           }}
           metricType={metricType}
-          onClose={() => setIsFullScreen(false)}
+          onClose={() => setFsOpen(false)}
+          returnFocusRef={fsTriggerRef}
           extraActions={
             <ExportMenu
               imageFilename="evolucion_ranking"
@@ -751,7 +782,8 @@ const HistoryRankings = ({ tempColor }) => {
               className="card-icon-btn"
               title="Ver en pantalla completa"
               aria-label="Ver en pantalla completa"
-              onClick={() => setIsFullScreen(true)}
+              ref={fsTriggerRef}
+              onClick={() => setFsOpen(true)}
             >
               <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
@@ -772,10 +804,22 @@ const HistoryRankings = ({ tempColor }) => {
                 {/* Sin cuadrícula: solo las divisorias entre niveles (abajo) para no competir con ellas */}
                 <XAxis
                   dataKey="period"
-                  tick={{ fill: '#475569', fontSize: F(12), fontWeight: 600 }}
+                  // Año parcial: segundo renglón "Ene–Ago" en acento (igual que en las barras por año)
+                  tick={({ x, y, payload, index, tickFormatter }) => (
+                    <g transform={`translate(${x},${y})`}>
+                      <text dy={Math.round(F(12) * 0.71) + 10} textAnchor="middle" fill="#475569" fontSize={F(12)} fontWeight={600}>
+                        {tickFormatter ? tickFormatter(payload.value, index) : payload.value}
+                      </text>
+                      {partialYears[payload.value] && (
+                        <text dy={Math.round(F(12) * 0.71) + 10 + F(14)} textAnchor="middle" fill="var(--color-accent)" fontSize={F(11)} fontWeight={600}>
+                          {partialYears[payload.value]}
+                        </text>
+                      )}
+                    </g>
+                  )}
+                  height={hasPartialTick ? F(30) + F(14) : F(30)}
                   axisLine={false}
                   tickLine={false}
-                  dy={10}
                   interval={0}
                   tickFormatter={(value) => {
                     if (!value) return '';
@@ -801,7 +845,7 @@ const HistoryRankings = ({ tempColor }) => {
                   tickLine={false}
                   dx={-5}
                 />
-                <Tooltip isAnimationActive={false} content={<CustomTooltip metricType={applied.metricType} selectedEntidad={selectedEntidad} dataset={applied.dataset} fs={fsScale} />} wrapperStyle={{ zIndex: 1000 }} />
+                <Tooltip isAnimationActive={false} content={<CustomTooltip metricType={applied.metricType} selectedEntidad={selectedEntidad} dataset={applied.dataset} fs={fsScale} partialYears={partialYears} />} wrapperStyle={{ zIndex: 1000 }} />
 
                 {/* Fondo de un solo color. Divisorias entre los tres niveles (1–10, 11–20, 21–32)
                     en el corte real (10.5 y 20.5): visibles pero discretas. */}

@@ -389,8 +389,14 @@ body {
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
-  animation: fadeInFullscreen 0.22s cubic-bezier(0.16, 1, 0.3, 1), fsPointerGuard 150ms;
+  animation: fadeInFullscreen 200ms var(--ease-out), fsPointerGuard 150ms;
 }
+/* Salida: fundido corto; el componente lo mantiene montado 140ms (useExitAnimation) */
+.fullscreen-immersive-overlay.is-closing {
+  animation: fadeOutFullscreen 140ms var(--ease-out) forwards;
+  pointer-events: none;
+}
+@keyframes fadeOutFullscreen { from { opacity: 1; } to { opacity: 0; } }
 /* Los primeros 150ms no recibe puntero: el tooltip solo aparece al mover el cursor */
 @keyframes fsPointerGuard { from, to { pointer-events: none; } }
 
@@ -437,8 +443,15 @@ select:focus:not(:focus-visible) {
   font-size: clamp(1.1rem, calc(100cqi / (var(--chars, 6) * 0.62)), 1.9rem);
 }
 
-/* Respuesta táctil al presionar (sutil; se omite con movimiento reducido) */
-button:not(:disabled):active { transform: scale(0.97); }
+/* Respuesta táctil al presionar (sutil; se omite con movimiento reducido). Solo en botones de acción:
+   los disparadores anchos tipo campo (selects, menús desplegables, plegables) no se encogen. */
+.btn:not(:disabled):active,
+.card-icon-btn:not(:disabled):active,
+.icon-btn:not(:disabled):active,
+.btn-toggle button:not(:disabled):active,
+.dataset-tabs button:not(:disabled):active,
+.state-panel-retry:not(:disabled):active,
+.fs-close:not(:disabled):active { transform: scale(0.97); }
 
 /* Botón de icono (pantalla completa, exportar, info): objetivo de 32px y hover solo con puntero fino */
 .icon-btn {
@@ -526,6 +539,9 @@ button:not(:disabled):active { transform: scale(0.97); }
 
 /* Modales (Información, desglose): entrada de 200ms */
 .modal-backdrop { animation: modalFadeIn 200ms var(--ease-out); }
+/* Salida de los modales: 150ms de opacidad (el componente lo mantiene montado ese tiempo) */
+.modal-backdrop.is-closing { animation: modalFadeOut 150ms var(--ease-out) forwards; pointer-events: none; }
+@keyframes modalFadeOut { from { opacity: 1; } to { opacity: 0; } }
 .modal-panel { animation: modalPanelIn 200ms var(--ease-out); }
 @keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes modalPanelIn { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
@@ -787,7 +803,14 @@ button:not(:disabled):active { transform: scale(0.97); }
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
   }
-  button:not(:disabled):active { transform: none; }
+  .btn:not(:disabled):active,
+  .card-icon-btn:not(:disabled):active,
+  .icon-btn:not(:disabled):active,
+  .btn-toggle button:not(:disabled):active,
+  .dataset-tabs button:not(:disabled):active,
+  .state-panel-retry:not(:disabled):active,
+  .fs-close:not(:disabled):active,
+  .table-more-btn:active { transform: none; }
   /* Sin fundido, pero se conserva la pausa de puntero (no es movimiento) */
   .fullscreen-immersive-overlay { animation: fsPointerGuard 150ms !important; }
   .loading-veil { animation: none !important; opacity: 1; }
@@ -807,7 +830,8 @@ button:not(:disabled):active { transform: scale(0.97); }
   .fs-badges > span { font-size: 0.72rem !important; white-space: nowrap; flex-shrink: 0; }
   .fs-header > div:first-child { min-width: 0; flex: 1; }
   .fs-header > div:last-child { gap: 0.5rem !important; flex-shrink: 0; }
-  .fs-close { padding: 0.35rem 0.6rem !important; font-size: 0.85rem !important; background-color: transparent !important; border-color: var(--border-color) !important; color: var(--text-secondary) !important; }
+  /* Compacto pero reconocible: rojo sobre fondo claro (6.1:1), sin borde gris y 40px de alto táctil */
+  .fs-close { min-height: 40px; padding: 0.35rem 0.7rem !important; font-size: 0.85rem !important; background-color: #fef2f2 !important; border-color: transparent !important; color: #b91c1c !important; }
 }
 
 /* Tabla de entidades/municipios: en <1024px crece con la página (sin scroll anidado) */
@@ -831,6 +855,22 @@ button:not(:disabled):active { transform: scale(0.97); }
   .table-more-btn { display: block; }
 }
 
+/* Tooltip de las barras por año (mismo aspecto que el de Recharts) y pista de desglose */
+.chart-tip {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  padding: 8px 12px;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+.chart-tip-label { font-weight: 600; margin-bottom: 2px; }
+.chart-tip-hint {
+  margin-top: 4px;
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+}
+
 /* Periodo bajo el título de tarjeta (mapa, tabla, barras con meses filtrados) */
 .card-period {
   font-size: 0.75rem;
@@ -841,6 +881,7 @@ button:not(:disabled):active { transform: scale(0.97); }
 
 /* Objetivos táctiles de al menos 40px en pantallas angostas */
 @media (max-width: 1023px) {
+  .dataset-tabs button { min-height: 40px; }
   .icon-btn,
   .card button,
   .sidebar-table-card button { min-height: 40px; min-width: 40px; }

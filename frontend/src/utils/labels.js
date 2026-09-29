@@ -45,3 +45,28 @@ export const periodLabel = (anio, meses, mesFinal) => {
 /** Título de tarjeta: metricPhrase + complemento. Ej.: chartTitle('victimas_mun', 'rate', 'por municipio (Sonora)'). */
 export const chartTitle = (dataset, metricType, complement) =>
   `${metricPhrase(dataset, metricType)} ${complement}`.trim();
+
+/**
+ * true si ninguno de los meses pedidos está publicado aún (mesFinal = último mes publicado del año).
+ * Sin meses elegidos basta con que enero esté publicado. Sin mesFinal (año sin datos) = sin publicar.
+ */
+export const periodoSinPublicar = (meses, mesFinal) => {
+  if (!mesFinal) return true;
+  const idx = (Array.isArray(meses) ? meses : []).map(m => MESES.indexOf(m)).filter(i => i >= 0);
+  return (idx.length ? idx : [0]).every(i => i + 1 > mesFinal);
+};
+
+/** true si la lista trae filas y todas valen 0 (los lugares serían un empate falso en 1). */
+export const todoEnCero = (list) =>
+  Array.isArray(list) && list.length > 0 && list.every(r => Number(r?.value) === 0);
+
+/**
+ * Texto del estado vacío cuando todo vale 0: "Sin datos publicados para Dic 2026" si el periodo
+ * aún no se publica; si ya se publicó, "Sin registros para …" (cero real con estos filtros).
+ */
+export const sinDatosCopy = (anio, meses, mesFinal) => {
+  const periodo = periodLabel(anio, meses, mesFinal);
+  return periodoSinPublicar(meses, mesFinal)
+    ? { short: 'Sin datos publicados', title: `Sin datos publicados para ${periodo}`, detail: 'La fuente aún no publica ese periodo. Elige meses anteriores u otro año.' }
+    : { short: 'Sin registros', title: `Sin registros para ${periodo}`, detail: 'Ningún lugar registra casos con estos filtros.' };
+};

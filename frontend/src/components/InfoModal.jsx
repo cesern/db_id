@@ -1,25 +1,29 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
+import { useDialogFocus } from '../utils/useDialogFocus';
+import { useExitAnimation } from '../utils/useExitAnimation';
 
 const InfoModal = ({ isOpen, onClose }) => {
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'hidden';
-    }
+    if (isOpen) document.body.style.overflow = 'hidden';
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
-  if (!isOpen) return null;
+  // Al cerrar se queda montado 150ms para el fundido de salida (.is-closing)
+  const { mounted, closing } = useExitAnimation(isOpen, 150);
+
+  // Foco: "Cerrar" al abrir, Tab atrapado, Escape cierra y el foco vuelve al botón de información
+  const titleId = useId();
+  const panelRef = useRef(null);
+  const closeRef = useRef(null);
+  useDialogFocus(isOpen, { containerRef: panelRef, initialFocusRef: closeRef, onEscape: onClose });
+
+  if (!mounted) return null;
 
   return (
     <div
-      className="modal-backdrop"
+      className={`modal-backdrop${closing ? ' is-closing' : ''}`}
       style={{
         position: 'fixed',
         top: 0,
@@ -37,6 +41,10 @@ const InfoModal = ({ isOpen, onClose }) => {
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="modal-panel"
         style={{
           background: 'var(--bg-card)',
@@ -66,10 +74,14 @@ const InfoModal = ({ isOpen, onClose }) => {
           borderTopLeftRadius: '16px',
           borderTopRightRadius: '16px'
         }}>
-          <h2 style={{ margin: 0, color: 'var(--color-primary)', fontSize: '1.5rem', fontWeight: 800 }}>
+          <h2 id={titleId} style={{ margin: 0, color: 'var(--color-primary)', fontSize: '1.5rem', fontWeight: 800 }}>
             Metodología y Fuentes de Información
           </h2>
           <button
+            ref={closeRef}
+            type="button"
+            aria-label="Cerrar"
+            title="Cerrar (Esc)"
             onClick={onClose}
             style={{
               background: 'transparent',

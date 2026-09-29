@@ -1,7 +1,8 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect, useId, useRef, useState } from 'react';
 import { parseCapsule } from '../utils/altoImpacto';
 import { periodLabel, monthsLabel } from '../utils/labels';
 import { MesFinalContext } from '../utils/mesFinalContext';
+import { useDialogFocus } from '../utils/useDialogFocus';
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
@@ -10,9 +11,35 @@ const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'S
  * - 'year' (tabla, mapa): "Periodo: Ene–Ago 2026" / "Mar 2026" / "Año 2024"
  * - 'series' (barras por año): "Año: 2026 (Ene–Ago)" si es parcial + "Meses: Mar de cada año" si hay meses
  * - 'history' (histórico mensual, ignora meses): "Datos hasta: Ago 2026" si el año es parcial
+ *
+ * Foco: el encabezado vive solo dentro del overlay de pantalla completa, así que maneja el diálogo
+ * completo (foco inicial en "Cerrar", Tab atrapado, Escape cierra y el foco vuelve a `returnFocusRef`,
+ * el botón que abrió la vista, que se vuelve a montar al cerrar).
  */
-const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraActions, periodMode = 'year' }) => {
+const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraActions, periodMode = 'year', returnFocusRef }) => {
   const mesFinal = useContext(MesFinalContext);
+  const titleId = useId();
+  const rootRef = useRef(null);
+  const closeRef = useRef(null);
+  // El overlay es el ancestro .fullscreen-immersive-overlay (lo renderiza cada tarjeta)
+  const [overlayRef] = useState(() => ({ get current() { return rootRef.current?.closest('.fullscreen-immersive-overlay') || null; } }));
+
+  // Semántica de diálogo sobre el overlay mientras este encabezado está montado. Se aplica aquí
+  // (un solo lugar) porque en varias tarjetas el overlay es la misma tarjeta con otra clase.
+  useEffect(() => {
+    const el = overlayRef.current;
+    if (!el) return undefined;
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('aria-labelledby', titleId);
+    return () => {
+      el.removeAttribute('role');
+      el.removeAttribute('aria-modal');
+      el.removeAttribute('aria-labelledby');
+    };
+  }, [overlayRef, titleId]);
+
+  useDialogFocus(true, { containerRef: overlayRef, initialFocusRef: closeRef, returnFocusRef, onEscape: onClose });
   // Generar subtítulo contextual basado en los filtros (en formato de pastillas/badges)
   const generateSubtitle = () => {
     if (!selectedFilters) return null;
@@ -145,7 +172,7 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
   };
 
   return (
-    <div className="fs-header" style={{
+    <div ref={rootRef} className="fs-header" style={{
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
@@ -155,7 +182,7 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
       backgroundColor: '#ffffff'
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-        <h2 className="fs-title" style={{
+        <h2 id={titleId} className="fs-title" style={{
           fontSize: '1.84rem',
           fontWeight: '700',
           color: 'var(--text-primary)',
@@ -170,6 +197,8 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
         {extraActions}
         <button
+          ref={closeRef}
+          type="button"
           className="fs-close"
           onClick={onClose}
           style={{

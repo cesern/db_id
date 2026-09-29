@@ -1,4 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
+import { useDialogFocus } from '../utils/useDialogFocus';
+import { PREFERS_REDUCED_MOTION } from '../utils/motion';
+
+const EXIT_MS = 150; // fundido de salida (.modal-backdrop.is-closing)
 
 const RANK_STYLES = {
   1: { bg: '#fef9c3', color: '#a16207' },
@@ -17,11 +21,22 @@ const DrillDownModal = ({
   showPct = false,
   showRank = false,
 }) => {
-  useEffect(() => {
-    const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose]);
+  // El padre desmonta el modal en onClose: primero se desvanece (150ms) y luego se avisa
+  const [closing, setClosing] = useState(false);
+  const exitTimer = useRef(null);
+  useEffect(() => () => clearTimeout(exitTimer.current), []);
+  const requestClose = () => {
+    if (closing) return;
+    if (PREFERS_REDUCED_MOTION) { onClose(); return; }
+    setClosing(true);
+    exitTimer.current = setTimeout(onClose, EXIT_MS);
+  };
+
+  // Foco: "Cerrar" al abrir, Tab atrapado, Escape cierra y el foco vuelve a la barra/región que lo abrió
+  const titleId = useId();
+  const panelRef = useRef(null);
+  const closeRef = useRef(null);
+  useDialogFocus(true, { containerRef: panelRef, initialFocusRef: closeRef, onEscape: requestClose });
 
   const total = (data || []).reduce(
     (sum, d) => sum + (typeof d.value === 'number' ? d.value : 0),
@@ -55,7 +70,7 @@ const DrillDownModal = ({
   return (
     <>
       <div
-        className="modal-backdrop"
+        className={`modal-backdrop${closing ? ' is-closing' : ''}`}
         style={{
           position: 'fixed', inset: 0,
           backgroundColor: 'rgba(15,23,42,0.65)',
@@ -63,9 +78,13 @@ const DrillDownModal = ({
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           backdropFilter: 'blur(4px)',
         }}
-        onClick={onClose}
+        onClick={requestClose}
       >
         <div
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
           className="modal-panel"
           style={{
             backgroundColor: 'white',
@@ -89,7 +108,7 @@ const DrillDownModal = ({
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
               <div>
-                <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.3 }}>
+                <h2 id={titleId} style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.3 }}>
                   {title}
                 </h2>
                 {subtitle && (
@@ -99,7 +118,9 @@ const DrillDownModal = ({
                 )}
               </div>
               <button
-                onClick={onClose}
+                ref={closeRef}
+                type="button"
+                onClick={requestClose}
                 style={{
                   background: 'none', border: 'none', cursor: 'pointer',
                   color: 'var(--text-secondary)', padding: '6px', borderRadius: '8px',

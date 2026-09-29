@@ -9,12 +9,13 @@ import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
-import { chartTitle, periodLabel } from '../utils/labels';
+import { chartTitle, periodLabel, todoEnCero, sinDatosCopy } from '../utils/labels';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import DrillDownModal from './DrillDownModal';
 import { useFullscreenScale } from '../utils/fullscreenScale';
+import { useExitAnimation } from '../utils/useExitAnimation';
 
 // NOTA: El mapa solo soporta dos vistas:
 //   1. Vista Nacional (entidad = "All")  → muestra todas las entidades usando /mexico_geo.json
@@ -37,7 +38,10 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
   const [maxVal, setMaxVal] = useState(100);
   // true desde el inicio: antes de la primera respuesta no se muestra un "sin datos" falso
   const [loading, setLoading] = useState(true);
-  const [isFullScreen, setIsFullScreen] = useState(false);
+  // Pantalla completa: fsOpen es la intención; isFullScreen sigue montado ~140ms al cerrar (fundido de salida)
+  const [fsOpen, setFsOpen] = useState(false);
+  const { mounted: isFullScreen, closing: fsClosing } = useExitAnimation(fsOpen, 140);
+  const fsTriggerRef = useRef(null); // botón que abre la vista: recibe el foco al cerrar
 
   const [drillModal, setDrillModal] = useState(null);
   const [error, setError] = useState(false);
@@ -197,15 +201,6 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
     }
   };
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') setIsFullScreen(false);
-    };
-    if (isFullScreen) {
-      window.addEventListener('keydown', handleKeyDown);
-    }
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullScreen]);
 
   useEffect(() => {
     if (!selectedFilters) return;
@@ -329,10 +324,19 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
 
   const tooltipLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
 
+  // Periodo sin datos (todo en 0): estado vacío en lugar de una escala 0–1 engañosa
+  const mapEnCero = !loading && !error && todoEnCero(stateData);
+  const sinDatos = sinDatosCopy(selectedFilters?.anio ?? '', selectedFilters?.meses, mesFinal);
+
+  // Qué abre el clic (y Enter/Espacio con el teclado): municipios en el mapa nacional, subtipos en
+  // Sonora o en Víctimas (sin municipios)
+  const drillHint = (isSonora || isVictimas) ? 'Clic para ver subtipos' : 'Clic para ver municipios';
+  const openDrill = (name) => (isSonora ? handleMunicipioClick(name) : handleEntityClick(name));
+
   return (
     <div 
       ref={cardRef} 
-      className={isFullScreen ? "fullscreen-immersive-overlay" : ""}
+      className={isFullScreen ? `fullscreen-immersive-overlay${fsClosing ? ' is-closing' : ''}` : ""}
       style={isFullScreen ? {} : { display: 'flex', flexDirection: 'column', height: '100%', width: '100%', position: 'relative' }}
     >
       {isFullScreen ? (
@@ -340,7 +344,8 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
           title={mapTitle}
           selectedFilters={selectedFilters}
           metricType={metricType}
-          onClose={() => setIsFullScreen(false)}
+          onClose={() => setFsOpen(false)}
+          returnFocusRef={fsTriggerRef}
           extraActions={
             <ExportMenu
               elementRef={cardRef}
@@ -369,7 +374,8 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
             <button
               type="button"
               className="card-icon-btn card-icon-btn--text"
-              onClick={() => setIsFullScreen(true)}
+              ref={fsTriggerRef}
+              onClick={() => setFsOpen(true)}
               title="Ampliar mapa en pantalla completa"
               aria-label="Ampliar mapa en pantalla completa"
             >
@@ -386,6 +392,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
         {loading && <LoadingSpinner size="md" />}
         {!loading && error && <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />}
         {!loading && !error && stateData.length === 0 && <EmptyState />}
+        {mapEnCero && <EmptyState title={sinDatos.title} detail={sinDatos.detail} />}
 
         {/* Custom Tooltip Overlay */}
         {tooltipData && (
@@ -407,6 +414,9 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
             <div style={{ fontSize: `${0.75 * fsScale}rem`, color: 'var(--text-secondary)' }}>
               {tooltipLabel}: <strong style={{ color: 'var(--text-primary)' }}>{formatValue(tooltipData.value)}</strong>
             </div>
+            {tooltipData.name !== 'Desconocido' && (
+              <div className="chart-tip-hint" style={{ fontSize: `${0.6875 * fsScale}rem` }}>{drillHint}</div>
+            )}
           </div>
         )}
 
@@ -440,7 +450,18 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
                     geography={geo}
                     onMouseEnter={() => setTooltipData({ name: stateName, value: realValue })}
                     onMouseLeave={() => setTooltipData(null)}
-                    onClick={() => isSonora ? handleMunicipioClick(stateName) : handleEntityClick(stateName)}
+                    onClick={() => openDrill(stateName)}
+                    // react-simple-maps ya da tabIndex=0: con foco muestra el tooltip y Enter/Espacio abre el desglose
+                    role="button"
+                    aria-label={`${stateName}: ${formatValue(realValue)}. ${drillHint}`}
+                    onFocus={() => setTooltipData({ name: stateName, value: realValue })}
+                    onBlur={() => setTooltipData(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openDrill(stateName);
+                      }
+                    }}
                     style={{
                       default: {
                         fill: getFillColor(realValue),
@@ -471,7 +492,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
 
         {/* Leyenda de la escala de color (se exporta junto con el mapa).
             Vista normal: una sola fila compacta; pantalla completa: bloque con título. */}
-        {!error && stateData.length > 0 && maxVal > 0 && (
+        {!error && !mapEnCero && stateData.length > 0 && maxVal > 0 && (
           <div
             role="img"
             aria-label={`Escala de color (raíz cuadrada): de 0 a ${formatValue(maxVal)} ${metricType === 'rate' ? 'por 100 mil habitantes' : tooltipLabel.toLowerCase()}`}

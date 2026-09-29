@@ -10,6 +10,7 @@ import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
 import { CHART_ANIM } from '../utils/motion';
+import { useExitAnimation } from '../utils/useExitAnimation';
 
 // Savitzky-Golay: ajuste polinómico local por mínimos cuadrados sobre una
 // ventana deslizante (default 7 puntos, orden 2). Suaviza conservando mejor
@@ -355,7 +356,10 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [data, setData] = useState([]);
   // true desde el inicio: antes de la primera respuesta no se muestra un "sin datos" falso
   const [loading, setLoading] = useState(true);
-  const [isFullScreen, setIsFullScreen] = useState(false);
+  // Pantalla completa: fsOpen es la intención; isFullScreen sigue montado ~140ms al cerrar (fundido de salida)
+  const [fsOpen, setFsOpen] = useState(false);
+  const { mounted: isFullScreen, closing: fsClosing } = useExitAnimation(fsOpen, 140);
+  const fsTriggerRef = useRef(null); // botón que abre la vista: recibe el foco al cerrar
 
   const [activeToggles, setActiveToggles] = useState({
     promedio: false,
@@ -389,15 +393,6 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
   const initialLoadCalled = useRef(false);
   const cardRef = useRef(null);
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') setIsFullScreen(false);
-    };
-    if (isFullScreen) {
-      window.addEventListener('keydown', handleKeyDown);
-    }
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullScreen]);
 
   useEffect(() => {
     if (!selectedFilters) return;
@@ -678,7 +673,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
   return (
     <div 
       ref={cardRef} 
-      className={isFullScreen ? "fullscreen-immersive-overlay" : ""}
+      className={isFullScreen ? `fullscreen-immersive-overlay${fsClosing ? ' is-closing' : ''}` : ""}
       style={isFullScreen ? {} : { display: 'flex', flexDirection: 'column', height: '100%', width: '100%', position: 'relative' }}
     >
       {isFullScreen ? (
@@ -687,7 +682,8 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
           title={chartTitle}
           selectedFilters={selectedFilters}
           metricType={metricType}
-          onClose={() => setIsFullScreen(false)}
+          onClose={() => setFsOpen(false)}
+          returnFocusRef={fsTriggerRef}
           extraActions={
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
               {/* Toggles estadísticos */}
@@ -740,7 +736,8 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
                 className="card-icon-btn"
                 title="Ver en pantalla completa"
                 aria-label="Ver en pantalla completa"
-                onClick={() => setIsFullScreen(true)}
+                ref={fsTriggerRef}
+              onClick={() => setFsOpen(true)}
               >
                 <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />

@@ -4,13 +4,14 @@ import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
 import { chartTitle as buildTitle, monthsLabel } from '../utils/labels';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList, useActiveTooltipLabel } from 'recharts';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import DrillDownModal from './DrillDownModal';
 import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
 import { CHART_ANIM } from '../utils/motion';
+import { useExitAnimation } from '../utils/useExitAnimation';
 
 const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -99,11 +100,21 @@ const FontSizeSelect = ({ value, onChange }) => {
   );
 };
 
+// Guarda la barra activa (mouse o flechas del teclado de Recharts) para abrir su desglose con Enter/Espacio
+const ActiveLabelTracker = ({ labelRef }) => {
+  const label = useActiveTooltipLabel();
+  useEffect(() => { labelRef.current = label; }, [label, labelRef]);
+  return null;
+};
+
 const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
   const [data, setData] = useState([]);
   // true desde el inicio: antes de la primera respuesta no se muestra un "sin datos" falso
   const [loading, setLoading] = useState(true);
-  const [isFullScreen, setIsFullScreen] = useState(false);
+  // Pantalla completa: fsOpen es la intención; isFullScreen sigue montado ~140ms al cerrar (fundido de salida)
+  const [fsOpen, setFsOpen] = useState(false);
+  const { mounted: isFullScreen, closing: fsClosing } = useExitAnimation(fsOpen, 140);
+  const fsTriggerRef = useRef(null); // botón que abre la vista: recibe el foco al cerrar
   const [drillModal, setDrillModal] = useState(null);
   const [error, setError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -122,15 +133,6 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
     return () => ro.disconnect();
   }, [isFullScreen]);
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') setIsFullScreen(false);
-    };
-    if (isFullScreen) {
-      window.addEventListener('keydown', handleKeyDown);
-    }
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullScreen]);
 
   useEffect(() => {
     if (!selectedFilters) return;
@@ -316,6 +318,19 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
 
   const tooltipLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
 
+  // Teclado: con el foco en la gráfica, las flechas mueven la barra activa (Recharts) y
+  // Enter/Espacio abre el mismo desglose que el clic
+  const activeLabelRef = useRef(null);
+  const handleChartKeyDown = (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const active = activeLabelRef.current;
+    if (active == null) return;
+    const entry = data.find(d => String(d.label) === String(active));
+    if (!entry) return;
+    e.preventDefault();
+    handleBarClick(entry);
+  };
+
   // Factor de escala fullscreen (1 en vista normal): tipografías y márgenes crecen con la ventana
   const fsScale = useFullscreenScale(isFullScreen);
   const F = (base) => scaleSize(base, fsScale);
@@ -363,7 +378,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
   return (
     <div 
       ref={cardRef} 
-      className={isFullScreen ? "fullscreen-immersive-overlay" : ""}
+      className={isFullScreen ? `fullscreen-immersive-overlay${fsClosing ? ' is-closing' : ''}` : ""}
       style={isFullScreen ? {} : { display: 'flex', flexDirection: 'column', height: '100%', width: '100%', position: 'relative' }}
     >
       {isFullScreen ? (
@@ -372,7 +387,8 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
           title={chartTitle}
           selectedFilters={selectedFilters}
           metricType={metricType}
-          onClose={() => setIsFullScreen(false)}
+          onClose={() => setFsOpen(false)}
+          returnFocusRef={fsTriggerRef}
           extraActions={
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <FontSizeSelect value={fontBoost} onChange={handleFontBoost} />
@@ -408,7 +424,8 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
               className="card-icon-btn"
               title="Ver en pantalla completa"
               aria-label="Ver en pantalla completa"
-              onClick={() => setIsFullScreen(true)}
+              ref={fsTriggerRef}
+              onClick={() => setFsOpen(true)}
             >
               <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
@@ -418,7 +435,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
         </div>
       )}
 
-      <div ref={chartWrapRef} style={{ flex: 1, position: 'relative', width: '100%', minHeight: '120px' }}>
+      <div ref={chartWrapRef} onKeyDown={handleChartKeyDown} style={{ flex: 1, position: 'relative', width: '100%', minHeight: '120px' }}>
         {loading && <LoadingSpinner size="md" />}
         {!loading && error && <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />}
         {!loading && !error && data.length === 0 && <EmptyState />}
@@ -463,11 +480,22 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
             <YAxis hide={true} />
             <Tooltip
               isAnimationActive={false}
-              separator=": "
               cursor={{ fill: 'var(--bg-main)' }}
-              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow-md)', fontSize: FF(12) }}
-              formatter={(value, _name, item) => [formatValue(value), item?.payload?.partial ? `${tooltipLabel} (${item.payload.periodo}, año parcial)` : tooltipLabel]}
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                const item = payload[0];
+                const name = item?.payload?.partial ? `${tooltipLabel} (${item.payload.periodo}, año parcial)` : tooltipLabel;
+                return (
+                  <div className="chart-tip" style={{ fontSize: FF(12) }}>
+                    <div className="chart-tip-label">{label}</div>
+                    <div>{name}: <strong className="tabular">{formatValue(item.value)}</strong></div>
+                    {/* Pista del desglose: todas las barras (años o meses) abren subtipos */}
+                    <div className="chart-tip-hint">Clic para ver subtipos</div>
+                  </div>
+                );
+              }}
             />
+            <ActiveLabelTracker labelRef={activeLabelRef} />
             <Bar dataKey="value" radius={[F(6), F(6), 0, 0]} fill="url(#colorBarYears)"
               {...CHART_ANIM}
               onClick={handleBarClick}
