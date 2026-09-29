@@ -4,13 +4,8 @@ import { API_URL } from '../api';
 import { ALTO_IMPACTO_PRESETS, parseCapsule } from '../utils/altoImpacto';
 import AltoImpactoModal from './AltoImpactoModal';
 import { monthsLabel } from '../utils/labels';
+import MonthStrip from './MonthStrip';
 
-const MONTHS = [
-  { id: 1, label: 'Ene', name: 'Enero' }, { id: 2, label: 'Feb', name: 'Febrero' }, { id: 3, label: 'Mar', name: 'Marzo' },
-  { id: 4, label: 'Abr', name: 'Abril' }, { id: 5, label: 'May', name: 'Mayo' }, { id: 6, label: 'Jun', name: 'Junio' },
-  { id: 7, label: 'Jul', name: 'Julio' }, { id: 8, label: 'Ago', name: 'Agosto' }, { id: 9, label: 'Sep', name: 'Septiembre' },
-  { id: 10, label: 'Oct', name: 'Octubre' }, { id: 11, label: 'Nov', name: 'Noviembre' }, { id: 12, label: 'Dic', name: 'Diciembre' }
-];
 
 const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -703,49 +698,12 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
         </div>
       </div>
 
-      {/* Bottom Row: Month Buttons (sin selección = todos los meses) */}
-      <div className="months-row" role="group" aria-label="Meses">
-        <button
-          type="button"
-          className="btn month-btn month-btn-all"
-          aria-pressed={!selectedFilters.meses || selectedFilters.meses.length === 0}
-          title="Incluir todos los meses"
-          onClick={() => setSelectedFilters(prev => ({ ...prev, meses: [] }))}
-          style={{ padding: 'var(--month-btn-padding, 0.4rem 0.1rem)', fontSize: 'var(--month-btn-size, 0.75rem)' }}
-        >
-          Todos
-        </button>
-        {MONTHS.map((month) => {
-          const isSelected = selectedFilters.meses && selectedFilters.meses.includes(month.name);
-          return (
-            <button
-              key={month.name}
-              type="button"
-              className="btn month-btn"
-              aria-pressed={!!isSelected}
-              aria-label={month.name}
-              title={month.name}
-              onClick={() => {
-                setSelectedFilters(prev => {
-                  const currentMeses = prev.meses || [];
-                  const isAlreadySelected = currentMeses.includes(month.name);
-                  const newMeses = isAlreadySelected
-                    ? currentMeses.filter(m => m !== month.name)
-                    : [...currentMeses, month.name];
-                  return { ...prev, meses: newMeses };
-                });
-              }}
-              style={{
-                minWidth: 0,
-                padding: 'var(--month-btn-padding, 0.4rem 0.1rem)',
-                fontSize: 'var(--month-btn-size, 0.75rem)'
-              }}
-            >
-              {month.label}
-            </button>
-          );
-        })}
-      </div>
+      {/* Meses: tira con arrastre (sin selección = año completo) */}
+      <MonthStrip
+        meses={selectedFilters.meses || []}
+        onChange={(meses) => setSelectedFilters(prev => ({ ...prev, meses }))}
+        mesFinalAplica={dataset === appliedFilters.dataset && String(selectedFilters.anio) === String(appliedFilters.anio)}
+      />
 
       </div>
 

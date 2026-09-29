@@ -643,18 +643,48 @@ select:focus:not(:focus-visible) {
 }
 
 /* ───────────────── Filtros: meses y plegado en móvil ───────────────── */
-.months-row {
-  display: grid;
-  grid-template-columns: minmax(64px, auto) repeat(12, minmax(0, 1fr));
-  gap: 0.5rem;
+/* Tira de meses: 12 segmentos unidos, solo los extremos redondeados */
+.month-strip-wrap { display: flex; flex-direction: column; gap: 0.3rem; }
+.month-strip-summary {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem;
+  font-size: 0.8rem; color: var(--text-secondary); min-height: 1.4em;
 }
-.month-btn { min-height: 28px; }
-.month-btn-all { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
-.month-btn[aria-pressed="true"] {
-  background: var(--color-accent-light);
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-  font-weight: 700;
+.month-strip-clear {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; font-size: 0.78rem; color: var(--color-accent); text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.month-strip {
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  overflow: hidden; background: white; touch-action: none; user-select: none; outline: none;
+}
+.month-strip:focus-visible { box-shadow: 0 0 0 2px white, 0 0 0 4px var(--color-accent); }
+.month-seg {
+  min-height: 32px; display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 500; color: var(--text-primary); cursor: pointer;
+  border-left: 1px solid var(--border-color);
+  transition: background-color 120ms var(--ease-out), color 120ms var(--ease-out);
+}
+.month-seg:first-child { border-left: 0; }
+.month-seg:hover { background-color: var(--color-accent-light); }
+/* Rayado sutil: mes posterior al último publicado */
+.month-seg.is-unpublished {
+  background-image: repeating-linear-gradient(135deg, rgba(100, 116, 139, 0.16) 0 2px, transparent 2px 7px);
+  color: var(--text-secondary);
+}
+.month-seg.is-selected { background-color: var(--color-accent); color: white; font-weight: 700; }
+.month-seg.is-selected.is-unpublished {
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0 2px, transparent 2px 7px);
+}
+.month-strip:focus-visible .month-seg.is-cursor { box-shadow: inset 0 0 0 2px var(--color-gold, #C8A96B); }
+.month-strip.is-dragging .month-seg { transition: none; }
+.month-seg-short { display: none; }
+@media (prefers-reduced-motion: reduce) { .month-seg { transition: none; } }
+@media (max-width: 767px) {
+  .month-seg { min-height: 40px; font-size: 0.8rem; }
+  .month-seg-long { display: none; }
+  .month-seg-short { display: inline; }
 }
 
 .filters-body { display: flex; flex-direction: column; gap: var(--filters-gap, 1rem); }
@@ -699,9 +729,6 @@ select:focus:not(:focus-visible) {
 .filters-mobile-toggle { display: none; }
 
 @media (max-width: 767px) {
-  .months-row { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .month-btn-all { grid-column: 1 / -1; }
-  .month-btn { min-height: 40px; }
   .dataset-tabs button { padding: 0.55rem 0.85rem; }
   /* Desvanecido en los bordes: indica que hay más pestañas al desplazar */
   .dataset-tabs {
@@ -899,7 +926,7 @@ select:focus:not(:focus-visible) {
   .card button,
   .sidebar-table-card button { min-height: 40px; min-width: 40px; }
   .filters-group-toggle,
-  .month-btn { min-height: 40px; }
+  .month-seg { min-height: 40px; }
   /* Mismo tamaño visual; el área de toque crece hacia afuera sin mover la fila */
   .rank-change { min-width: 40px; min-height: 40px; margin: -8px; }
   .range-thumb { width: 40px; height: 40px; }
