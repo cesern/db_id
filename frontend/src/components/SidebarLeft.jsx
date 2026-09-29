@@ -549,8 +549,9 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
           {!error && rankShown !== null && (
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{periodLabel}</span>
           )}
-          {entidadesEnCero && !loading && sinDatos.short && (
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{sinDatos.short}</span>
+          {/* Sin lugar: solo el periodo (la tarjeta es angosta; el aviso "Sin datos publicados" va en la del total) */}
+          {entidadesEnCero && !loading && (
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{periodLabel}</span>
           )}
         </div>
         {/* El total lleva la cifra larga: tarjeta más ancha que la del lugar (siempre corta) */}
