@@ -102,7 +102,14 @@ function PublicDashboard() {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleApply = () => {
+  // Sin argumento aplica lo seleccionado. Con un objeto de filtros (p. ej. el atajo de meses) aplica
+  // ese mismo objeto y lo deja como seleccionado: no depende de un setState previo aún sin procesar.
+  const handleApply = (nextFilters) => {
+    if (nextFilters) {
+      setSelectedFilters(nextFilters);
+      setAppliedFilters({ ...nextFilters });
+      return;
+    }
     setAppliedFilters({ ...selectedFilters });
   };
 

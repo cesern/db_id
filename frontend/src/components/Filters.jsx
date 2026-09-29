@@ -669,7 +669,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
             <button
               type="button"
               id="btn-aplicar-filtros"
-              onClick={onApply}
+              onClick={() => onApply()}
               style={{
                 display: 'flex', alignItems: 'center', gap: '0.5rem',
                 padding: '0.45rem 1.1rem', fontSize: '0.875rem', fontWeight: 600,
@@ -701,7 +701,10 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
       {/* Meses: tira con arrastre (sin selección = año completo) */}
       <MonthStrip
         meses={selectedFilters.meses || []}
+        mesesAplicados={appliedFilters.meses || []}
         onChange={(meses) => setSelectedFilters(prev => ({ ...prev, meses }))}
+        /* Atajo "Ene–Ago": elige y aplica en un solo paso con el objeto nuevo (sin carrera de estado) */
+        onApplyShortcut={(meses) => onApply({ ...selectedFilters, meses })}
         mesFinalAplica={dataset === appliedFilters.dataset && String(selectedFilters.anio) === String(appliedFilters.anio)}
       />
 
