@@ -102,17 +102,7 @@ function PublicDashboard() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Sin argumento aplica lo seleccionado. Con un objeto de filtros (p. ej. el atajo de meses) aplica
-  // ese mismo objeto y lo deja como seleccionado: no depende de un setState previo aún sin procesar.
-  const handleApply = (nextFilters) => {
-    // Solo un objeto plano de filtros (con `dataset`); un evento u otro argumento se ignora
-    const esFiltros = nextFilters !== null && typeof nextFilters === 'object'
-      && Object.getPrototypeOf(nextFilters) === Object.prototype && 'dataset' in nextFilters;
-    if (esFiltros) {
-      setSelectedFilters(nextFilters);
-      setAppliedFilters({ ...nextFilters });
-      return;
-    }
+  const handleApply = () => {
     setAppliedFilters({ ...selectedFilters });
   };
 
