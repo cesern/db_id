@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useRef, useId } from 'react';
+import React, { useState, useEffect, useRef, useId, useContext } from 'react';
 import axios from 'axios';
 import { API_URL } from '../api';
 import { ALTO_IMPACTO_PRESETS, parseCapsule } from '../utils/altoImpacto';
 import AltoImpactoModal from './AltoImpactoModal';
-import { monthsLabel } from '../utils/labels';
+import { mesesResumen, metricLabel, RATE_LABEL } from '../utils/labels';
+import { MesFinalContext } from '../utils/mesFinalContext';
+import { PREFERS_REDUCED_MOTION } from '../utils/motion';
 import MonthStrip from './MonthStrip';
 
 
@@ -223,13 +225,62 @@ function countPendingChanges(selected, applied) {
 
 const isVictimasDataset = (d) => d === 'victimas' || d === 'victimas_mun';
 
+// Celular (vertical u horizontal): los filtros inician plegados. Mismo criterio que el CSS de .filters-toggle
+const MOVIL_MQ = '(max-width: 767px), (max-height: 500px)';
+const esMovil = () => {
+  try { return window.matchMedia(MOVIL_MQ).matches; } catch { return false; }
+};
+// Duración del plegado (en sync con .filters-collapse de index.css)
+const PLEGADO_MS = 200;
+
 // ── Filters Component ──────────────────────────────────────────────────────────
 const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelectedFilters, appliedFilters, onApply, onClear, onInitialLoadComplete, customCapsules, onAddCustomCapsule, onRemoveCustomCapsule }) => {
   const isAltoImpacto = dataset === 'alto_impacto';
   const wireDataset = isAltoImpacto ? 'delitos' : dataset;
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
-  // Móvil: la barra de filtros inicia plegada para que los datos aparezcan primero
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  // Panel de filtros plegable. Escritorio: inicia abierto y se pliega al aplicar. Celular: inicia
+  // plegado (los datos aparecen primero) y también se pliega al aplicar.
+  const [isOpen, setIsOpen] = useState(() => !esMovil());
+  // En escritorio la línea de resumen aparece desde el primer plegado (antes, el panel se ve como siempre)
+  const [yaPlegado, setYaPlegado] = useState(false);
+  // Recorte del contenido: activo plegado y durante la apertura; al terminar se quita para que los
+  // menús desplegables (posición absoluta) no queden cortados
+  const [recortar, setRecortar] = useState(() => esMovil());
+  const toggleRef = useRef(null);
+  const enfocarToggleRef = useRef(false);
+  const mesFinalCtx = useContext(MesFinalContext);
+
+  const plegar = (enfocar = false) => {
+    setIsOpen(false);
+    setYaPlegado(true);
+    setRecortar(true);
+    enfocarToggleRef.current = enfocar;
+  };
+  const abrir = () => {
+    setIsOpen(true);
+    setRecortar(!PREFERS_REDUCED_MOTION);
+  };
+
+  // Fin de la apertura: se quita el recorte (sin animación, de inmediato)
+  useEffect(() => {
+    if (!isOpen || !recortar) return undefined;
+    const t = setTimeout(() => setRecortar(false), PLEGADO_MS + 20);
+    return () => clearTimeout(t);
+  }, [isOpen, recortar]);
+
+  // Tras aplicar, el botón queda dentro del contenido inerte: el foco pasa a la línea de resumen
+  useEffect(() => {
+    if (!isOpen && enfocarToggleRef.current) {
+      enfocarToggleRef.current = false;
+      toggleRef.current?.focus({ preventScroll: true });
+    }
+  }, [isOpen]);
+
+  // Aplicar pliega el panel; cambiar de dataset o "Limpiar filtros" no lo pliegan
+  const handleApplyClick = () => {
+    onApply();
+    plegar(true);
+  };
   // Grupo secundario "Delito": plegable, abierto por defecto; recuerda la preferencia
   const [isDelitoOpen, setIsDelitoOpen] = useState(() => {
     try { return localStorage.getItem('filters.delitoOpen') !== '0'; } catch { return true; }
@@ -255,13 +306,30 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
   // Cantidad de filtros pendientes de aplicar
   const pendingCount = countPendingChanges(selectedFilters, appliedFilters);
 
-  // Resumen de los filtros APLICADOS para el botón plegado: "Filtros · 2026 · Sonora · Mar"
+  // Resumen de los filtros APLICADOS en la línea plegada:
+  // "Filtros · 2026 · Sonora · Todos los municipios · Ene–Ago · Cifras absolutas"
   const appliedSummary = (() => {
     const a = appliedFilters || {};
-    const ent = !a.entidad || a.entidad === 'All' ? 'Nacional' : a.entidad;
-    const mun = dataset !== 'victimas' && a.municipio && a.municipio !== 'All'
-      ? String(a.municipio).replace(`, ${a.entidad}`, '') : null;
-    return ['Filtros', a.anio, ent, mun, monthsLabel(a.meses)].filter(Boolean).join(' · ');
+    const ds = a.dataset || dataset;
+    const nacional = !a.entidad || a.entidad === 'All';
+    const ent = nacional ? 'Nacional' : a.entidad;
+    let mun = null;
+    if (ds !== 'victimas' && !nacional) {
+      mun = a.municipio && a.municipio !== 'All'
+        ? String(a.municipio).replace(`, ${a.entidad}`, '') : 'Todos los municipios';
+    }
+    // El último mes publicado (contexto) corresponde siempre a lo aplicado
+    const meses = mesesResumen(a.meses, mesFinalCtx);
+    let delito = null;
+    if (ds === 'alto_impacto') {
+      const n = Array.isArray(a.altoImpacto) ? a.altoImpacto.length : 0;
+      delito = `${n} ${n === 1 ? 'delito' : 'delitos'} de alto impacto`;
+    } else {
+      const n = ['bienJuridico', 'tipoDelito', 'subtipoDelito', 'modalidad', 'sexo', 'rangoEdad']
+        .reduce((acc, k) => acc + (Array.isArray(a[k]) && a[k].length > 0 ? 1 : 0), 0);
+      if (n > 0) delito = `${n} ${n === 1 ? 'filtro' : 'filtros'} de ${isVictimasDataset(ds) ? 'delito y víctima' : 'delito'}`;
+    }
+    return ['Filtros', a.anio, ent, mun, meses, delito, metricLabel(metricType)].filter(Boolean).join(' · ');
   })();
 
   // ── Efecto 1: Opciones base (año, entidad, bien jurídico) — solo al aplicar filtros
@@ -416,28 +484,31 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
   };
 
   return (
-    <div style={{
-      padding: 'var(--filters-padding, 1.25rem 1.5rem)',
-      backgroundColor: 'white',
-      borderBottom: '1px solid var(--border-color)',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 'var(--filters-gap, 1rem)'
-    }}>
+    <div className="filters-panel" data-open={isOpen}>
+      {/* Línea de resumen: toda la línea abre/pliega el panel */}
       <button
         type="button"
-        className="filters-mobile-toggle"
-        aria-expanded={isMobileOpen}
+        ref={toggleRef}
+        className="filters-toggle"
+        data-visible={yaPlegado || !isOpen}
+        aria-expanded={isOpen}
         aria-controls="filters-body"
-        onClick={() => setIsMobileOpen(v => !v)}
+        onClick={() => (isOpen ? plegar() : abrir())}
       >
-        <span className="filters-mobile-summary">
-          {appliedSummary}{pendingCount > 0 ? ` · ${pendingCount} sin aplicar` : ''}
+        <span className="filters-toggle-summary">
+          {appliedSummary}
+          {pendingCount > 0 && <span className="filters-toggle-pending"> · {pendingCount} sin aplicar</span>}
         </span>
-        <span aria-hidden="true" style={{ color: 'var(--color-accent)' }}>{isMobileOpen ? '▴' : '▾'}</span>
+        <span className="filters-toggle-action">
+          {isOpen ? 'Ocultar' : 'Editar'}<span className="filters-toggle-action-long"> filtros</span>
+          <span aria-hidden="true">{isOpen ? ' ▴' : ' ▾'}</span>
+        </span>
       </button>
 
-      <div id="filters-body" className="filters-body" data-open={isMobileOpen}>
+      {/* Plegado con grid-template-rows 0fr ↔ 1fr; plegado = inerte (sin foco ni lector de pantalla) */}
+      <div className="filters-collapse" data-open={isOpen} data-clip={recortar}>
+      <div className="filters-collapse-inner" inert={!isOpen}>
+      <div id="filters-body" className="filters-body">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--filters-select-gap, 1.5rem)', flexWrap: 'wrap' }}>
         
         {/* Contenedor principal de Filtros */}
@@ -629,7 +700,9 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
 
         {/* Controles de Acción (Alineados a la derecha) */}
         <div className="filters-controls-right" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--filters-gap, 1rem)', alignItems: 'flex-end', flexShrink: 0 }}>
-          <div className="btn-toggle" style={{ display: 'flex' }}>
+          {/* Métrica: se aplica al instante, separada del grupo Limpiar/Aplicar */}
+          <div className="filters-metric" role="group" aria-label="Métrica" aria-describedby="filters-metric-hint">
+          <div className="btn-toggle" style={{ display: 'flex' }} title="Se aplica al instante">
             <button
               type="button"
               aria-pressed={metricType === 'absolute'}
@@ -644,13 +717,16 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
               className={metricType === 'rate' ? 'active' : ''}
               onClick={() => setMetricType('rate')}
             >
-              Tasa por 100 mil hab.
+              {RATE_LABEL}
             </button>
           </div>
+          <span id="filters-metric-hint" className="filters-metric-hint">Se aplica al instante</span>
+          </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <div className="filters-actions">
             <button
               type="button"
+              className="filters-btn"
               id="btn-limpiar-filtros"
               onClick={onClear}
               style={{
@@ -668,8 +744,9 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
 
             <button
               type="button"
+              className="filters-btn"
               id="btn-aplicar-filtros"
-              onClick={onApply}
+              onClick={handleApplyClick}
               style={{
                 display: 'flex', alignItems: 'center', gap: '0.5rem',
                 padding: '0.45rem 1.1rem', fontSize: '0.875rem', fontWeight: 600,
@@ -706,6 +783,8 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
         mesFinalAplica={dataset === appliedFilters.dataset && String(selectedFilters.anio) === String(appliedFilters.anio)}
       />
 
+      </div>
+      </div>
       </div>
 
       {isCustomModalOpen && (

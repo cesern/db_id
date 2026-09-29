@@ -644,19 +644,27 @@ select:focus:not(:focus-visible) {
 /* Tira de meses: 12 segmentos unidos, solo los extremos redondeados */
 .month-strip-wrap { display: flex; flex-direction: column; gap: 0.3rem; }
 .month-strip-summary {
-  display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.25rem 0.5rem;
+  display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
   font-size: 0.8rem; color: var(--text-secondary); min-height: 1.4em;
 }
+/* Una sola línea: el resumen se corta con elipsis antes que empujar "Limpiar meses" a otro renglón */
+.month-strip-summary > .tabular { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.month-strip-clear { flex-shrink: 0; }
 /* Selección distinta de la aplicada */
 .month-strip-pending { color: var(--color-accent); font-weight: 600; }
 .month-strip-clear {
-  background: none; border: 0; padding: 0; cursor: pointer;
-  font: inherit; font-size: 0.78rem; color: var(--color-accent); text-decoration: underline;
-  text-underline-offset: 2px;
-  transition: opacity 150ms var(--ease-out), visibility 150ms;
+  display: inline-flex; align-items: center;
+  padding: 0.15rem 0.6rem; cursor: pointer;
+  font: inherit; font-size: 0.75rem; font-weight: 600; color: var(--color-accent-dark);
+  background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+  transition: opacity 150ms var(--ease-out), visibility 150ms, background-color 150ms var(--ease-out), border-color 150ms var(--ease-out);
 }
-/* Oculto sin desmontar: conserva su espacio y se desvanece */
-.month-strip-clear.is-hidden { visibility: hidden; opacity: 0; }
+@media (hover: hover) and (pointer: fine) {
+  .month-strip-clear:hover { background-color: var(--color-accent-light); border-color: var(--color-accent); }
+}
+/* Oculto sin desmontar: conserva su alto (el resumen no salta) pero no su ancho, para no recortar
+   "Todos los meses · publicado hasta Ago" en pantallas angostas; se desvanece */
+.month-strip-clear.is-hidden { visibility: hidden; opacity: 0; width: 0; padding-inline: 0; border-inline-width: 0; overflow: hidden; white-space: nowrap; }
 .month-strip {
   display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
   border: 1px solid var(--border-color); border-radius: var(--radius-md);
@@ -708,7 +716,102 @@ select:focus:not(:focus-visible) {
   .month-seg-short { display: inline; }
 }
 
+/* Panel de filtros: línea de resumen (plegado) + contenido plegable */
+.filters-panel {
+  display: flex;
+  flex-direction: column;
+  padding: var(--filters-padding, 1.25rem 1.5rem);
+  background-color: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  transition: padding 200ms var(--ease-out);
+}
+/* Plegado: solo la línea de resumen, con poco margen vertical */
+.filters-panel[data-open="false"] { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+
+/* Plegado sin medir alturas en JS: la fila del grid pasa de 1fr a 0fr */
+.filters-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 200ms var(--ease-out);
+}
+.filters-collapse[data-open="false"] { grid-template-rows: 0fr; }
+.filters-collapse-inner {
+  min-height: 0;
+  transition: opacity 200ms var(--ease-out);
+}
+.filters-collapse[data-open="false"] > .filters-collapse-inner { opacity: 0; }
+/* Recorte solo plegado o mientras se abre: abierto, los menús desplegables no quedan cortados */
+.filters-collapse[data-clip="true"] > .filters-collapse-inner { overflow: hidden; }
+
 .filters-body { display: flex; flex-direction: column; gap: var(--filters-gap, 1rem); }
+/* Con la línea de resumen visible, el contenido abre separado de ella */
+.filters-toggle[data-visible="true"] + .filters-collapse .filters-body { padding-top: var(--filters-gap, 1rem); }
+
+/* Línea de resumen: en escritorio aparece desde el primer plegado; en celular, siempre */
+.filters-toggle {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 40px;
+  padding: 0.35rem 0.4rem 0.35rem 0.9rem;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 150ms var(--ease-out);
+}
+.filters-toggle[data-visible="true"] { display: flex; }
+@media (hover: hover) and (pointer: fine) {
+  .filters-toggle:hover { border-color: var(--color-accent); }
+}
+/* Resumen de lo aplicado; se corta con elipsis */
+.filters-toggle-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.filters-toggle-pending { color: var(--color-accent); }
+.filters-toggle-action {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-accent-dark);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  white-space: nowrap;
+}
+
+/* Métrica (se aplica al instante) separada del grupo Limpiar/Aplicar */
+.filters-metric { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.filters-metric-hint { font-size: 0.6875rem; color: var(--text-secondary); line-height: 1.2; }
+.filters-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+  align-self: stretch;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filters-panel, .filters-collapse, .filters-collapse-inner, .filters-toggle { transition: none; }
+}
 
 /* Grupo secundario de filtros (cascada de delito): subordinado a Año/Entidad/Municipio */
 .filters-group {
@@ -747,7 +850,6 @@ select:focus:not(:focus-visible) {
   padding: 1px 8px;
   font-size: 0.72rem;
 }
-.filters-mobile-toggle { display: none; }
 
 @media (max-width: 767px) {
   .dataset-tabs button { padding: 0.55rem 0.85rem; }
@@ -774,35 +876,13 @@ select:focus:not(:focus-visible) {
   .filters-controls-right .btn-toggle button { min-height: 40px; }
 }
 
-/* Filtros plegados en celular vertical u horizontal (932×430): los KPI quedan en la primera pantalla */
+/* Celular vertical u horizontal (932×430): la línea de resumen siempre visible y los filtros inician
+   plegados (MOVIL_MQ en Filters.jsx), así los KPI quedan en la primera pantalla */
 @media (max-width: 767px), (max-height: 500px) {
-  .filters-mobile-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    min-height: 44px;
-    padding: 0.6rem 0.9rem;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--color-primary);
-    background: var(--bg-main);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    cursor: pointer;
-    gap: 0.5rem;
-    text-align: left;
-  }
-  .filters-body[data-open="false"] { display: none; }
-}
-/* Resumen de lo aplicado en el botón plegado; se corta con elipsis */
-.filters-mobile-summary {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  .filters-toggle { display: flex; min-height: 44px; }
+  /* Pastilla corta ("Editar ▾"): deja más espacio al resumen */
+  .filters-toggle-action-long { display: none; }
+  .filters-toggle + .filters-collapse .filters-body { padding-top: var(--filters-gap, 1rem); }
 }
 
 @media (max-width: 480px) {
@@ -948,6 +1028,10 @@ select:focus:not(:focus-visible) {
   .sidebar-table-card button { min-height: 40px; min-width: 40px; }
   .filters-group-toggle,
   .month-seg { min-height: 40px; }
+  /* Limpiar/Aplicar filtros y Limpiar meses */
+  .filters-btn,
+  .month-strip-clear { min-height: 40px; }
+  .filters-toggle-action { min-height: 36px; }
   /* Mismo tamaño visual; el área de toque crece hacia afuera sin mover la fila */
   .rank-change { min-width: 40px; min-height: 40px; margin: -8px; }
   .range-thumb { width: 40px; height: 40px; }

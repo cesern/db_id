@@ -6,7 +6,7 @@ import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import EmptyState from './EmptyState';
 import MenuSelect from './MenuSelect';
-import { metricPhrase, periodLabel as formatPeriod, todoEnCero, sinDatosCopy, periodoSinPublicar } from '../utils/labels';
+import { metricPhrase, periodLabel as formatPeriod, todoEnCero, sinDatosCopy, RATE_LABEL, periodoSinPublicar } from '../utils/labels';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import { useExitAnimation } from '../utils/useExitAnimation';
 
@@ -320,7 +320,12 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
   const maxVal = rows.reduce((mx, r) => (typeof r.value === 'number' && r.value > mx ? r.value : mx), 0);
 
   const baseValLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
-  const valLabel = metricType === 'rate' ? `${baseValLabel} (Tasa)` : baseValLabel;
+  // Encabezado de la columna de valores: en tasa, el rótulo único "Tasa por 100 mil hab."
+  const valLabel = metricType === 'rate' ? RATE_LABEL : baseValLabel;
+  // En tasa la columna se ensancha: el rótulo cabe en dos renglones ("Tasa por 100 / mil hab.")
+  const valColW = metricType === 'rate' ? '96px' : '80px';
+  // CSV/portapapeles: con el sustantivo, "Tasa de incidencia por 100 mil hab."
+  const csvValLabel = metricType === 'rate' ? `${metricPhrase(dataset, 'rate')} por 100 mil hab.` : baseValLabel;
 
   const getExportFilename = (ext) => {
     if (isVictimas) return `tabla_victimas_entidad.${ext}`;
@@ -330,14 +335,12 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
   };
 
   const handleDownloadCSV = () => {
-    const csvValLabel = metricType === 'rate' ? `${baseValLabel} (Tasa por 100k hab.)` : baseValLabel;
     const headers = ["Rank", colLabel, csvValLabel];
     const dataForExport = rows.map(m => [m.id, m.name, m.value]);
     downloadCSV(getExportFilename('csv'), dataForExport, headers, { ...selectedFilters, metricType });
   };
 
   const handleCopy = () => {
-    const csvValLabel = metricType === 'rate' ? `${baseValLabel} (Tasa por 100k hab.)` : baseValLabel;
     const headers = ["Rank", colLabel, csvValLabel];
     const dataForExport = rows.map(m => [m.id, m.name, m.value]);
     copyTableToClipboard(dataForExport, headers);
@@ -651,7 +654,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
         <div className="card-period" style={{ padding: '0 1rem 0.35rem' }}>{periodLabel}</div>
         {/* Table Header */}
         <div style={{ padding: isVictimas ? '1rem 1rem 0.5rem' : '0 1rem 0.5rem', borderBottom: '2px solid var(--border-color)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '30px 1fr 80px', gap: '0.5rem', fontWeight: 600, color: 'var(--color-primary)', fontSize: '0.875rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: `30px 1fr ${valColW}`, gap: '0.5rem', fontWeight: 600, color: 'var(--color-primary)', fontSize: '0.875rem', lineHeight: 1.25, alignItems: 'end' }}>
             <span>#</span>
             <span style={{ transition: 'opacity 0.2s' }}>{colLabel}</span>
             <span style={{ textAlign: 'right' }}>{valLabel}</span>
@@ -678,7 +681,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
                 data-highlight={level || undefined}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '30px 1fr 80px',
+                  gridTemplateColumns: `30px 1fr ${valColW}`,
                   gap: '0.5rem',
                   alignItems: 'center',
                   padding: '0.45rem 1rem',

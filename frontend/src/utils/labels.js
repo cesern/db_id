@@ -20,6 +20,15 @@ export const metricPhrase = (dataset, metricType) =>
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
+/** Rótulo único de la tasa (encabezados de tabla, selector de métrica, resumen de filtros). */
+export const RATE_LABEL = 'Tasa por 100 mil hab.';
+
+/** "Cifras absolutas" | "Tasa por 100 mil hab." */
+export const metricLabel = (metricType) => (metricType === 'rate' ? RATE_LABEL : 'Cifras absolutas');
+
+/** Nombre corto de un mes 1–12 ("Ago"); '' fuera de rango. */
+export const mesCorto = (n) => MESES_CORTOS[n - 1] || '';
+
 /** Meses elegidos en forma corta: '' si ninguno o los 12; "Mar", "Ene–Mar" o "Ene, Mar, Jul". */
 export const monthsLabel = (meses) => {
   const sel = Array.isArray(meses) ? meses : [];
@@ -40,6 +49,16 @@ export const periodLabel = (anio, meses, mesFinal) => {
   const sel = Array.isArray(meses) ? meses : [];
   if (sel.length === 0 && mesFinal && mesFinal < 12) return `Ene–${MESES_CORTOS[mesFinal - 1]} ${anio}`;
   return `Año ${anio}`;
+};
+
+/**
+ * Meses del resumen de filtros: los elegidos ("Mar", "Ene–Mar"); sin elegir, el periodo publicado
+ * ("Ene–Ago" si el año va incompleto) o "Año completo".
+ */
+export const mesesResumen = (meses, mesFinal) => {
+  const m = monthsLabel(meses);
+  if (m) return m;
+  return typeof mesFinal === 'number' && mesFinal >= 1 && mesFinal < 12 ? `Ene–${mesCorto(mesFinal)}` : 'Año completo';
 };
 
 /** Título de tarjeta: metricPhrase + complemento. Ej.: chartTitle('victimas_mun', 'rate', 'por municipio (Sonora)'). */

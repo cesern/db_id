@@ -17,14 +17,19 @@ const aNombres = (set) => [...set].sort((a, b) => a - b).map(i => NOMBRES[i]);
 const aIndices = (lista) => new Set((lista || []).map(m => NOMBRES.indexOf(m)).filter(i => i >= 0));
 const mismos = (a, b) => a.size === b.size && [...a].every(i => b.has(i));
 
+// Año incompleto (último mes publicado < 12): sin meses elegidos no es "año completo"
+const anioIncompleto = (mesFinal) => typeof mesFinal === 'number' && mesFinal >= 1 && mesFinal < 12;
+
 // Resumen visible y texto del anuncio para lector de pantalla
-const resumenDe = (set) => {
+const resumenDe = (set, mesFinal) => {
   const n = set.size;
-  return n === 0 ? 'Año completo' : `${monthsLabel(aNombres(set)) || 'Ene–Dic'} · ${n} ${n === 1 ? 'mes' : 'meses'}`;
+  if (n === 0) return anioIncompleto(mesFinal) ? `Todos los meses · publicado hasta ${CORTOS[mesFinal - 1]}` : 'Año completo';
+  return `${monthsLabel(aNombres(set)) || 'Ene–Dic'} · ${n} ${n === 1 ? 'mes' : 'meses'}`;
 };
-const anuncioDe = (set) => {
+const anuncioDe = (set, mesFinal) => {
   const n = set.size;
-  return n === 0 ? 'Meses: año completo' : `Meses: ${monthsLabel(aNombres(set)) || 'Ene–Dic'}, ${n} ${n === 1 ? 'mes elegido' : 'meses elegidos'}`;
+  if (n === 0) return anioIncompleto(mesFinal) ? `Meses: todos, publicado hasta ${NOMBRES[mesFinal - 1]}` : 'Meses: año completo';
+  return `Meses: ${monthsLabel(aNombres(set)) || 'Ene–Dic'}, ${n} ${n === 1 ? 'mes elegido' : 'meses elegidos'}`;
 };
 
 /**
@@ -51,7 +56,7 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, mesFinalAplica }) => {
   // anunciar=false durante el arrastre: el lector solo oye el resultado al soltar
   const emitir = (set, anunciar = true) => {
     onChange(aNombres(set));
-    if (anunciar) setAnuncio(anuncioDe(set));
+    if (anunciar) setAnuncio(anuncioDe(set, mesFinal));
     else ultimoSetRef.current = set;
   };
 
@@ -139,7 +144,7 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, mesFinalAplica }) => {
       alternar(t.i);
     } else if (inicioArrastreRef.current !== null && ultimoSetRef.current) {
       // Fin del arrastre: se anuncia una sola vez el rango final
-      setAnuncio(anuncioDe(ultimoSetRef.current));
+      setAnuncio(anuncioDe(ultimoSetRef.current, mesFinal));
     }
     finArrastre();
   };
@@ -185,7 +190,7 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, mesFinalAplica }) => {
     <div className="month-strip-wrap">
       <div className="month-strip-summary">
         <span className="tabular">
-          {resumenDe(seleccion)}
+          {resumenDe(seleccion, mesFinal)}
           {pendiente && <span className="month-strip-pending"> · sin aplicar</span>}
         </span>
         {/* Siempre montado: reserva su espacio para que el resumen no salte */}

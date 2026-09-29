@@ -676,7 +676,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
     <div 
       ref={cardRef} 
       className={isFullScreen ? `fullscreen-immersive-overlay${fsClosing ? ' is-closing' : ''}` : ""}
-      style={isFullScreen ? {} : { display: 'flex', flexDirection: 'column', height: '100%', width: '100%', position: 'relative' }}
+      style={isFullScreen ? {} : { display: 'flex', flexDirection: 'column', flex: '1 1 0', minHeight: 0, width: '100%', position: 'relative' }}
     >
       {isFullScreen ? (
         <FullScreenHeader
@@ -772,7 +772,8 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
         </div>
       )}
 
-      <div style={{ flex: 1, position: 'relative', width: '100%', minHeight: '120px' }}>
+      {/* La gráfica cede alto (min-height 0): el deslizador y los toggles siempre caben en la tarjeta */}
+      <div style={{ flex: '1 1 0', position: 'relative', width: '100%', minHeight: 0 }}>
         {loading && <LoadingSpinner size="md" />}
         {!loading && error && <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />}
         {!loading && !error && data.length === 0 && <EmptyState />}
