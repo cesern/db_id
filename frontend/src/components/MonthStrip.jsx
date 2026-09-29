@@ -1,4 +1,4 @@
-import React, { useContext, useRef, useState } from 'react';
+import React, { useContext, useId, useRef, useState } from 'react';
 import { MesFinalContext } from '../utils/mesFinalContext';
 import { monthsLabel } from '../utils/labels';
 
@@ -26,6 +26,7 @@ const MonthStrip = ({ meses, onChange, mesFinalAplica }) => {
 
   const [cursor, setCursor] = useState(0);
   const [arrastre, setArrastre] = useState(null); // true mientras se arrastra (solo para quitar la transición)
+  const uid = useId();
   const anclaRef = useRef(0);
   const inicioArrastreRef = useRef(null); // ref: el relleno sigue al puntero sin esperar un render
 
@@ -36,10 +37,30 @@ const MonthStrip = ({ meses, onChange, mesFinalAplica }) => {
     return el ? Number(el.dataset.mes) : null;
   };
 
+  // Toque pendiente: { x, y, i, id } hasta decidir si es tap, arrastre horizontal o desplazamiento vertical
+  const toqueRef = useRef(null);
+  const ultimoIdxRef = useRef(null);
+
+  const iniciarArrastre = (strip, pointerId, i) => {
+    try { strip.setPointerCapture?.(pointerId); } catch { /* puntero ya liberado: el arrastre sigue sin captura */ }
+    anclaRef.current = i;
+    inicioArrastreRef.current = i;
+    ultimoIdxRef.current = i;
+    setArrastre(true);
+    setCursor(i);
+    emitir(new Set([i]));
+  };
+
   const onPointerDown = (e, i) => {
     if (e.button !== 0) return;
+    const strip = e.currentTarget.parentElement;
+    if (e.pointerType === 'touch') {
+      // Sin preventDefault: el navegador puede desplazar la página si el gesto es vertical
+      toqueRef.current = { x: e.clientX, y: e.clientY, i, id: e.pointerId };
+      return;
+    }
     e.preventDefault();
-    e.currentTarget.parentElement.focus({ preventScroll: true });
+    strip.focus({ preventScroll: true });
     setCursor(i);
     if (e.shiftKey) {
       emitir(new Set(rango(anclaRef.current, i)));
@@ -52,22 +73,55 @@ const MonthStrip = ({ meses, onChange, mesFinalAplica }) => {
       emitir(s);
       return;
     }
-    anclaRef.current = i;
-    e.currentTarget.parentElement.setPointerCapture?.(e.pointerId);
-    inicioArrastreRef.current = i;
-    setArrastre({ inicio: i });
-    emitir(new Set([i]));
+    iniciarArrastre(strip, e.pointerId, i);
   };
 
   const onPointerMove = (e) => {
+    const t = toqueRef.current;
+    if (t && inicioArrastreRef.current === null) {
+      const dx = Math.abs(e.clientX - t.x);
+      const dy = Math.abs(e.clientY - t.y);
+      if (dx > 8 && dx > dy) {
+        toqueRef.current = null;
+        iniciarArrastre(e.currentTarget, t.id, t.i);
+      } else if (dy > 8) {
+        toqueRef.current = null; // gesto vertical: se suelta para que la página se desplace
+      }
+      if (inicioArrastreRef.current === null) return;
+    }
     if (inicioArrastreRef.current === null) return;
     const i = indiceEnPunto(e.clientX, e.clientY);
-    if (i === null) return;
+    if (i === null || i === ultimoIdxRef.current) return; // emitir solo al cambiar de mes
+    ultimoIdxRef.current = i;
     setCursor(i);
     emitir(new Set(rango(inicioArrastreRef.current, i)));
   };
 
-  const finArrastre = () => { inicioArrastreRef.current = null; setArrastre(null); };
+  const onPointerUp = () => {
+    const t = toqueRef.current;
+    if (t) {
+      // Tap: selecciona solo ese mes
+      toqueRef.current = null;
+      anclaRef.current = t.i;
+      setCursor(t.i);
+      emitir(new Set([t.i]));
+    }
+    finArrastre();
+  };
+
+  const finArrastre = () => {
+    toqueRef.current = null;
+    inicioArrastreRef.current = null;
+    ultimoIdxRef.current = null;
+    setArrastre(null);
+  };
+
+  // Al recibir el foco, el cursor va al primer mes elegido (o a Enero)
+  const onFocus = () => {
+    if (inicioArrastreRef.current !== null) return;
+    const primero = seleccion.size ? Math.min(...seleccion) : 0;
+    setCursor(primero);
+  };
 
   const onKeyDown = (e) => {
     let nuevo = cursor;
@@ -91,7 +145,7 @@ const MonthStrip = ({ meses, onChange, mesFinalAplica }) => {
 
   const n = seleccion.size;
   const resumen = n === 0 ? 'Año completo' : `${monthsLabel(meses) || 'Ene–Dic'} · ${n} ${n === 1 ? 'mes' : 'meses'}`;
-  const idBase = 'month-strip-opt-';
+  const idBase = `${uid}-opt-`;
 
   return (
     <div className="month-strip-wrap">
@@ -112,7 +166,8 @@ const MonthStrip = ({ meses, onChange, mesFinalAplica }) => {
         tabIndex={0}
         onKeyDown={onKeyDown}
         onPointerMove={onPointerMove}
-        onPointerUp={finArrastre}
+        onPointerUp={onPointerUp}
+        onFocus={onFocus}
         onPointerCancel={finArrastre}
       >
         {NOMBRES.map((nombre, i) => {

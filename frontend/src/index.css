@@ -37,8 +37,7 @@
   --input-padding: 0.35rem 2rem 0.35rem 0.75rem;
   --input-min-height: 30px;
   --btn-padding: 0.5rem 1rem;
-  --month-btn-padding: 0.4rem 0.1rem;
-  --month-btn-size: 0.75rem;
+  --select-font-size: 0.75rem;
 
   --card-padding: 1.5rem;
   --grid-gap: 1.5rem;
@@ -151,7 +150,7 @@ body {
   border-radius: var(--radius-md);
   background-color: white;
   color: var(--text-primary);
-  font-size: var(--month-btn-size, 0.75rem);
+  font-size: var(--select-font-size, 0.75rem);
   font-weight: 500;
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
@@ -353,8 +352,7 @@ body {
     --input-padding: 0.3rem 1.5rem 0.3rem 0.5rem;
     --input-min-height: 30px;
     --btn-padding: 0.3rem 0.6rem;
-    --month-btn-padding: 0.2rem 0.1rem;
-    --month-btn-size: 0.75rem; /* mínimo 12px en controles */
+    --select-font-size: 0.75rem; /* mínimo 12px en controles */
 
     --card-padding: 0.75rem;
     --grid-gap: 0.75rem;
@@ -657,7 +655,7 @@ select:focus:not(:focus-visible) {
 .month-strip {
   display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
   border: 1px solid var(--border-color); border-radius: var(--radius-md);
-  overflow: hidden; background: white; touch-action: none; user-select: none; outline: none;
+  overflow: hidden; background: white; touch-action: pan-y; user-select: none; outline: none;
 }
 .month-strip:focus-visible { box-shadow: 0 0 0 2px white, 0 0 0 4px var(--color-accent); }
 .month-seg {
