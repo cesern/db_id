@@ -684,6 +684,8 @@ select:focus:not(:focus-visible) {
 /* Rayado: mes posterior al último publicado. Texto en --text-primary para mantener ≥4.5:1 sobre las rayas
    (con --text-secondary quedaba ~4.2:1 en hover) */
 .month-seg.is-unpublished {
+  /* Respaldo sin color-mix: --text-secondary (#526075) al 24% */
+  background-image: repeating-linear-gradient(135deg, rgb(82 96 117 / 0.24) 0 2px, transparent 2px 7px);
   background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--text-secondary) 24%, transparent) 0 2px, transparent 2px 7px);
   color: var(--text-primary);
 }

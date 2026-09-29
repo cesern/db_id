@@ -46,6 +46,7 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, onApplyShortcut, mesFinal
   const [anuncio, setAnuncio] = useState(''); // región aria-live: solo cambios confirmados
   const uid = useId();
   const anclaRef = useRef(0);
+  const stripRef = useRef(null);
   const inicioArrastreRef = useRef(null); // ref: el relleno sigue al puntero sin esperar un render
   const ultimoSetRef = useRef(null); // última selección emitida durante el arrastre (se anuncia al soltar)
 
@@ -116,6 +117,7 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, onApplyShortcut, mesFinal
       if (dx > 8 && dx > dy) {
         toqueRef.current = null;
         iniciarArrastre(e.currentTarget, t.id, t.i);
+        setPresionado(null); // al arrastrar ya no es una presión: sin escala
       } else if (dy > 8) {
         toqueRef.current = null; // gesto vertical: se suelta para que la página se desplace
         setPresionado(null);
@@ -126,6 +128,7 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, onApplyShortcut, mesFinal
     const i = indiceEnPunto(e.clientX, e.clientY);
     if (i === null || i === ultimoIdxRef.current) return; // emitir solo al cambiar de mes
     ultimoIdxRef.current = i;
+    setPresionado(null); // el arrastre ya salió del mes inicial: sin escala
     setCursor(i);
     emitir(new Set(rango(inicioArrastreRef.current, i)), false);
   };
@@ -188,6 +191,8 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, onApplyShortcut, mesFinal
     anclaRef.current = 0;
     setAnuncio(`${anuncioDe(atajo)}, aplicado`);
     onApplyShortcut(aNombres(atajo));
+    // El botón se oculta al aplicar: el foco pasa a la tira para no caer en <body>
+    stripRef.current?.focus({ preventScroll: true });
   };
 
   return (
@@ -203,7 +208,7 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, onApplyShortcut, mesFinal
               type="button"
               className="month-strip-shortcut"
               onClick={usarAtajo}
-              title={`Elegir ${atajoTexto} (último mes publicado) y aplicar`}
+              title={`Elegir ${atajoTexto} (último mes publicado) y aplicar los filtros seleccionados`}
             >
               {atajoTexto} (último publicado)
             </button>
@@ -221,6 +226,7 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, onApplyShortcut, mesFinal
         </span>
       </div>
       <div
+        ref={stripRef}
         className={`month-strip${arrastre ? ' is-dragging' : ''}${n === 0 ? ' is-empty' : ''}`}
         role="listbox"
         aria-multiselectable="true"
