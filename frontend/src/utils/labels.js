@@ -26,6 +26,9 @@ export const RATE_LABEL = 'Tasa por 100 mil hab.';
 /** "Cifras absolutas" | "Tasa por 100 mil hab." */
 export const metricLabel = (metricType) => (metricType === 'rate' ? RATE_LABEL : 'Cifras absolutas');
 
+/** Encabezado de valores en CSV/portapapeles: "Incidencia" | "Incidencia (Tasa por 100 mil hab.)". */
+export const csvValueLabel = (base, metricType) => (metricType === 'rate' ? `${base} (${RATE_LABEL})` : base);
+
 /** Nombre corto de un mes 1–12 ("Ago"); '' fuera de rango. */
 export const mesCorto = (n) => MESES_CORTOS[n - 1] || '';
 
@@ -53,12 +56,14 @@ export const periodLabel = (anio, meses, mesFinal) => {
 
 /**
  * Meses del resumen de filtros: los elegidos ("Mar", "Ene–Mar"); sin elegir, el periodo publicado
- * ("Ene–Ago" si el año va incompleto) o "Año completo".
+ * ("Ene–Ago" si el año va incompleto), "Año completo" si ya se publicó diciembre, o el neutro
+ * "Todos los meses" mientras el último mes publicado se desconoce.
  */
 export const mesesResumen = (meses, mesFinal) => {
   const m = monthsLabel(meses);
   if (m) return m;
-  return typeof mesFinal === 'number' && mesFinal >= 1 && mesFinal < 12 ? `Ene–${mesCorto(mesFinal)}` : 'Año completo';
+  if (typeof mesFinal !== 'number' || mesFinal < 1) return 'Todos los meses';
+  return mesFinal < 12 ? `Ene–${mesCorto(mesFinal)}` : 'Año completo';
 };
 
 /** Título de tarjeta: metricPhrase + complemento. Ej.: chartTitle('victimas_mun', 'rate', 'por municipio (Sonora)'). */

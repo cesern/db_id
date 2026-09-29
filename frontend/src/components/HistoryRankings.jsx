@@ -8,6 +8,7 @@ import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
 import { PREFERS_REDUCED_MOTION } from '../utils/motion';
 import { useExitAnimation } from '../utils/useExitAnimation';
+import { csvValueLabel } from '../utils/labels';
 
 const MultiSelectDropdown = ({ label, options, selected, onChange, maxSelection }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -576,13 +577,13 @@ const HistoryRankings = ({ tempColor }) => {
   }, [chartData, selectedEntidad]);
 
   const handleDownloadCSV = () => {
-    const csvValLabel = metricType === 'rate' ? 'Incidencia (Tasa por 100k hab.)' : 'Incidencia';
+    const csvValLabel = csvValueLabel('Incidencia', metricType);
     const headers = ["Periodo", "Entidad", "Ranking", csvValLabel];
     downloadCSV(`evolucion_ranking_${selectedEntidad.toLowerCase()}.csv`, dataForExport, headers, { ...applied, metricType });
   };
 
   const handleCopyTable = () => {
-    const csvValLabel = metricType === 'rate' ? 'Incidencia (Tasa por 100k hab.)' : 'Incidencia';
+    const csvValLabel = csvValueLabel('Incidencia', metricType);
     const headers = ["Periodo", "Entidad", "Ranking", csvValLabel];
     copyTableToClipboard(dataForExport, headers);
   };

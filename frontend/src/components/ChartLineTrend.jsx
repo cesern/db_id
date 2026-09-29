@@ -3,7 +3,7 @@ import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
-import { metricPhrase } from '../utils/labels';
+import { metricPhrase, csvValueLabel } from '../utils/labels';
 import { ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot, Line } from 'recharts';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
@@ -490,7 +490,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
 
   const getExportData = () => {
     const valLabel = isVictimasBase ? "Víctimas" : "Incidencia";
-    const actualValLabel = metricType === 'rate' ? `${valLabel} (Tasa por 100k hab.)` : valLabel;
+    const actualValLabel = csvValueLabel(valLabel, metricType);
     const maLabel = maWindow === 'lowess'
       ? `LOWESS`
       : maWindow === 'sg'
@@ -675,8 +675,7 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
   return (
     <div 
       ref={cardRef} 
-      className={isFullScreen ? `fullscreen-immersive-overlay${fsClosing ? ' is-closing' : ''}` : ""}
-      style={isFullScreen ? {} : { display: 'flex', flexDirection: 'column', flex: '1 1 0', minHeight: 0, width: '100%', position: 'relative' }}
+      className={isFullScreen ? `fullscreen-immersive-overlay${fsClosing ? ' is-closing' : ''}` : 'trend-root'}
     >
       {isFullScreen ? (
         <FullScreenHeader
@@ -772,8 +771,9 @@ const ChartLineTrend = ({ selectedFilters, metricType, onInitialLoad }) => {
         </div>
       )}
 
-      {/* La gráfica cede alto (min-height 0): el deslizador y los toggles siempre caben en la tarjeta */}
-      <div style={{ flex: '1 1 0', position: 'relative', width: '100%', minHeight: 0 }}>
+      {/* Alto de la gráfica en index.css (.trend-chart-area): en escritorio cede alto para que el
+          deslizador quepa en la tarjeta; en tablet/móvil conserva un mínimo real */}
+      <div className="trend-chart-area">
         {loading && <LoadingSpinner size="md" />}
         {!loading && error && <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />}
         {!loading && !error && data.length === 0 && <EmptyState />}

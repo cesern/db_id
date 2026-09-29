@@ -17,18 +17,26 @@ const aNombres = (set) => [...set].sort((a, b) => a - b).map(i => NOMBRES[i]);
 const aIndices = (lista) => new Set((lista || []).map(m => NOMBRES.indexOf(m)).filter(i => i >= 0));
 const mismos = (a, b) => a.size === b.size && [...a].every(i => b.has(i));
 
+// Último mes publicado conocido (1–12); null/undefined = aún desconocido (otro año u otro dataset elegido)
+const conocido = (mesFinal) => typeof mesFinal === 'number' && mesFinal >= 1 && mesFinal <= 12;
 // Año incompleto (último mes publicado < 12): sin meses elegidos no es "año completo"
-const anioIncompleto = (mesFinal) => typeof mesFinal === 'number' && mesFinal >= 1 && mesFinal < 12;
+const anioIncompleto = (mesFinal) => conocido(mesFinal) && mesFinal < 12;
 
-// Resumen visible y texto del anuncio para lector de pantalla
+// Resumen visible y texto del anuncio para lector de pantalla. Sin último mes conocido: neutro
 const resumenDe = (set, mesFinal) => {
   const n = set.size;
-  if (n === 0) return anioIncompleto(mesFinal) ? `Todos los meses · publicado hasta ${CORTOS[mesFinal - 1]}` : 'Año completo';
+  if (n === 0) {
+    if (!conocido(mesFinal)) return 'Todos los meses';
+    return anioIncompleto(mesFinal) ? `Todos los meses · publicado hasta ${CORTOS[mesFinal - 1]}` : 'Año completo';
+  }
   return `${monthsLabel(aNombres(set)) || 'Ene–Dic'} · ${n} ${n === 1 ? 'mes' : 'meses'}`;
 };
 const anuncioDe = (set, mesFinal) => {
   const n = set.size;
-  if (n === 0) return anioIncompleto(mesFinal) ? `Meses: todos, publicado hasta ${NOMBRES[mesFinal - 1]}` : 'Meses: año completo';
+  if (n === 0) {
+    if (!conocido(mesFinal)) return 'Meses: todos';
+    return anioIncompleto(mesFinal) ? `Meses: todos, publicado hasta ${NOMBRES[mesFinal - 1]}` : 'Meses: año completo';
+  }
   return `Meses: ${monthsLabel(aNombres(set)) || 'Ene–Dic'}, ${n} ${n === 1 ? 'mes elegido' : 'meses elegidos'}`;
 };
 

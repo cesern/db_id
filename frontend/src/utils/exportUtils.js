@@ -1,6 +1,7 @@
 import { toPng } from 'html-to-image';
 import { toast } from 'sonner';
 import { parseCapsule } from './altoImpacto';
+import { metricLabel } from './labels';
 
 export const downloadCSV = (filename, data, headers, filters) => {
   let csvContent = "";
@@ -18,7 +19,7 @@ export const downloadCSV = (filename, data, headers, filters) => {
       csvContent += `Delitos de alto impacto,${names.join(' | ')}\n`;
     }
     csvContent += `Año,${filters.anio || 'Todos'}\n`;
-    csvContent += `Métrica,${filters.metricType === 'rate' ? 'Tasa por 100,000 habitantes' : 'Absoluta'}\n`;
+    csvContent += `Métrica,${metricLabel(filters.metricType)}\n`;
     csvContent += `Entidad,${filters.entidad === 'All' ? 'Nacional' : filters.entidad}\n`;
     if (dataset !== 'victimas') {
       csvContent += `Municipio,${filters.municipio === 'All' ? 'Todos los municipios' : (filters.municipio || 'N/A')}\n`;

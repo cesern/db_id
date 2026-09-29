@@ -6,7 +6,7 @@ import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import EmptyState from './EmptyState';
 import MenuSelect from './MenuSelect';
-import { metricPhrase, periodLabel as formatPeriod, todoEnCero, sinDatosCopy, RATE_LABEL, periodoSinPublicar } from '../utils/labels';
+import { metricPhrase, periodLabel as formatPeriod, todoEnCero, sinDatosCopy, RATE_LABEL, csvValueLabel, periodoSinPublicar } from '../utils/labels';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import { useExitAnimation } from '../utils/useExitAnimation';
 
@@ -324,8 +324,8 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
   const valLabel = metricType === 'rate' ? RATE_LABEL : baseValLabel;
   // En tasa la columna se ensancha: el rótulo cabe en dos renglones ("Tasa por 100 / mil hab.")
   const valColW = metricType === 'rate' ? '96px' : '80px';
-  // CSV/portapapeles: con el sustantivo, "Tasa de incidencia por 100 mil hab."
-  const csvValLabel = metricType === 'rate' ? `${metricPhrase(dataset, 'rate')} por 100 mil hab.` : baseValLabel;
+  // CSV/portapapeles: formato único "Incidencia (Tasa por 100 mil hab.)"
+  const csvValLabel = csvValueLabel(baseValLabel, metricType);
 
   const getExportFilename = (ext) => {
     if (isVictimas) return `tabla_victimas_entidad.${ext}`;

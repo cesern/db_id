@@ -302,7 +302,8 @@ function PublicDashboard() {
                 />
               </div>
 
-              <div className="card" style={{ flex: 1.25, minHeight: 'var(--chart-trend-card-min-height, 250px)', display: 'flex', flexDirection: 'column', padding: 'var(--card-padding, 1rem)' }}>
+              {/* flex en index.css (.trend-card): 1.25 en escritorio; en tablet/móvil crece con su contenido */}
+              <div className="card trend-card" style={{ minHeight: 'var(--chart-trend-card-min-height, 250px)', display: 'flex', flexDirection: 'column', padding: 'var(--card-padding, 1rem)' }}>
                 <ChartLineTrend
                   selectedFilters={appliedFilters}
                   metricType={metricType}

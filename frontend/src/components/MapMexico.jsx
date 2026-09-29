@@ -9,7 +9,7 @@ import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
-import { chartTitle, periodLabel, todoEnCero, sinDatosCopy } from '../utils/labels';
+import { chartTitle, periodLabel, todoEnCero, sinDatosCopy, csvValueLabel } from '../utils/labels';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
@@ -304,7 +304,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
 
   const getExportData = () => {
     const valLabel = isVictimasBase ? "Víctimas" : "Incidencia";
-    const csvValLabel = metricType === 'rate' ? `${valLabel} (Tasa por 100k hab.)` : valLabel;
+    const csvValLabel = csvValueLabel(valLabel, metricType);
     const headers = [isSonora ? "Municipio" : "Entidad", csvValLabel];
     const dataForExport = stateData.map(d => [d.name, d.value]);
     return { headers, dataForExport };

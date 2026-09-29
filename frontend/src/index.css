@@ -510,6 +510,27 @@ select:focus:not(:focus-visible) {
   .card-icon-btn--text { width: auto; }
 }
 
+/* Histórico mensual.
+   - Tablet/móvil: la tarjeta crece con su contenido y la gráfica conserva 180px.
+   - Escritorio bajo (<800px de alto, la página se desplaza): la tarjeta reparte el espacio sobrante
+     pero nunca baja de su contenido; la gráfica conserva 160px.
+   - Escritorio alto (>=800px, columnas de alto fijo): la gráfica cede alto (min-height 0) para que el
+     deslizador y los toggles siempre queden dentro de la tarjeta. */
+.trend-card { flex: 0 0 auto; }
+.trend-root { display: flex; flex-direction: column; flex: 1 0 auto; width: 100%; position: relative; }
+.trend-chart-area { flex: 1 1 auto; position: relative; width: 100%; min-height: 180px; }
+@media (min-width: 1024px) and (max-height: 799px) {
+  .trend-card { flex: 1.25 1 auto; }
+  .trend-chart-area { min-height: 160px; }
+}
+@media (min-width: 1024px) and (min-height: 800px) {
+  .trend-card { flex: 1.25 1 0%; }
+  .trend-root { flex: 1 1 0; min-height: 0; }
+  .trend-chart-area { flex: 1 1 0; min-height: 0; }
+}
+/* Pantalla completa: el overlay tiene alto fijo, la gráfica toma el resto */
+.fullscreen-immersive-overlay > .trend-chart-area { flex: 1 1 0; min-height: 0; }
+
 /* Deslizador de periodo: área de agarre 24px, círculo visible de 16px */
 .range-thumb {
   width: 24px;

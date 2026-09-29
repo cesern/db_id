@@ -3,7 +3,7 @@ import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
-import { chartTitle as buildTitle, monthsLabel } from '../utils/labels';
+import { chartTitle as buildTitle, monthsLabel, csvValueLabel } from '../utils/labels';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList, useActiveTooltipLabel } from 'recharts';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
@@ -231,7 +231,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
 
   const getExportData = () => {
     const valLabel = isVictimasBase ? "Víctimas" : "Incidencia";
-    const actualValLabel = metricType === 'rate' ? `${valLabel} (Tasa por 100k hab.)` : valLabel;
+    const actualValLabel = csvValueLabel(valLabel, metricType);
     const headers = [isVictimasMun ? "Mes" : "Año", actualValLabel];
     const dataForExport = data.map(d => [d.label, d.value]);
     return { headers, dataForExport };
