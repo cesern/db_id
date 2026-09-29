@@ -32,7 +32,8 @@ const anuncioDe = (set) => {
  * ancla; Ctrl/Cmd+clic = alterna uno. Táctil: toque = alterna ese mes (conserva el resto); deslizar en
  * horizontal = rango. Selección vacía = año completo. Meses posteriores al último publicado (si el
  * año/dataset elegidos coinciden con los aplicados) llevan rayado y la pista "Aún no publicado".
- * onApplyShortcut(meses): atajo "Ene–{último publicado}" que elige y aplica en un solo paso.
+ * onApplyShortcut(meses): periodos rápidos (Ene–{último publicado}, trimestres, semestres, año) que
+ * eligen y aplican en un solo paso.
  */
 const MonthStrip = ({ meses, mesesAplicados, onChange, onApplyShortcut, mesFinalAplica }) => {
   const mesFinalCtx = useContext(MesFinalContext);
@@ -183,36 +184,41 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, onApplyShortcut, mesFinal
   const pendiente = !mismos(seleccion, aplicados);
   const idBase = `${uid}-opt-`;
 
-  // Atajo "Ene–{último publicado}": solo con año incompleto conocido y si no está ya elegido y aplicado
-  const atajo = mesFinal !== null && mesFinal >= 1 && mesFinal < 12 ? new Set(rango(0, mesFinal - 1)) : null;
-  const mostrarAtajo = Boolean(atajo && onApplyShortcut) && !(mismos(seleccion, atajo) && mismos(aplicados, atajo));
-  const atajoTexto = atajo ? (mesFinal === 1 ? 'Ene' : `Ene–${CORTOS[mesFinal - 1]}`) : '';
-  const usarAtajo = () => {
-    anclaRef.current = 0;
-    setAnuncio(`${anuncioDe(atajo)}, aplicado`);
-    onApplyShortcut(aNombres(atajo));
-    // El botón se oculta al aplicar: el foco pasa a la tira para no caer en <body>
+  // Periodos rápidos: cada chip elige y aplica en un paso (onApplyShortcut → handleApply(nextFilters)).
+  // "Ene–{último publicado}" solo con año incompleto y último mes conocido; "Año" = sin filtro de meses.
+  const tramo = (a, b) => new Set(rango(a, b));
+  const grupos = [
+    mesFinal !== null && mesFinal >= 1 && mesFinal < 12
+      ? [{ id: 'pub', texto: mesFinal === 1 ? 'Ene' : `Ene–${CORTOS[mesFinal - 1]}`, titulo: 'Hasta el último mes publicado', set: tramo(0, mesFinal - 1) }]
+      : [],
+    [
+      { id: 't1', texto: 'T1', titulo: '1er trimestre: Ene–Mar', set: tramo(0, 2) },
+      { id: 't2', texto: 'T2', titulo: '2º trimestre: Abr–Jun', set: tramo(3, 5) },
+      { id: 't3', texto: 'T3', titulo: '3er trimestre: Jul–Sep', set: tramo(6, 8) },
+      { id: 't4', texto: 'T4', titulo: '4º trimestre: Oct–Dic', set: tramo(9, 11) },
+    ],
+    [
+      { id: 's1', texto: '1er sem', titulo: '1er semestre: Ene–Jun', set: tramo(0, 5) },
+      { id: 's2', texto: '2º sem', titulo: '2º semestre: Jul–Dic', set: tramo(6, 11) },
+    ],
+    // "Año" no lleva rayado: significa "sin filtro de meses", no un periodo concreto
+    [{ id: 'anio', texto: 'Año', titulo: 'Año completo (sin filtro de meses)', set: new Set(), anio: true }],
+  ].filter(g => g.length > 0);
+  const aplicarPeriodo = (set) => {
+    anclaRef.current = set.size ? Math.min(...set) : 0;
+    setAnuncio(`${anuncioDe(set)}, aplicado`);
+    onApplyShortcut(aNombres(set));
     stripRef.current?.focus({ preventScroll: true });
   };
 
   return (
     <div className="month-strip-wrap">
       <div className="month-strip-summary">
-        <span className="tabular">
-          {resumenDe(seleccion)}
-          {pendiente && <span className="month-strip-pending"> · sin aplicar</span>}
-        </span>
-        <span className="month-strip-actions">
-          {mostrarAtajo && (
-            <button
-              type="button"
-              className="month-strip-shortcut"
-              onClick={usarAtajo}
-              title={`Elegir ${atajoTexto} (último mes publicado) y aplicar los filtros seleccionados`}
-            >
-              {atajoTexto} (último publicado)
-            </button>
-          )}
+        <span className="month-strip-status">
+          <span className="tabular">
+            {resumenDe(seleccion)}
+            {pendiente && <span className="month-strip-pending"> · sin aplicar</span>}
+          </span>
           {/* Siempre montado: reserva su espacio para que el resumen no salte */}
           <button
             type="button"
@@ -224,6 +230,31 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, onApplyShortcut, mesFinal
             Limpiar meses
           </button>
         </span>
+        {onApplyShortcut && (
+          <div className="month-quick" role="group" aria-label="Periodos rápidos (eligen y aplican)">
+            {grupos.map((grupo, gi) => (
+              <React.Fragment key={grupo[0].id}>
+                {gi > 0 && <span className="month-quick-sep" aria-hidden="true" />}
+                {grupo.map(p => {
+                  const activo = p.anio ? n === 0 : mismos(seleccion, p.set);
+                  const noPublicado = !p.anio && mesFinal !== null && [...p.set].some(i => i + 1 > mesFinal);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={`month-chip${activo ? ' is-active' : ''}${noPublicado ? ' is-unpublished' : ''}`}
+                      aria-pressed={activo}
+                      title={noPublicado ? `${p.titulo} · aún no publicado` : p.titulo}
+                      onClick={() => aplicarPeriodo(p.set)}
+                    >
+                      {p.texto}
+                    </button>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+          </div>
+        )}
       </div>
       <div
         ref={stripRef}
