@@ -967,7 +967,8 @@ select:focus:not(:focus-visible) {
 .fs-col-rank { color: var(--text-secondary); font-weight: 500; }
 .fs-col-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fs-col-value { text-align: right; font-weight: 600; }
-.fs-col-row[data-highlight="soft"] { background: #e9edf6; color: var(--color-accent-dark); }
+.fs-col-row[data-highlight="soft"] { background: #dfe5f2; color: var(--color-accent-dark); box-shadow: inset 3px 0 0 var(--color-accent); }
+.fs-col-row[data-highlight="soft"] .fs-col-name { font-weight: 600; }
 .fs-col-row[data-highlight="strong"] { background: #e3e8f3; color: var(--color-accent-dark); font-weight: 700; }
 .fs-col-row[data-highlight="strong"] > span { font-weight: 700; color: var(--color-accent-dark); }
 

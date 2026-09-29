@@ -683,7 +683,9 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
                   alignItems: 'center',
                   padding: '0.45rem 1rem',
                   fontSize: '0.875rem',
-                  backgroundColor: hl ? '#e3e8f3' : (level === 'soft' ? '#e9edf6' : 'transparent'),
+                  backgroundColor: hl ? '#e3e8f3' : (level === 'soft' ? '#dfe5f2' : 'transparent'),
+                  // Municipios de Sonora (a nivel Nacional): barra navy a la izquierda para ubicarlos de un vistazo
+                  boxShadow: level === 'soft' ? 'inset 3px 0 0 var(--color-accent)' : 'none',
                   color: level ? 'var(--color-accent-dark)' : 'var(--color-primary)',
                   borderBottom: '1px solid var(--border-color)',
                   fontWeight: hl ? 700 : 400,
@@ -692,7 +694,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
                 <span className="tabular" style={{ color: hl ? 'var(--color-accent-dark)' : 'var(--text-secondary)', fontWeight: hl ? 700 : 500 }}>
                   {m.id}
                 </span>
-                <span title={m.name} style={{ fontWeight: hl ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span title={m.name} style={{ fontWeight: hl ? 700 : (level === 'soft' ? 600 : 500), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {displayName}
                 </span>
                 <span
