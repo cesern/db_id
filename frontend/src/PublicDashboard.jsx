@@ -199,18 +199,24 @@ function PublicDashboard() {
     });
   };
 
-  // Alto ocupado arriba de la cuadrícula (encabezado + línea de filtros plegada), medido solo con el
-  // panel plegado. Con el panel abierto la cuadrícula mide calc(100vh - --chrome-plegado): el mismo alto.
+  // Alto que ocupa arriba de la cuadrícula el encabezado + la línea de filtros PLEGADA. Se calcula en
+  // cualquier estado restando el alto actual del contenido plegable (0 plegado; el que tenga abierto o a
+  // media transición), así que también es válido con el panel abierto o si la ventana cambia de tamaño.
+  // Con el panel abierto la cuadrícula mide calc(100vh - --chrome-plegado): el mismo alto que plegado.
   const medirChrome = () => {
     const grid = gridRef.current;
     const app = appRef.current;
     if (!grid || !app) return;
-    const chrome = grid.getBoundingClientRect().top - app.getBoundingClientRect().top;
+    const plegable = app.querySelector('.filters-collapse');
+    const altoPlegable = plegable ? plegable.getBoundingClientRect().height : 0;
+    const chrome = grid.getBoundingClientRect().top - app.getBoundingClientRect().top - altoPlegable;
     app.style.setProperty('--chrome-plegado', `${Math.round(chrome)}px`);
   };
-  // Al abrir se mide una última vez con el panel aún plegado (por si la ventana cambió en este cuadro)
+  // Al abrir desde plegado se mide una última vez (por si la ventana cambió en este cuadro). Si se reabre
+  // antes de que termine el plegado (<340ms) no se mide: Filters ya canceló el aviso pendiente de
+  // plegado (limpieza de su efecto) y el atributo nunca se quitó.
   const handleFiltersOpenChange = (open) => {
-    if (open) medirChrome();
+    if (open && !filtersOpenRef.current) medirChrome();
     filtersOpenRef.current = open;
     const app = appRef.current;
     if (!app) return;
@@ -219,8 +225,8 @@ function PublicDashboard() {
   };
   useEffect(() => {
     if (activeTab !== 'dashboard') return undefined;
-    // Solo se mide con el panel plegado (abierto, la cuadrícula tiene alto fijo)
-    const medir = () => { if (!filtersOpenRef.current) medirChrome(); };
+    // La medición descuenta el contenido plegable: vale plegado y abierto (p. ej. al cambiar la ventana)
+    const medir = () => medirChrome();
     medir();
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(medir) : null;
     if (ro && gridRef.current) ro.observe(gridRef.current);

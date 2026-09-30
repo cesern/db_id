@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useId, useContext } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useId, useContext } from 'react';
 import axios from 'axios';
 import { API_URL } from '../api';
 import { ALTO_IMPACTO_PRESETS, parseCapsule } from '../utils/altoImpacto';
@@ -512,7 +512,8 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
   // Resumen de los filtros APLICADOS en la línea plegada:
   // "Filtros · 2026 · Sonora · Todos los municipios · Ene–Ago" + detalle de delito ("Robo a casa
   // habitación +4") con popover. La métrica no va en el texto: la línea trae su conmutador compacto.
-  const appliedSummary = (() => {
+  // Memoizado: `grupos` conserva su identidad entre renders y el popover no se recoloca en cada uno.
+  const appliedSummary = useMemo(() => {
     const a = appliedFilters || {};
     const ds = a.dataset || dataset;
     const nacional = !a.entidad || a.entidad === 'All';
@@ -547,7 +548,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
       detalle: nombres.length > 0 ? { nombres: visibles.join(', '), extra: nombres.length - visibles.length, grupos } : null,
       sinDelitos,
     };
-  })();
+  }, [appliedFilters, dataset, mesFinalCtx]);
 
   // ── Efecto 1: Opciones base (año, entidad, bien jurídico) — solo al aplicar filtros
   useEffect(() => {

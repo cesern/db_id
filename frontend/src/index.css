@@ -309,19 +309,17 @@ body {
   .dashboard-grid { --chart-card-min-height: 150px; --chart-trend-card-min-height: 180px; }
   /* Filtros abiertos: la cuadrícula conserva el alto que tiene con el panel plegado (--chrome-plegado lo
      mide PublicDashboard) y la página se desplaza; así las gráficas no se aplastan ni se redimensionan. */
+  /* El canal de la barra de desplazamiento se reserva siempre: al abrir los filtros aparece la barra
+     sin angostar la página, así las gráficas no cambian de ancho (Recharts no re-anima ni oculta sus
+     etiquetas) y ninguna tarjeta queda bajo la barra (también con barras clásicas de ~17px). */
+  html { scrollbar-gutter: stable; }
   .app-container[data-filters-open="true"] {
     height: auto;
     min-height: 100vh;
     overflow: visible;
-    overflow-x: clip; /* el ancho extra de la cuadrícula (bajo la barra de desplazamiento) no desplaza en horizontal */
   }
-  /* La barra de desplazamiento que aparece al abrir no angosta la cuadrícula: conserva el ancho de la
-     ventana (100vw) y su borde derecho queda bajo la barra, dentro del relleno de la cuadrícula. Así
-     las gráficas no cambian de tamaño y Recharts no re-anima barras ni líneas al abrir/plegar. */
   .app-container[data-filters-open="true"] > .dashboard-grid {
     flex: 0 0 auto;
-    width: 100vw;
-    align-self: flex-start;
     height: calc(100vh - var(--chrome-plegado, 120px));
   }
 }
@@ -897,7 +895,9 @@ select:focus:not(:focus-visible) {
 .btn-toggle.filters-toggle-metric { padding: 2px; border-radius: var(--radius-md); background: var(--bg-card); }
 .filters-toggle-metric button {
   padding: 0 0.6rem;
-  min-height: 26px;
+  /* 24 + 2·2 de relleno + 2 de borde = 30px, igual que "Editar filtros": la línea mide lo mismo plegada
+     (con métrica) y abierta (sin ella), y --chrome-plegado medido con el panel abierto sigue siendo exacto */
+  min-height: 24px;
   font-size: 0.75rem;
   border-radius: 6px;
 }
