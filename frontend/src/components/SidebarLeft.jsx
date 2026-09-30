@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
@@ -47,7 +47,11 @@ const rankMunicipios = (list) => {
   return [...ranked, ...rest];
 };
 
-const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal }) => {
+const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLoad, onMesFinal }) => {
+  // Métrica con la que se pidieron los datos mostrados: rótulos y formato la siguen a ella, no a la
+  // prop, para que al cambiar Cifras↔Tasa nunca aparezca una cifra absoluta rotulada como tasa.
+  const [dataMetric, setDataMetric] = useState(requestedMetric);
+  const metricType = dataMetric;
   const [totalIncidencia, setTotalIncidencia] = useState(null); // null = aún sin respuesta → "—"
   const [entidades, setEntidades] = useState([]);
   const [municipios, setMunicipios] = useState([]);
@@ -126,7 +130,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
 
     const params = { dataset: wireDataset };
     params.anio = selectedFilters.anio;
-    params.metric_type = metricType;
+    params.metric_type = requestedMetric;
     if (isAltoImpacto) {
       const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
       params.altoImpacto = ai.join('|');
@@ -166,6 +170,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
     Promise.all(requests)
       .then(([resTotal, resEntidades, resMunicipios]) => {
         setError(false);
+        setDataMetric(requestedMetric);
         if (resTotal.data?.total_incidencia !== undefined) {
           setTotalIncidencia(resTotal.data.total_incidencia);
         }
@@ -192,7 +197,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
       });
 
     return () => controller.abort();
-  }, [selectedFilters, metricType, retryKey]);
+  }, [selectedFilters, requestedMetric, retryKey]);
 
   // Lugar nacional del año anterior con los mismos filtros. Si el año actual es parcial
   // (sin meses elegidos), se compara contra los mismos meses del año anterior.
@@ -207,7 +212,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
     const controller = new AbortController();
     const signal = controller.signal;
     const anio = Number(selectedFilters.anio);
-    const base = { dataset: wireDataset, metric_type: metricType };
+    const base = { dataset: wireDataset, metric_type: requestedMetric };
     if (isAltoImpacto) {
       const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
       base.altoImpacto = ai.join('|');
@@ -238,7 +243,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
         const row = (Array.isArray(res.data) ? res.data : []).find(e => e.name === entityName);
         const idx = meses.map(m => MESES.indexOf(m)).filter(i => i >= 0).sort((a, b) => a - b);
         const periodo = idx.length > 0 && idx.length < 12 ? `${MESES_CORTOS[idx[0]]}–${MESES_CORTOS[idx[idx.length - 1]]}` : null;
-        setPrevRank(row ? { anio: anio - 1, rank: row.id, periodo, value: row.value } : null);
+        setPrevRank(row ? { anio: anio - 1, rank: row.id, periodo, value: row.value, metric: requestedMetric } : null);
       } catch (err) {
         if (axios.isCancel(err)) return;
         setPrevRank(null);
@@ -251,7 +256,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
       }
     })();
     return () => controller.abort();
-  }, [selectedFilters, metricType, retryKey]);
+  }, [selectedFilters, requestedMetric, retryKey]);
 
   const formatNumber = (num) => {
     if (num === 'N/D' || num === undefined || num === null) return 'N/D';
@@ -506,7 +511,7 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
             <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {activeEntityName}
             </span>
-              {!error && rankShown !== null && prevRank && (() => {
+              {!error && rankShown !== null && prevRank && prevRank.metric === metricType && (() => {
                 const diff = prevRank.rank - activeEntityRank; // > 0: subió hacia el 1
                 const up = diff > 0, down = diff < 0;
                 const cmpPrev = `${prevRank.periodo ? prevRank.periodo + ' ' : ''}${prevRank.anio}`;
@@ -561,7 +566,9 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
         <div className="card kpi-card" style={{ flex: 1.6, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.2rem', padding: '0.85rem 1rem', position: 'relative', minWidth: 0 }}>
           {loading && <LoadingSpinner size="sm" />}
           <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {activeIncidenceLabel}{metricType === 'rate' ? ' · tasa' : ''}
+            {metricType === 'rate'
+              ? (selectedMunicipio ? `${selectedMunicipio} · ${RATE_LABEL}` : RATE_LABEL)
+              : activeIncidenceLabel}
           </span>
           <span
             title={totalIsND ? 'Sin población CONAPO para calcular la tasa en este periodo' : undefined}
@@ -731,4 +738,4 @@ const SidebarLeft = ({ selectedFilters, metricType, onInitialLoad, onMesFinal })
   );
 };
 
-export default SidebarLeft;
+export default memo(SidebarLeft);

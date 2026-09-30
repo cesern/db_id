@@ -226,11 +226,10 @@ function countPendingChanges(selected, applied) {
 
 const isVictimasDataset = (d) => d === 'victimas' || d === 'victimas_mun';
 
-// Tiempos del plegado (en sync con .filters-collapse de index.css): al plegar primero se desvanece el
-// contenido (120ms) y luego se cierra la fila (200ms); al abrir, la fila crece y el contenido aparece
+// Tiempos del plegado (en sync con .filters-collapse de index.css): plegar es más rápido que abrir;
+// el fundido (100ms) y el cierre de la fila (180ms) se solapan. Al abrir, la fila crece en 200ms.
 const FILAS_MS = 200;
-const FUNDIDO_MS = 120;
-const PLEGADO_TOTAL_MS = FILAS_MS + FUNDIDO_MS;
+const PLEGADO_TOTAL_MS = 180;
 
 // Categorías del detalle de filtros aplicados (orden del popover: de lo general a lo específico)
 const GRUPOS_DELITO = [
@@ -245,6 +244,8 @@ const GRUPOS_DELITO = [
 const ORDEN_NOMBRES = ['subtipoDelito', 'tipoDelito', 'modalidad', 'bienJuridico', 'sexo', 'rangoEdad'];
 // Dos nombres en la línea solo si juntos no pasan de este largo; si no, uno + "+N"
 const MAX_DOS_NOMBRES = 34;
+// Cadena de delito de lo más específico a lo general (la cascada va bien → tipo → subtipo → modalidad)
+const NIVELES_DELITO = ['modalidad', 'subtipoDelito', 'tipoDelito', 'bienJuridico'];
 // Retraso del hover (solo ratón) antes de abrir el detalle, y gracia al salir
 const HOVER_ABRIR_MS = 300;
 const HOVER_CERRAR_MS = 150;
@@ -305,12 +306,32 @@ const DetalleFiltros = ({ nombres, extra, grupos, onEditar }) => {
       p.style.left = `${Math.round(left)}px`;
       p.style.transformOrigin = `${Math.round(origenX)}px ${arriba ? '100%' : '0'}`;
     };
+    // Al cambiar la ventana u orientación la línea plegada se reacomoda después del evento: se
+    // recoloca también en el cuadro siguiente y cuando el propio botón cambia de tamaño o lugar
+    let raf = 0;
+    const recolocar = () => {
+      colocar();
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(colocar);
+    };
     colocar();
-    window.addEventListener('resize', colocar);
+    window.addEventListener('resize', recolocar);
+    window.addEventListener('orientationchange', recolocar);
     window.addEventListener('scroll', colocar, true);
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', recolocar);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(recolocar) : null;
+    if (ro && trigRef.current) {
+      ro.observe(trigRef.current);
+      ro.observe(document.documentElement);
+    }
     return () => {
-      window.removeEventListener('resize', colocar);
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', recolocar);
+      window.removeEventListener('orientationchange', recolocar);
       window.removeEventListener('scroll', colocar, true);
+      vv?.removeEventListener('resize', recolocar);
+      if (ro) ro.disconnect();
     };
   }, [mounted, grupos]);
 
@@ -535,7 +556,11 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
       else sinDelitos = 'Ningún delito de alto impacto';
     } else {
       // Sexo y Rango de edad solo existen en víctimas (en delitos siempre van vacíos)
-      nombres = ORDEN_NOMBRES.flatMap(lista);
+      // Solo el nivel más específico de la cadena de delito: la cascada ya acota los niveles
+      // superiores (Tipo "Robo" + Subtipo "Robo a casa habitación" = solo el subtipo), así que contarlos
+      // inflaba el "+N". El popover sí lista todas las categorías.
+      const nivelDelito = NIVELES_DELITO.find(k => lista(k).length > 0);
+      nombres = ORDEN_NOMBRES.filter(k => !NIVELES_DELITO.includes(k) || k === nivelDelito).flatMap(lista);
       grupos = GRUPOS_DELITO
         .filter(([k]) => lista(k).length > 0)
         .map(([k, label]) => ({ label, values: lista(k) }));

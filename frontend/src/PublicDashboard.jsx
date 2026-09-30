@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { API_URL } from './api';
 import Header from './components/Header';
@@ -101,13 +101,39 @@ function PublicDashboard() {
     return () => controller.abort();
   }, []);
 
+  const handleInitialLoadComplete = useCallback(() => {
+    setFadeLoading(true);
+    setTimeout(() => {
+      setInitialLoading(false);
+    }, 400); // Duración del fadeout
+  }, []);
+
+  const handleComponentLoaded = useCallback((key) => {
+    setComponentsLoading(prev => {
+      const next = { ...prev, [key]: false };
+      const allLoaded = Object.values(next).every(v => v === false);
+      if (allLoaded) {
+        handleInitialLoadComplete();
+      }
+      return next;
+    });
+  }, [handleInitialLoadComplete]);
+
+  // Callbacks estables por componente: con props estables, React.memo evita que las gráficas se
+  // vuelvan a renderizar (y Recharts re-anime y oculte sus etiquetas) al editar filtros sin aplicar.
+  const onFiltersLoaded = useCallback(() => handleComponentLoaded('filters'), [handleComponentLoaded]);
+  const onSidebarLoaded = useCallback(() => handleComponentLoaded('sidebar'), [handleComponentLoaded]);
+  const onBarLoaded = useCallback(() => handleComponentLoaded('barChart'), [handleComponentLoaded]);
+  const onLineLoaded = useCallback(() => handleComponentLoaded('lineChart'), [handleComponentLoaded]);
+  const onMapLoaded = useCallback(() => handleComponentLoaded('map'), [handleComponentLoaded]);
+
   // Mecanismo de seguridad: quitar pantalla de carga máximo en 10s pase lo que pase
   useEffect(() => {
     const timer = setTimeout(() => {
       handleInitialLoadComplete();
     }, 10000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [handleInitialLoadComplete]);
 
   const handleApply = () => {
     setAppliedFilters({ ...selectedFilters });
@@ -179,24 +205,6 @@ function PublicDashboard() {
     });
     setSelectedFilters(rm);
     setAppliedFilters(rm);
-  };
-
-  const handleInitialLoadComplete = () => {
-    setFadeLoading(true);
-    setTimeout(() => {
-      setInitialLoading(false);
-    }, 400); // Duración del fadeout
-  };
-
-  const handleComponentLoaded = (key) => {
-    setComponentsLoading(prev => {
-      const next = { ...prev, [key]: false };
-      const allLoaded = Object.values(next).every(v => v === false);
-      if (allLoaded) {
-        handleInitialLoadComplete();
-      }
-      return next;
-    });
   };
 
   // Alto que ocupa arriba de la cuadrícula el encabezado + la línea de filtros PLEGADA. Se calcula en
@@ -320,7 +328,7 @@ function PublicDashboard() {
             appliedFilters={appliedFilters}
             onApply={handleApply}
             onClear={handleClear}
-            onInitialLoadComplete={() => handleComponentLoaded('filters')}
+            onInitialLoadComplete={onFiltersLoaded}
             customCapsules={customCapsules}
             onAddCustomCapsule={handleAddCustomCapsule}
             onRemoveCustomCapsule={handleRemoveCustomCapsule}
@@ -334,7 +342,7 @@ function PublicDashboard() {
               <SidebarLeft
                 selectedFilters={appliedFilters}
                 metricType={metricType}
-                onInitialLoad={() => handleComponentLoaded('sidebar')}
+                onInitialLoad={onSidebarLoaded}
                 onMesFinal={setMesFinalInfo}
               />
             </div>
@@ -345,7 +353,7 @@ function PublicDashboard() {
                 <ChartBarYears
                   selectedFilters={appliedFilters}
                   metricType={metricType}
-                  onInitialLoad={() => handleComponentLoaded('barChart')}
+                  onInitialLoad={onBarLoaded}
                 />
               </div>
 
@@ -354,7 +362,7 @@ function PublicDashboard() {
                 <ChartLineTrend
                   selectedFilters={appliedFilters}
                   metricType={metricType}
-                  onInitialLoad={() => handleComponentLoaded('lineChart')}
+                  onInitialLoad={onLineLoaded}
                 />
               </div>
             </div>
@@ -365,7 +373,7 @@ function PublicDashboard() {
                 <MapMexico
                   selectedFilters={appliedFilters}
                   metricType={metricType}
-                  onInitialLoad={() => handleComponentLoaded('map')}
+                  onInitialLoad={onMapLoaded}
                   mesFinal={mesFinal}
                 />
               </div>

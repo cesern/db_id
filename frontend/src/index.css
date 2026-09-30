@@ -132,7 +132,7 @@ body {
   cursor: pointer;
   font-weight: 500;
   color: var(--text-secondary);
-  transition: background-color 180ms ease, color 180ms ease;
+  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
   flex: 1;
   white-space: nowrap;
 }
@@ -778,9 +778,9 @@ select:focus:not(:focus-visible) {
 }
 
 /* Plegado sin medir alturas en JS: la fila del grid pasa de 1fr a 0fr.
-   Al plegar: primero se desvanece el contenido (120ms) y luego se cierra la fila (200ms, con retraso).
-   Al abrir: la fila crece (200ms) y el contenido aparece mientras tanto (150ms, desde los 80ms).
-   Tiempos en sync con Filters.jsx (FILAS_MS, FUNDIDO_MS). */
+   Al plegar (más rápido que abrir, 180ms en total): el contenido se desvanece (100ms) mientras la fila
+   ya se cierra (180ms), solapados. Al abrir: la fila crece (200ms) y el contenido aparece mientras
+   tanto (150ms, desde los 80ms). Tiempos en sync con Filters.jsx (FILAS_MS, PLEGADO_TOTAL_MS). */
 .filters-collapse {
   display: grid;
   grid-template-rows: 1fr;
@@ -788,7 +788,7 @@ select:focus:not(:focus-visible) {
 }
 .filters-collapse[data-open="false"] {
   grid-template-rows: 0fr;
-  transition-delay: 120ms;
+  transition: grid-template-rows 180ms var(--ease-out) 0ms;
 }
 .filters-collapse-inner {
   min-height: 0;
@@ -796,7 +796,7 @@ select:focus:not(:focus-visible) {
 }
 .filters-collapse[data-open="false"] > .filters-collapse-inner {
   opacity: 0;
-  transition-delay: 0ms;
+  transition: opacity 100ms var(--ease-out) 0ms;
 }
 /* Recorte solo plegado o mientras se abre: abierto, los menús desplegables no quedan cortados */
 .filters-collapse[data-clip="true"] > .filters-collapse-inner { overflow: hidden; }
@@ -862,7 +862,11 @@ select:focus:not(:focus-visible) {
   display: inline-flex;
   align-items: baseline;
   gap: 0.3em;
-  padding: 0 2px;
+  /* Área de clic de 28px sin cambiar el alto de la línea: relleno vertical compensado con margen negativo */
+  padding: 6px 2px;
+  margin-block: -6px;
+  min-height: 28px;
+  box-sizing: border-box;
   font: inherit;
   color: var(--color-accent-dark);
   background: none;
@@ -906,7 +910,7 @@ select:focus:not(:focus-visible) {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.25em; /* un espacio normal entre "Editar" y "filtros" */
   font-family: inherit;
   cursor: pointer;
   min-height: 30px;
@@ -1067,7 +1071,7 @@ select:focus:not(:focus-visible) {
 /* Celular vertical u horizontal (932×430): objetivos táctiles más altos */
 @media (max-width: 767px), (max-height: 500px) {
   .filters-toggle { min-height: 44px; }
-  .filters-toggle-metric button { min-height: 36px; }
+  .filters-toggle-metric button { min-height: 40px; }
 }
 /* Celular horizontal: todo va en un renglón; pastilla corta ("Editar ▾") para dejar espacio al resumen.
    En vertical los controles tienen renglón propio y "Editar filtros" cabe completo. */
@@ -1084,7 +1088,8 @@ select:focus:not(:focus-visible) {
 }
 
 @media (max-width: 480px) {
-  header h1 { font-size: 1.05rem !important; margin-left: 0 !important; }
+  /* Más grande que los títulos de tarjeta (1rem): jerarquía clara también en celular */
+  header h1 { font-size: 1.3rem !important; margin-left: 0 !important; }
   header img { height: 34px !important; }
 }
 
@@ -1230,8 +1235,9 @@ select:focus:not(:focus-visible) {
   .filters-btn,
   .month-strip-clear { min-height: 40px; }
   .filters-toggle-action,
-  .filters-toggle-metric button,
-  .filters-detail-btn { min-height: 36px; }
+  .filters-toggle-metric button { min-height: 40px; }
+  /* El detalle crece hacia afuera (margen negativo): 40px de toque sin engrosar el texto de la línea */
+  .filters-detail-btn { min-height: 40px; padding-block: 12px; margin-block: -12px; }
   /* Mismo tamaño visual; el área de toque crece hacia afuera sin mover la fila */
   .rank-change { min-width: 40px; min-height: 40px; margin: -8px; }
   .range-thumb { width: 40px; height: 40px; }

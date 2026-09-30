@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useId } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useId, memo } from 'react';
 import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
 import { scaleSqrt } from 'd3-scale';
 
@@ -23,7 +23,11 @@ import { useExitAnimation } from '../utils/useExitAnimation';
 // Para cualquier otra entidad seleccionada, el mapa nacional se mantiene visible
 // con el filtro activo (los datos se filtran) pero sin cambio de zoom ni de región.
 
-const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => {
+const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad, mesFinal }) => {
+  // Métrica con la que se pidieron los datos mostrados: rótulos y formato la siguen a ella, no a la
+  // prop, para que al cambiar Cifras↔Tasa nunca aparezca una cifra absoluta rotulada como tasa.
+  const [dataMetric, setDataMetric] = useState(requestedMetric);
+  const metricType = dataMetric;
   const dataset = selectedFilters?.dataset || 'delitos';
   const isVictimas = dataset === 'victimas';
   const isVictimasMun = dataset === 'victimas_mun';
@@ -214,7 +218,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
 
     const params = new URLSearchParams();
     params.append("dataset", wireDataset);
-    params.append("metric_type", metricType);
+    params.append("metric_type", requestedMetric);
     if (selectedFilters.anio) params.append("anio", selectedFilters.anio);
     if (isAltoImpacto) {
       const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
@@ -249,6 +253,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
         setError(false);
         if (res.data) {
           setStateData(res.data);
+          setDataMetric(requestedMetric);
           const numericValues = res.data
             .map(d => typeof d.value === 'number' ? d.value : parseFloat(d.value))
             .filter(v => !isNaN(v));
@@ -272,7 +277,7 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
       });
 
     return () => controller.abort();
-  }, [selectedFilters, isSonora, dataset, metricType, retryKey]);
+  }, [selectedFilters, isSonora, dataset, requestedMetric, retryKey]);
 
   // Escala de raíz cuadrada: el color refleja la magnitud (Hermosillo 7,157 intenso,
   // San Luis Río Colorado 1,296 en tono medio) sin que el valor máximo deje al resto en blanco.
@@ -573,4 +578,4 @@ const MapMexico = ({ selectedFilters, metricType, onInitialLoad, mesFinal }) => 
   );
 };
 
-export default MapMexico;
+export default memo(MapMexico);

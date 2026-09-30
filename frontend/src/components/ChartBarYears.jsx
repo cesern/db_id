@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
@@ -107,7 +107,11 @@ const ActiveLabelTracker = ({ labelRef }) => {
   return null;
 };
 
-const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
+const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitialLoad }) => {
+  // Métrica con la que se pidieron los datos mostrados: rótulos y formato la siguen a ella, no a la
+  // prop, para que al cambiar Cifras↔Tasa nunca aparezca una cifra absoluta rotulada como tasa.
+  const [dataMetric, setDataMetric] = useState(requestedMetric);
+  const metricType = dataMetric;
   const [data, setData] = useState([]);
   // true desde el inicio: antes de la primera respuesta no se muestra un "sin datos" falso
   const [loading, setLoading] = useState(true);
@@ -149,7 +153,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
 
     const params = new URLSearchParams();
     params.append("dataset", isAltoImpacto ? "delitos" : dataset);
-    params.append("metric_type", metricType);
+    params.append("metric_type", requestedMetric);
     if (isAltoImpacto) {
       const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
       params.append("altoImpacto", ai.join('|'));
@@ -193,6 +197,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
             };
           });
           setData(formatted);
+          setDataMetric(requestedMetric);
         }
       })
       .catch(err => {
@@ -211,7 +216,7 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
       });
 
     return () => controller.abort();
-  }, [selectedFilters, metricType, retryKey]);
+  }, [selectedFilters, requestedMetric, retryKey]);
 
   const dataset = selectedFilters?.dataset || 'delitos';
   const isVictimas = dataset === 'victimas';
@@ -557,4 +562,4 @@ const ChartBarYears = ({ selectedFilters, metricType, onInitialLoad }) => {
   );
 };
 
-export default ChartBarYears;
+export default memo(ChartBarYears);
