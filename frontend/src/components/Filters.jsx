@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef, useId, useContext } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useId, useContext } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { API_URL } from '../api';
 import { ALTO_IMPACTO_PRESETS, parseCapsule } from '../utils/altoImpacto';
 import AltoImpactoModal from './AltoImpactoModal';
-import { mesesResumen, metricLabel, RATE_LABEL } from '../utils/labels';
+import { mesesResumen, RATE_LABEL } from '../utils/labels';
 import { MesFinalContext } from '../utils/mesFinalContext';
 import { PREFERS_REDUCED_MOTION } from '../utils/motion';
 import MonthStrip from './MonthStrip';
@@ -225,38 +226,147 @@ function countPendingChanges(selected, applied) {
 
 const isVictimasDataset = (d) => d === 'victimas' || d === 'victimas_mun';
 
-// Celular (vertical u horizontal): los filtros inician plegados. Mismo criterio que el CSS de .filters-toggle
-const MOVIL_MQ = '(max-width: 767px), (max-height: 500px)';
-const esMovil = () => {
-  try { return window.matchMedia(MOVIL_MQ).matches; } catch { return false; }
+// Tiempos del plegado (en sync con .filters-collapse de index.css): al plegar primero se desvanece el
+// contenido (120ms) y luego se cierra la fila (200ms); al abrir, al revés
+const FILAS_MS = 200;
+const FUNDIDO_MS = 120;
+const PLEGADO_TOTAL_MS = FILAS_MS + FUNDIDO_MS;
+
+// Filtros de delito/víctima aplicados, agrupados por categoría (para el tooltip de la línea plegada)
+const GRUPOS_DELITO = [
+  ['bienJuridico', 'Bien jurídico'],
+  ['tipoDelito', 'Tipo'],
+  ['subtipoDelito', 'Subtipo'],
+  ['modalidad', 'Modalidad'],
+  ['sexo', 'Sexo'],
+  ['rangoEdad', 'Rango de edad'],
+];
+// Máximo de valores por categoría en el tooltip; el resto se resume como "+N más"
+const TIP_MAX_VALORES = 8;
+
+// ── Segmento "N filtros de delito" con tooltip de los filtros aplicados ─────────
+// Aparece con el ratón (hover), con el teclado (foco visible) y con un toque (sin abrir el panel);
+// un toque fuera lo oculta. Se dibuja en un portal con posición fija para no quedar recortado por la
+// elipsis del resumen, y se acomoda para no salirse de la ventana.
+const ConteoConTip = ({ texto, grupos }) => {
+  const [visible, setVisible] = useState(false);
+  const segRef = useRef(null);
+  const tipRef = useRef(null);
+  const punteroRef = useRef('mouse');
+  const tipId = useId();
+
+  // Posición: debajo del segmento; arriba si no cabe; recortada a la ventana con 8px de margen
+  useLayoutEffect(() => {
+    if (!visible || !segRef.current || !tipRef.current) return;
+    const r = segRef.current.getBoundingClientRect();
+    const tip = tipRef.current;
+    const w = tip.offsetWidth;
+    const h = tip.offsetHeight;
+    const M = 8;
+    let top = r.bottom + 6;
+    if (top + h > window.innerHeight - M) top = Math.max(M, r.top - 6 - h);
+    const left = Math.min(Math.max(M, r.left), Math.max(M, window.innerWidth - w - M));
+    tip.style.top = `${top}px`;
+    tip.style.left = `${left}px`;
+  }, [visible, grupos]);
+
+  // Abierto: un toque/clic fuera, Escape, desplazar o cambiar el tamaño lo ocultan
+  useEffect(() => {
+    if (!visible) return undefined;
+    const fuera = (e) => { if (!segRef.current?.contains(e.target)) setVisible(false); };
+    const esc = (e) => { if (e.key === 'Escape') setVisible(false); };
+    const ocultar = () => setVisible(false);
+    document.addEventListener('pointerdown', fuera);
+    document.addEventListener('keydown', esc);
+    window.addEventListener('scroll', ocultar, true);
+    window.addEventListener('resize', ocultar);
+    return () => {
+      document.removeEventListener('pointerdown', fuera);
+      document.removeEventListener('keydown', esc);
+      window.removeEventListener('scroll', ocultar, true);
+      window.removeEventListener('resize', ocultar);
+    };
+  }, [visible]);
+
+  return (
+    <>
+      <span
+        ref={segRef}
+        className="filters-toggle-count"
+        role="button"
+        tabIndex={0}
+        aria-describedby={tipId}
+        aria-expanded={visible}
+        onPointerDown={(e) => { punteroRef.current = e.pointerType; }}
+        onPointerEnter={(e) => { if (e.pointerType === 'mouse') setVisible(true); }}
+        onPointerLeave={(e) => { if (e.pointerType === 'mouse') setVisible(false); }}
+        onFocus={(e) => {
+          // Solo con teclado: un toque también enfoca, y ese caso lo resuelve el clic
+          let teclado = false;
+          try { teclado = e.currentTarget.matches(':focus-visible'); } catch { /* noop */ }
+          if (teclado) setVisible(true);
+        }}
+        onBlur={() => setVisible(false)}
+        onClick={(e) => {
+          // No abre ni pliega el panel
+          e.stopPropagation();
+          if (punteroRef.current !== 'mouse') setVisible(v => !v);
+          punteroRef.current = 'mouse';
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            setVisible(v => !v);
+          }
+        }}
+      >
+        {texto}
+      </span>
+      {createPortal(
+        <div ref={tipRef} id={tipId} role="tooltip" className="filters-tip" hidden={!visible}>
+          {grupos.map(g => (
+            <div key={g.label} className="filters-tip-group">
+              <strong>{g.label}</strong>
+              <span>
+                {g.values.slice(0, TIP_MAX_VALORES).join(', ')}
+                {g.values.length > TIP_MAX_VALORES && ` +${g.values.length - TIP_MAX_VALORES} más`}
+              </span>
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
+  );
 };
-// Duración del plegado (en sync con .filters-collapse de index.css)
-const PLEGADO_MS = 200;
 
 // ── Filters Component ──────────────────────────────────────────────────────────
-const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelectedFilters, appliedFilters, onApply, onClear, onInitialLoadComplete, customCapsules, onAddCustomCapsule, onRemoveCustomCapsule }) => {
+const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelectedFilters, appliedFilters, onApply, onClear, onInitialLoadComplete, customCapsules, onAddCustomCapsule, onRemoveCustomCapsule, onOpenChange }) => {
   const isAltoImpacto = dataset === 'alto_impacto';
   const wireDataset = isAltoImpacto ? 'delitos' : dataset;
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
-  // Panel de filtros plegable. Escritorio: inicia abierto y se pliega al aplicar. Celular: inicia
-  // plegado (los datos aparecen primero) y también se pliega al aplicar.
-  const [isOpen, setIsOpen] = useState(() => !esMovil());
-  // En escritorio la línea de resumen aparece desde el primer plegado (antes, el panel se ve como siempre)
-  const [yaPlegado, setYaPlegado] = useState(false);
+  // Panel de filtros plegable: inicia plegado (escritorio y celular) mostrando la línea de resumen;
+  // "Aplicar filtros" lo vuelve a plegar. Cambiar de dataset o "Limpiar filtros" no lo pliegan.
+  const [isOpen, setIsOpen] = useState(false);
   // Recorte del contenido: activo plegado y durante la apertura; al terminar se quita para que los
   // menús desplegables (posición absoluta) no queden cortados
-  const [recortar, setRecortar] = useState(() => esMovil());
+  const [recortar, setRecortar] = useState(true);
   const toggleRef = useRef(null);
   const enfocarToggleRef = useRef(false);
   const mesFinalCtx = useContext(MesFinalContext);
+  // onOpenChange puede cambiar de identidad en cada render del padre
+  const onOpenChangeRef = useRef(onOpenChange);
+  useEffect(() => { onOpenChangeRef.current = onOpenChange; }, [onOpenChange]);
 
   const plegar = (enfocar = false) => {
     setIsOpen(false);
-    setYaPlegado(true);
     setRecortar(true);
     enfocarToggleRef.current = enfocar;
   };
   const abrir = () => {
+    // Avisa de inmediato al tablero (antes de que el panel crezca) para que la cuadrícula conserve su alto
+    onOpenChangeRef.current?.(true);
     setIsOpen(true);
     setRecortar(!PREFERS_REDUCED_MOTION);
   };
@@ -264,9 +374,18 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
   // Fin de la apertura: se quita el recorte (sin animación, de inmediato)
   useEffect(() => {
     if (!isOpen || !recortar) return undefined;
-    const t = setTimeout(() => setRecortar(false), PLEGADO_MS + 20);
+    const t = setTimeout(() => setRecortar(false), FILAS_MS + 20);
     return () => clearTimeout(t);
   }, [isOpen, recortar]);
+
+  // Al plegar, el tablero recupera su alto fijo solo cuando termina la animación (así la cuadrícula
+  // no cambia de alto a media transición y las gráficas no se redimensionan)
+  useEffect(() => {
+    if (isOpen) return undefined;
+    const t = setTimeout(() => onOpenChangeRef.current?.(false), PREFERS_REDUCED_MOTION ? 0 : PLEGADO_TOTAL_MS + 20);
+    return () => clearTimeout(t);
+  }, [isOpen]);
+  useEffect(() => () => onOpenChangeRef.current?.(false), []);
 
   // Tras aplicar, el botón queda dentro del contenido inerte: el foco pasa a la línea de resumen
   useEffect(() => {
@@ -307,7 +426,8 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
   const pendingCount = countPendingChanges(selectedFilters, appliedFilters);
 
   // Resumen de los filtros APLICADOS en la línea plegada:
-  // "Filtros · 2026 · Sonora · Todos los municipios · Ene–Ago · Cifras absolutas"
+  // "Filtros · 2026 · Sonora · Todos los municipios · Ene–Ago" + segmento de conteo con tooltip.
+  // La métrica ya no va en el texto: la línea trae su propio conmutador compacto.
   const appliedSummary = (() => {
     const a = appliedFilters || {};
     const ds = a.dataset || dataset;
@@ -321,15 +441,20 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
     // El último mes publicado (contexto) corresponde siempre a lo aplicado
     const meses = mesesResumen(a.meses, mesFinalCtx);
     let delito = null;
+    let grupos = [];
     if (ds === 'alto_impacto') {
-      const n = Array.isArray(a.altoImpacto) ? a.altoImpacto.length : 0;
+      const tokens = Array.isArray(a.altoImpacto) ? a.altoImpacto : [];
+      const n = tokens.length;
       delito = `${n} ${n === 1 ? 'delito' : 'delitos'} de alto impacto`;
+      if (n > 0) grupos = [{ label: 'Delitos de alto impacto', values: tokens.map(t => parseCapsule(t).name) }];
     } else {
-      const n = ['bienJuridico', 'tipoDelito', 'subtipoDelito', 'modalidad', 'sexo', 'rangoEdad']
-        .reduce((acc, k) => acc + (Array.isArray(a[k]) && a[k].length > 0 ? 1 : 0), 0);
+      grupos = GRUPOS_DELITO
+        .filter(([k]) => Array.isArray(a[k]) && a[k].length > 0)
+        .map(([k, label]) => ({ label, values: a[k] }));
+      const n = grupos.length;
       if (n > 0) delito = `${n} ${n === 1 ? 'filtro' : 'filtros'} de ${isVictimasDataset(ds) ? 'delito y víctima' : 'delito'}`;
     }
-    return ['Filtros', a.anio, ent, mun, meses, delito, metricLabel(metricType)].filter(Boolean).join(' · ');
+    return { texto: ['Filtros', a.anio, ent, mun, meses].filter(Boolean).join(' · '), delito, grupos };
   })();
 
   // ── Efecto 1: Opciones base (año, entidad, bien jurídico) — solo al aplicar filtros
@@ -485,25 +610,70 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
 
   return (
     <div className="filters-panel" data-open={isOpen}>
-      {/* Línea de resumen: toda la línea abre/pliega el panel */}
-      <button
-        type="button"
-        ref={toggleRef}
-        className="filters-toggle"
-        data-visible={yaPlegado || !isOpen}
-        aria-expanded={isOpen}
-        aria-controls="filters-body"
-        onClick={() => (isOpen ? plegar() : abrir())}
-      >
+      {/* Línea de resumen: un clic en cualquier parte abre/pliega el panel (ratón); con teclado y lector
+          de pantalla el control es el botón "Editar filtros". El conteo y la métrica compacta detienen
+          la propagación para no abrir el panel. */}
+      <div className="filters-toggle" onClick={() => (isOpen ? plegar() : abrir())}>
         <span className="filters-toggle-summary">
-          {appliedSummary}
+          {appliedSummary.texto}
+          {appliedSummary.delito && (
+            <>
+              {' · '}
+              {appliedSummary.grupos.length > 0
+                ? <ConteoConTip texto={appliedSummary.delito} grupos={appliedSummary.grupos} />
+                : appliedSummary.delito}
+            </>
+          )}
           {pendingCount > 0 && <span className="filters-toggle-pending"> · {pendingCount} sin aplicar</span>}
         </span>
-        <span className="filters-toggle-action">
-          {isOpen ? 'Ocultar' : 'Editar'}<span className="filters-toggle-action-long"> filtros</span>
-          <span aria-hidden="true">{isOpen ? ' ▴' : ' ▾'}</span>
+        <span className="filters-toggle-controls">
+          {/* Métrica compacta: mismo estado que el conmutador completo; solo con el panel plegado */}
+          {!isOpen && (
+            <span
+              className="btn-toggle filters-toggle-metric"
+              role="group"
+              aria-label="Métrica (se aplica al instante)"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                aria-pressed={metricType === 'absolute'}
+                aria-label="Cifras absolutas"
+                title="Cifras absolutas · se aplica al instante"
+                className={metricType === 'absolute' ? 'active' : ''}
+                onClick={() => setMetricType('absolute')}
+              >
+                Cifras
+              </button>
+              <button
+                type="button"
+                aria-pressed={metricType === 'rate'}
+                aria-label={RATE_LABEL}
+                title={`${RATE_LABEL} · se aplica al instante`}
+                className={metricType === 'rate' ? 'active' : ''}
+                onClick={() => setMetricType('rate')}
+              >
+                Tasa
+              </button>
+            </span>
+          )}
+          <button
+            type="button"
+            ref={toggleRef}
+            className="filters-toggle-action"
+            aria-label="Editar filtros"
+            aria-expanded={isOpen}
+            aria-controls="filters-body"
+            onClick={(e) => { e.stopPropagation(); if (isOpen) plegar(); else abrir(); }}
+          >
+            Editar<span className="filters-toggle-action-long">filtros</span>
+            {/* Un solo chevrón: gira 180° con el panel abierto */}
+            <svg className="filters-toggle-chevron" aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
         </span>
-      </button>
+      </div>
 
       {/* Plegado con grid-template-rows 0fr ↔ 1fr; plegado = inerte (sin foco ni lector de pantalla) */}
       <div className="filters-collapse" data-open={isOpen} data-clip={recortar}>

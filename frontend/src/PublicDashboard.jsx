@@ -47,6 +47,11 @@ const ALTO_IMPACTO_DEFAULT = [
 function PublicDashboard() {
   const [metricType, setMetricType] = useState('absolute');
   const [activeTab, setActiveTab] = useState('dashboard');
+  // Panel de filtros abierto: la cuadrícula conserva el alto que tiene con el panel plegado y la página
+  // se desplaza (en escritorio alto, las gráficas no se aplastan). Ver [data-filters-open] en index.css.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const appRef = useRef(null);
+  const gridRef = useRef(null);
   // Último mes con datos del año aplicado. SidebarLeft lo reporta como { dataset, anio, mesFinal };
   // solo vale si coincide con lo aplicado (si no, undefined = desconocido, nunca "sin publicar")
   const [mesFinalInfo, setMesFinalInfo] = useState(null);
@@ -192,6 +197,33 @@ function PublicDashboard() {
     });
   };
 
+  // Alto ocupado arriba de la cuadrícula (encabezado + línea de filtros plegada), medido solo con el panel
+  // plegado. Con el panel abierto la cuadrícula mide calc(100vh - --chrome-plegado): el mismo alto que plegado.
+  const medirChrome = () => {
+    const grid = gridRef.current;
+    const app = appRef.current;
+    if (!grid || !app) return;
+    const chrome = grid.getBoundingClientRect().top - app.getBoundingClientRect().top;
+    app.style.setProperty('--chrome-plegado', `${Math.round(chrome)}px`);
+  };
+  // Al abrir se mide una última vez con el panel aún plegado (por si la ventana cambió en este cuadro)
+  const handleFiltersOpenChange = (open) => {
+    if (open) medirChrome();
+    setFiltersOpen(open);
+  };
+  useEffect(() => {
+    if (filtersOpen || activeTab !== 'dashboard') return undefined;
+    const medir = () => medirChrome();
+    medir();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(medir) : null;
+    if (ro && gridRef.current) ro.observe(gridRef.current);
+    window.addEventListener('resize', medir);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', medir);
+    };
+  }, [filtersOpen, activeTab, appliedFilters.anio]);
+
   const mesFinal = mesFinalInfo
     && mesFinalInfo.dataset === appliedFilters.dataset
     && String(mesFinalInfo.anio) === String(appliedFilters.anio)
@@ -200,7 +232,12 @@ function PublicDashboard() {
 
   return (
     <MesFinalContext.Provider value={mesFinal}>
-    <div className="app-container" style={{ display: 'flex', flexDirection: 'column' }}>
+    <div
+      ref={appRef}
+      className="app-container"
+      data-filters-open={activeTab === 'dashboard' && filtersOpen ? 'true' : undefined}
+      style={{ display: 'flex', flexDirection: 'column' }}
+    >
       
       {/* Capa de cargando inicial (Loading overlay) */}
       {initialLoading && (
@@ -279,9 +316,10 @@ function PublicDashboard() {
             customCapsules={customCapsules}
             onAddCustomCapsule={handleAddCustomCapsule}
             onRemoveCustomCapsule={handleRemoveCustomCapsule}
+            onOpenChange={handleFiltersOpenChange}
           />
 
-          <main className="dashboard-grid" style={{ flex: 1, minHeight: 0 }}>
+          <main ref={gridRef} className="dashboard-grid">
             {/* Left Column */}
             <div className="dashboard-col">
               <SidebarLeft

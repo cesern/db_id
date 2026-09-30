@@ -218,6 +218,7 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, mesFinalAplica }) => {
         aria-multiselectable="true"
         aria-label="Meses (sin selección = año completo)"
         aria-activedescendant={`${idBase}${cursor}`}
+        aria-describedby={n === 0 ? `${uid}-hint` : undefined}
         tabIndex={0}
         onKeyDown={onKeyDown}
         onPointerMove={onPointerMove}
@@ -251,7 +252,8 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, mesFinalAplica }) => {
       </div>
       {n === 0 && (
         // Pista de gesto bajo la tira: solo sin meses elegidos; texto según el tipo de puntero
-        <p className="month-strip-hint" aria-hidden="true">
+        // Enlazada a la tira con aria-describedby (el lector la anuncia al enfocarla)
+        <p className="month-strip-hint" id={`${uid}-hint`}>
           <span className="month-strip-hint-fine">Arrastra para elegir un rango · Ctrl+clic para sumar meses</span>
           <span className="month-strip-hint-coarse">Toca para elegir meses · desliza para un rango</span>
         </p>

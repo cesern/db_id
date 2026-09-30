@@ -28,6 +28,9 @@
   --header-bar-height: 38px;
 
   --filters-padding: 1.25rem 1.5rem;
+  /* Panel de filtros: relleno vertical fijo (la línea plegada) + relleno inferior del contenido */
+  --filters-padding-x: 1.5rem;
+  --filters-body-pb: 0.75rem;
   --filters-gap: 1rem;
   --filters-row-gap: 1.25rem;
   --filters-select-gap: 1rem;
@@ -216,6 +219,8 @@ body {
   grid-template-columns: 1fr;
   gap: var(--grid-gap, 1.5rem);
   padding: var(--grid-padding, 1rem);
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .app-container {
@@ -298,10 +303,21 @@ body {
   .sidebar-table-card {
     max-height: none;
   }
-  /* Mínimos menores para que barras + histórico quepan en el alto de la columna aun con los
-     filtros abiertos: así la columna central termina donde terminan tabla y mapa (el histórico
-     cede alto a su gráfica; el desplazamiento de la columna queda solo como respaldo). */
+  /* Mínimos menores para que barras + histórico quepan en el alto de la columna: así la columna
+     central termina donde terminan tabla y mapa (el histórico cede alto a su gráfica; el
+     desplazamiento de la columna queda solo como respaldo). */
   .dashboard-grid { --chart-card-min-height: 150px; --chart-trend-card-min-height: 180px; }
+  /* Filtros abiertos: la cuadrícula conserva el alto que tiene con el panel plegado (--chrome-plegado lo
+     mide PublicDashboard) y la página se desplaza; así las gráficas no se aplastan ni se redimensionan. */
+  .app-container[data-filters-open="true"] {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+  .app-container[data-filters-open="true"] > .dashboard-grid {
+    flex: 0 0 auto;
+    height: calc(100vh - var(--chrome-plegado, 120px));
+  }
 }
 
 /* Pantallas de escritorio BAJAS (con scroll de body completo para ver todas las tarjetas sin colapsar) */
@@ -351,6 +367,8 @@ body {
     --header-bar-height: 28px;
 
     --filters-padding: 0.5rem 1rem;
+    --filters-padding-x: 1rem;
+    --filters-body-pb: 0rem;
     --filters-gap: 0.4rem;
     --filters-row-gap: 0.4rem;
     --filters-select-gap: 0.5rem;
@@ -749,36 +767,47 @@ select:focus:not(:focus-visible) {
 .filters-panel {
   display: flex;
   flex-direction: column;
-  padding: var(--filters-padding, 1.25rem 1.5rem);
+  /* Relleno vertical fijo (sin animar): el espacio extra del panel abierto vive dentro del contenido plegable */
+  padding: 0.5rem var(--filters-padding-x, 1.5rem);
   background-color: var(--bg-card);
   border-bottom: 1px solid var(--border-color);
-  transition: padding 200ms var(--ease-out);
 }
-/* Plegado: solo la línea de resumen, con poco margen vertical */
-.filters-panel[data-open="false"] { padding-top: 0.5rem; padding-bottom: 0.5rem; }
 
-/* Plegado sin medir alturas en JS: la fila del grid pasa de 1fr a 0fr */
+/* Plegado sin medir alturas en JS: la fila del grid pasa de 1fr a 0fr.
+   Al plegar: primero se desvanece el contenido (120ms) y luego se cierra la fila (200ms, con retraso).
+   Al abrir: primero se abre la fila y luego aparece el contenido. Tiempos en sync con Filters.jsx. */
 .filters-collapse {
   display: grid;
   grid-template-rows: 1fr;
-  transition: grid-template-rows 200ms var(--ease-out);
+  transition: grid-template-rows 200ms var(--ease-out) 0ms;
 }
-.filters-collapse[data-open="false"] { grid-template-rows: 0fr; }
+.filters-collapse[data-open="false"] {
+  grid-template-rows: 0fr;
+  transition-delay: 120ms;
+}
 .filters-collapse-inner {
   min-height: 0;
-  transition: opacity 200ms var(--ease-out);
+  transition: opacity 120ms var(--ease-out) 200ms;
 }
-.filters-collapse[data-open="false"] > .filters-collapse-inner { opacity: 0; }
+.filters-collapse[data-open="false"] > .filters-collapse-inner {
+  opacity: 0;
+  transition-delay: 0ms;
+}
 /* Recorte solo plegado o mientras se abre: abierto, los menús desplegables no quedan cortados */
 .filters-collapse[data-clip="true"] > .filters-collapse-inner { overflow: hidden; }
 
-.filters-body { display: flex; flex-direction: column; gap: var(--filters-gap, 1rem); }
-/* Con la línea de resumen visible, el contenido abre separado de ella */
-.filters-toggle[data-visible="true"] + .filters-collapse .filters-body { padding-top: var(--filters-gap, 1rem); }
+.filters-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--filters-gap, 1rem);
+  /* Separado de la línea de resumen arriba; relleno inferior del panel abierto abajo */
+  padding-top: var(--filters-gap, 1rem);
+  padding-bottom: var(--filters-body-pb, 0.75rem);
+}
 
-/* Línea de resumen: en escritorio aparece desde el primer plegado; en celular, siempre */
+/* Línea de resumen: siempre visible; un clic en cualquier parte abre/pliega el panel */
 .filters-toggle {
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
@@ -796,7 +825,6 @@ select:focus:not(:focus-visible) {
   text-align: left;
   transition: border-color 150ms var(--ease-out);
 }
-.filters-toggle[data-visible="true"] { display: flex; }
 @media (hover: hover) and (pointer: fine) {
   .filters-toggle:hover { border-color: var(--color-accent); }
 }
@@ -808,12 +836,39 @@ select:focus:not(:focus-visible) {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  padding: 3px 2px; /* deja ver el anillo de foco del conteo pese al overflow */
 }
 .filters-toggle-pending { color: var(--color-accent); }
+/* Conteo "N filtros de delito": muestra el tooltip con los filtros aplicados */
+.filters-toggle-count {
+  cursor: help;
+  text-decoration: underline dotted var(--text-secondary);
+  text-underline-offset: 3px;
+  border-radius: 4px;
+}
+.filters-toggle-count:focus-visible { outline-offset: 1px; }
+/* Métrica compacta y "Editar filtros" a la derecha de la línea */
+.filters-toggle-controls {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.btn-toggle.filters-toggle-metric { padding: 2px; border-radius: var(--radius-md); background: var(--bg-card); }
+.filters-toggle-metric button {
+  padding: 0 0.6rem;
+  min-height: 26px;
+  font-size: 0.75rem;
+  border-radius: 6px;
+}
+.filters-toggle-metric button.active { box-shadow: none; }
 .filters-toggle-action {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
+  gap: 0.35rem;
+  font-family: inherit;
+  cursor: pointer;
   min-height: 30px;
   padding: 0 0.75rem;
   font-size: 0.8125rem;
@@ -824,10 +879,42 @@ select:focus:not(:focus-visible) {
   border-radius: var(--radius-md);
   white-space: nowrap;
 }
+/* Un solo chevrón que gira con el panel abierto */
+.filters-toggle-chevron { flex-shrink: 0; transition: transform 200ms var(--ease-out); }
+.filters-toggle-action[aria-expanded="true"] .filters-toggle-chevron { transform: rotate(180deg); }
+
+/* Tooltip de los filtros aplicados (portal en body, posición fija calculada en Filters.jsx) */
+.filters-tip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 500; /* sobre tarjetas y menús de exportar; debajo de modales/pantalla completa */
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 0.55rem 0.7rem;
+  background: var(--color-primary);
+  color: #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+  animation: filtersTipIn 150ms var(--ease-out) both;
+}
+.filters-tip[hidden] { display: none; }
+.filters-tip-group { display: flex; flex-direction: column; }
+.filters-tip-group strong { color: #ffffff; font-weight: 700; }
+@keyframes filtersTipIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* Métrica (se aplica al instante) separada del grupo Limpiar/Aplicar */
 .filters-metric { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-.filters-metric-hint { font-size: 0.6875rem; color: var(--text-secondary); line-height: 1.2; }
+.filters-metric-hint { font-size: 0.75rem; color: var(--text-secondary); line-height: 1.2; }
 .filters-actions {
   display: flex;
   gap: 0.5rem;
@@ -839,7 +926,9 @@ select:focus:not(:focus-visible) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .filters-panel, .filters-collapse, .filters-collapse-inner, .filters-toggle { transition: none; }
+  .filters-panel, .filters-collapse, .filters-collapse-inner, .filters-toggle,
+  .filters-toggle-chevron { transition: none; }
+  .filters-tip { animation: none; }
 }
 
 /* Grupo secundario de filtros (cascada de delito): subordinado a Año/Entidad/Municipio */
@@ -905,13 +994,18 @@ select:focus:not(:focus-visible) {
   .filters-controls-right .btn-toggle button { min-height: 40px; }
 }
 
-/* Celular vertical u horizontal (932×430): la línea de resumen siempre visible y los filtros inician
-   plegados (MOVIL_MQ en Filters.jsx), así los KPI quedan en la primera pantalla */
+/* Celular vertical u horizontal (932×430): pastilla corta ("Editar ▾") para dejar más espacio al resumen */
 @media (max-width: 767px), (max-height: 500px) {
-  .filters-toggle { display: flex; min-height: 44px; }
-  /* Pastilla corta ("Editar ▾"): deja más espacio al resumen */
+  .filters-toggle { min-height: 44px; }
   .filters-toggle-action-long { display: none; }
-  .filters-toggle + .filters-collapse .filters-body { padding-top: var(--filters-gap, 1rem); }
+  .filters-toggle-metric button { min-height: 36px; }
+}
+/* Celular vertical: el resumen ocupa su propio renglón (puede partirse) y la métrica y "Editar" bajan
+   a un segundo renglón a la derecha; así el conteo con tooltip no queda cortado por la elipsis */
+@media (max-width: 767px) {
+  .filters-toggle { flex-wrap: wrap; row-gap: 0.4rem; padding-block: 0.45rem; }
+  .filters-toggle-summary { flex: 1 1 100%; white-space: normal; }
+  .filters-toggle-controls { margin-left: auto; }
 }
 
 @media (max-width: 480px) {
