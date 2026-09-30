@@ -1088,8 +1088,11 @@ select:focus:not(:focus-visible) {
 }
 
 @media (max-width: 480px) {
-  /* Más grande que los títulos de tarjeta (1rem): jerarquía clara también en celular */
-  header h1 { font-size: 1.3rem !important; margin-left: 0 !important; }
+  /* Más grande que los títulos de tarjeta (1rem) y en un renglón: jerarquía clara también en celular */
+  header h1 { font-size: clamp(1.1rem, 5vw, 1.3rem) !important; margin-left: 0 !important; white-space: nowrap; }
+  /* Separaciones más cortas: el título cabe en un renglón también a 360px */
+  header h1 { gap: 0.5rem !important; }
+  .app-header > div:first-child { gap: 0.5rem !important; }
   header img { height: 34px !important; }
 }
 

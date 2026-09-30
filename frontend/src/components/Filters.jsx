@@ -244,8 +244,46 @@ const GRUPOS_DELITO = [
 const ORDEN_NOMBRES = ['subtipoDelito', 'tipoDelito', 'modalidad', 'bienJuridico', 'sexo', 'rangoEdad'];
 // Dos nombres en la línea solo si juntos no pasan de este largo; si no, uno + "+N"
 const MAX_DOS_NOMBRES = 34;
-// Cadena de delito de lo más específico a lo general (la cascada va bien → tipo → subtipo → modalidad)
-const NIVELES_DELITO = ['modalidad', 'subtipoDelito', 'tipoDelito', 'bienJuridico'];
+// De lo general a lo específico, con la clave de /api/filtros que trae las opciones de cada nivel
+const CADENA_DELITO = [
+  ['bienJuridico', 'bienesJuridicos'],
+  ['tipoDelito', 'tiposDelito'],
+  ['subtipoDelito', 'subtiposDelito'],
+  ['modalidad', 'modalidades'],
+];
+// Nivel seleccionado más cercano por debajo de `i` en la cadena (índice) o -1
+const nivelHijo = (a, i) => {
+  for (let j = i + 1; j < CADENA_DELITO.length; j++) {
+    const v = a[CADENA_DELITO[j][0]];
+    if (Array.isArray(v) && v.length > 0) return j;
+  }
+  return -1;
+};
+
+/**
+ * Nombres que de verdad acotan la consulta: se descarta un padre solo si tiene un descendiente elegido
+ * (Bien A y B con un subtipo solo de A → cuentan el subtipo y B). `hijos[clave][padre]` = opciones del
+ * nivel hijo con ese padre (de /api/filtros). Sin esas opciones: con un solo padre la cascada garantiza
+ * que el hijo es suyo; con varios, cada padre cuenta aparte (mejor contar de más que ocultar uno).
+ */
+const nombresEspecificos = (a, hijos) => {
+  const lista = (k) => (Array.isArray(a[k]) ? a[k] : []);
+  const conservados = {};
+  CADENA_DELITO.forEach(([k], i) => {
+    const vals = lista(k);
+    const j = nivelHijo(a, i);
+    if (j < 0) { conservados[k] = vals; return; }
+    const [kh] = CADENA_DELITO[j];
+    const elegidosHijo = new Set(lista(kh));
+    if (vals.length === 1) { conservados[k] = []; return; }
+    conservados[k] = vals.filter(v => {
+      const opciones = hijos?.[`${k}>${kh}`]?.[v];
+      if (!opciones) return true;
+      return !opciones.some(o => elegidosHijo.has(o));
+    });
+  });
+  return ORDEN_NOMBRES.flatMap(k => (k in conservados ? conservados[k] : lista(k)));
+};
 // Retraso del hover (solo ratón) antes de abrir el detalle, y gracia al salir
 const HOVER_ABRIR_MS = 300;
 const HOVER_CERRAR_MS = 150;
@@ -323,7 +361,6 @@ const DetalleFiltros = ({ nombres, extra, grupos, onEditar }) => {
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(recolocar) : null;
     if (ro && trigRef.current) {
       ro.observe(trigRef.current);
-      ro.observe(document.documentElement);
     }
     return () => {
       cancelAnimationFrame(raf);
@@ -527,6 +564,41 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
     rangosEdad: []
   });
 
+  // Opciones del nivel hijo por cada padre aplicado, solo cuando hay varios padres y un descendiente
+  // elegido (con uno solo la cascada ya resuelve). Alimenta el conteo "+N" del resumen plegado.
+  const [hijosPorPadre, setHijosPorPadre] = useState({});
+  useEffect(() => {
+    const a = appliedFilters || {};
+    if (a.dataset === 'alto_impacto') return undefined;
+    const pedidos = [];
+    CADENA_DELITO.forEach(([k], i) => {
+      const vals = Array.isArray(a[k]) ? a[k] : [];
+      const j = nivelHijo(a, i);
+      if (vals.length < 2 || j < 0) return;
+      const [kh, clave] = CADENA_DELITO[j];
+      vals.forEach(v => pedidos.push({ id: `${k}>${kh}`, padre: v, k, clave }));
+    });
+    if (pedidos.length === 0) return undefined;
+    const controller = new AbortController();
+    const base = { dataset: wireDataset };
+    if (a.anio !== null && a.anio !== undefined) base.anio = a.anio;
+    if (a.entidad && a.entidad !== 'All') base.entidad = a.entidad;
+    Promise.all(pedidos.map(pd =>
+      axios.get(`${API_URL}/api/filtros`, { params: { ...base, [pd.k]: pd.padre }, signal: controller.signal })
+        .then(res => ({ ...pd, opciones: Array.isArray(res.data?.[pd.clave]) ? res.data[pd.clave] : null }))
+        .catch(() => ({ ...pd, opciones: null }))
+    )).then(res => {
+      if (controller.signal.aborted) return;
+      const mapa = {};
+      res.forEach(({ id, padre, opciones }) => {
+        if (!opciones) return;
+        (mapa[id] = mapa[id] || {})[padre] = opciones;
+      });
+      setHijosPorPadre(mapa);
+    });
+    return () => controller.abort();
+  }, [appliedFilters, wireDataset]);
+
   // Cantidad de filtros pendientes de aplicar
   const pendingCount = countPendingChanges(selectedFilters, appliedFilters);
 
@@ -555,12 +627,10 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
       if (nombres.length > 0) grupos = [{ label: 'Delitos de alto impacto', values: nombres }];
       else sinDelitos = 'Ningún delito de alto impacto';
     } else {
-      // Sexo y Rango de edad solo existen en víctimas (en delitos siempre van vacíos)
-      // Solo el nivel más específico de la cadena de delito: la cascada ya acota los niveles
-      // superiores (Tipo "Robo" + Subtipo "Robo a casa habitación" = solo el subtipo), así que contarlos
-      // inflaba el "+N". El popover sí lista todas las categorías.
-      const nivelDelito = NIVELES_DELITO.find(k => lista(k).length > 0);
-      nombres = ORDEN_NOMBRES.filter(k => !NIVELES_DELITO.includes(k) || k === nivelDelito).flatMap(lista);
+      // Sexo y Rango de edad solo existen en víctimas (en delitos siempre van vacíos).
+      // Un padre con un hijo elegido no cuenta (Tipo "Robo" + Subtipo "Robo a casa habitación" = solo
+      // el subtipo); uno sin hijos elegidos sí. El popover lista todas las categorías.
+      nombres = nombresEspecificos(a, hijosPorPadre);
       grupos = GRUPOS_DELITO
         .filter(([k]) => lista(k).length > 0)
         .map(([k, label]) => ({ label, values: lista(k) }));
@@ -573,7 +643,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
       detalle: nombres.length > 0 ? { nombres: visibles.join(', '), extra: nombres.length - visibles.length, grupos } : null,
       sinDelitos,
     };
-  }, [appliedFilters, dataset, mesFinalCtx]);
+  }, [appliedFilters, dataset, mesFinalCtx, hijosPorPadre]);
 
   // ── Efecto 1: Opciones base (año, entidad, bien jurídico) — solo al aplicar filtros
   useEffect(() => {

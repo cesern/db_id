@@ -131,6 +131,8 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
   // Clic en entidad (mapa nacional) → desglose de municipios (o subtipos en Víctimas)
   const handleEntityClick = async (entidadName) => {
     if (!entidadName || entidadName === 'Desconocido') return;
+    // Con una consulta en curso los datos a la vista son de los filtros anteriores: sin drill hasta que llegue
+    if (loading) return;
     setDrillModal({ title: entidadName, data: null, loading: true });
     try {
       const params = new URLSearchParams();
@@ -175,6 +177,8 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
   // Clic en municipio (mapa Sonora) → desglose por subtipo de delito
   const handleMunicipioClick = async (municipioName) => {
     if (!municipioName || municipioName === 'Desconocido') return;
+    // Con una consulta en curso los datos a la vista son de los filtros anteriores: sin drill hasta que llegue
+    if (loading) return;
     setDrillModal({ title: municipioName, data: null, loading: true });
     try {
       const params = new URLSearchParams();

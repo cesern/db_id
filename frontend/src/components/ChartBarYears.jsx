@@ -255,6 +255,8 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
   // Drill-down: clic en una barra anual o mensual → desglose por subtipo de delito
   const handleBarClick = async (barData) => {
     if (!barData) return;
+    // Con una consulta en curso los datos a la vista son de los filtros anteriores: sin drill hasta que llegue
+    if (loading) return;
     const rawYear = barData.year || (barData.label ? String(barData.label).slice(-4) : null);
     if (!rawYear) return;
 
