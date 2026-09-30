@@ -313,9 +313,15 @@ body {
     height: auto;
     min-height: 100vh;
     overflow: visible;
+    overflow-x: clip; /* el ancho extra de la cuadrícula (bajo la barra de desplazamiento) no desplaza en horizontal */
   }
+  /* La barra de desplazamiento que aparece al abrir no angosta la cuadrícula: conserva el ancho de la
+     ventana (100vw) y su borde derecho queda bajo la barra, dentro del relleno de la cuadrícula. Así
+     las gráficas no cambian de tamaño y Recharts no re-anima barras ni líneas al abrir/plegar. */
   .app-container[data-filters-open="true"] > .dashboard-grid {
     flex: 0 0 auto;
+    width: 100vw;
+    align-self: flex-start;
     height: calc(100vh - var(--chrome-plegado, 120px));
   }
 }
@@ -775,7 +781,8 @@ select:focus:not(:focus-visible) {
 
 /* Plegado sin medir alturas en JS: la fila del grid pasa de 1fr a 0fr.
    Al plegar: primero se desvanece el contenido (120ms) y luego se cierra la fila (200ms, con retraso).
-   Al abrir: primero se abre la fila y luego aparece el contenido. Tiempos en sync con Filters.jsx. */
+   Al abrir: la fila crece (200ms) y el contenido aparece mientras tanto (150ms, desde los 80ms).
+   Tiempos en sync con Filters.jsx (FILAS_MS, FUNDIDO_MS). */
 .filters-collapse {
   display: grid;
   grid-template-rows: 1fr;
@@ -787,7 +794,7 @@ select:focus:not(:focus-visible) {
 }
 .filters-collapse-inner {
   min-height: 0;
-  transition: opacity 120ms var(--ease-out) 200ms;
+  transition: opacity 150ms var(--ease-out) 80ms;
 }
 .filters-collapse[data-open="false"] > .filters-collapse-inner {
   opacity: 0;
@@ -805,7 +812,8 @@ select:focus:not(:focus-visible) {
   padding-bottom: var(--filters-body-pb, 0.75rem);
 }
 
-/* Línea de resumen: siempre visible; un clic en cualquier parte abre/pliega el panel */
+/* Línea de resumen: siempre visible; un clic en una parte libre abre/pliega el panel (el control
+   accesible es .filters-toggle-action) */
 .filters-toggle {
   display: flex;
   align-items: center;
@@ -828,25 +836,57 @@ select:focus:not(:focus-visible) {
 @media (hover: hover) and (pointer: fine) {
   .filters-toggle:hover { border-color: var(--color-accent); }
 }
-/* Resumen de lo aplicado; se corta con elipsis */
+/* Resumen de lo aplicado: el texto base y los nombres de delito se cortan con elipsis;
+   "+N" y "sin aplicar" conservan su ancho */
 .filters-toggle-summary {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: baseline;
+  white-space: pre; /* conserva los espacios de " · " entre los tramos flex */
+  font-variant-numeric: tabular-nums;
+  padding: 3px 2px; /* deja ver el anillo de foco del detalle */
+}
+.filters-toggle-text {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-  padding: 3px 2px; /* deja ver el anillo de foco del conteo pese al overflow */
 }
+.filters-toggle-sep { flex: 0 0 auto; margin-inline: 0.35em; }
+.filters-toggle-tail { flex: 0 0 auto; }
 .filters-toggle-pending { color: var(--color-accent); }
-/* Conteo "N filtros de delito": muestra el tooltip con los filtros aplicados */
-.filters-toggle-count {
-  cursor: help;
-  text-decoration: underline dotted var(--text-secondary);
-  text-underline-offset: 3px;
+/* Detalle de delitos ("Robo a casa habitación +4"): abre el popover con todos los filtros */
+.filters-detail-btn {
+  flex: 0 1 auto;
+  min-width: 6ch;
+  max-width: 24rem;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  padding: 0 2px;
+  font: inherit;
+  color: var(--color-accent-dark);
+  background: none;
+  border: none;
   border-radius: 4px;
+  cursor: pointer;
+  text-decoration: underline dotted var(--color-accent);
+  text-underline-offset: 3px;
+  white-space: nowrap;
 }
-.filters-toggle-count:focus-visible { outline-offset: 1px; }
+.filters-detail-names {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-bottom: 4px; /* deja ver el subrayado punteado pese al overflow */
+  margin-bottom: -4px;
+}
+.filters-detail-more { flex: 0 0 auto; }
+@media (hover: hover) and (pointer: fine) {
+  .filters-detail-btn:hover { text-decoration-style: solid; }
+}
+.filters-detail-btn:focus-visible { outline-offset: 1px; }
 /* Métrica compacta y "Editar filtros" a la derecha de la línea */
 .filters-toggle-controls {
   flex-shrink: 0;
@@ -883,34 +923,64 @@ select:focus:not(:focus-visible) {
 .filters-toggle-chevron { flex-shrink: 0; transition: transform 200ms var(--ease-out); }
 .filters-toggle-action[aria-expanded="true"] .filters-toggle-chevron { transform: rotate(180deg); }
 
-/* Tooltip de los filtros aplicados (portal en body, posición fija calculada en Filters.jsx) */
-.filters-tip {
+/* Popover con los filtros aplicados por categoría (posición fija calculada en Filters.jsx; el
+   origen de la escala apunta al botón). Entra 150ms, sale 100ms; sin movimiento reducido, sin animación */
+.filters-pop {
   position: fixed;
   top: 0;
   left: 0;
   z-index: 500; /* sobre tarjetas y menús de exportar; debajo de modales/pantalla completa */
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.6rem;
   width: max-content;
-  max-width: min(320px, calc(100vw - 16px));
-  padding: 0.55rem 0.7rem;
-  background: var(--color-primary);
-  color: #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
-  font-size: 0.75rem;
+  min-width: 200px;
+  max-width: min(340px, calc(100vw - 16px));
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  padding: 0.75rem 0.85rem 0.6rem;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-size: 0.8125rem;
   font-weight: 400;
   line-height: 1.35;
   text-align: left;
   white-space: normal;
-  pointer-events: none;
-  animation: filtersTipIn 150ms var(--ease-out) both;
+  cursor: auto;
+  animation: filtersPopIn 150ms var(--ease-out) both;
 }
-.filters-tip[hidden] { display: none; }
-.filters-tip-group { display: flex; flex-direction: column; }
-.filters-tip-group strong { color: #ffffff; font-weight: 700; }
-@keyframes filtersTipIn { from { opacity: 0; } to { opacity: 1; } }
+.filters-pop:focus { outline: none; }
+.filters-pop.is-closing { animation: filtersPopOut 100ms var(--ease-out) forwards; pointer-events: none; }
+.filters-pop-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.15rem;
+}
+.filters-pop-list { list-style: none; display: flex; flex-direction: column; gap: 0.1rem; }
+.filters-pop-list li { overflow-wrap: anywhere; }
+.filters-pop-edit {
+  align-self: flex-start;
+  min-height: 28px;
+  padding: 0 2px;
+  margin-top: 0.1rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-accent-dark);
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@keyframes filtersPopIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes filtersPopOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(0.97); } }
 
 /* Métrica (se aplica al instante) separada del grupo Limpiar/Aplicar */
 .filters-metric { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
@@ -928,7 +998,7 @@ select:focus:not(:focus-visible) {
 @media (prefers-reduced-motion: reduce) {
   .filters-panel, .filters-collapse, .filters-collapse-inner, .filters-toggle,
   .filters-toggle-chevron { transition: none; }
-  .filters-tip { animation: none; }
+  .filters-pop, .filters-pop.is-closing { animation: none; }
 }
 
 /* Grupo secundario de filtros (cascada de delito): subordinado a Año/Entidad/Municipio */
@@ -994,17 +1064,22 @@ select:focus:not(:focus-visible) {
   .filters-controls-right .btn-toggle button { min-height: 40px; }
 }
 
-/* Celular vertical u horizontal (932×430): pastilla corta ("Editar ▾") para dejar más espacio al resumen */
+/* Celular vertical u horizontal (932×430): objetivos táctiles más altos */
 @media (max-width: 767px), (max-height: 500px) {
   .filters-toggle { min-height: 44px; }
-  .filters-toggle-action-long { display: none; }
   .filters-toggle-metric button { min-height: 36px; }
 }
+/* Celular horizontal: todo va en un renglón; pastilla corta ("Editar ▾") para dejar espacio al resumen.
+   En vertical los controles tienen renglón propio y "Editar filtros" cabe completo. */
+@media (max-height: 500px) and (min-width: 768px) {
+  .filters-toggle-action-long { display: none; }
+}
 /* Celular vertical: el resumen ocupa su propio renglón (puede partirse) y la métrica y "Editar" bajan
-   a un segundo renglón a la derecha; así el conteo con tooltip no queda cortado por la elipsis */
+   a un segundo renglón a la derecha; así el detalle de delitos no queda cortado por la elipsis */
 @media (max-width: 767px) {
   .filters-toggle { flex-wrap: wrap; row-gap: 0.4rem; padding-block: 0.45rem; }
-  .filters-toggle-summary { flex: 1 1 100%; white-space: normal; }
+  .filters-toggle-summary { flex: 1 1 100%; display: block; white-space: normal; }
+  .filters-toggle-text { overflow: visible; }
   .filters-toggle-controls { margin-left: auto; }
 }
 
@@ -1154,7 +1229,9 @@ select:focus:not(:focus-visible) {
   /* Limpiar/Aplicar filtros y Limpiar meses */
   .filters-btn,
   .month-strip-clear { min-height: 40px; }
-  .filters-toggle-action { min-height: 36px; }
+  .filters-toggle-action,
+  .filters-toggle-metric button,
+  .filters-detail-btn { min-height: 36px; }
   /* Mismo tamaño visual; el área de toque crece hacia afuera sin mover la fila */
   .rank-change { min-width: 40px; min-height: 40px; margin: -8px; }
   .range-thumb { width: 40px; height: 40px; }

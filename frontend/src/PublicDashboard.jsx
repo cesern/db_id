@@ -48,8 +48,10 @@ function PublicDashboard() {
   const [metricType, setMetricType] = useState('absolute');
   const [activeTab, setActiveTab] = useState('dashboard');
   // Panel de filtros abierto: la cuadrícula conserva el alto que tiene con el panel plegado y la página
-  // se desplaza (en escritorio alto, las gráficas no se aplastan). Ver [data-filters-open] en index.css.
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  // se desplaza (en escritorio alto las gráficas no se aplastan). Ver [data-filters-open] en index.css.
+  // Es un atributo puesto directo en el DOM (no estado): así abrir/plegar no vuelve a renderizar las
+  // gráficas (Recharts re-anima barras y líneas en cada render y oculta sus etiquetas mientras tanto).
+  const filtersOpenRef = useRef(false);
   const appRef = useRef(null);
   const gridRef = useRef(null);
   // Último mes con datos del año aplicado. SidebarLeft lo reporta como { dataset, anio, mesFinal };
@@ -197,8 +199,8 @@ function PublicDashboard() {
     });
   };
 
-  // Alto ocupado arriba de la cuadrícula (encabezado + línea de filtros plegada), medido solo con el panel
-  // plegado. Con el panel abierto la cuadrícula mide calc(100vh - --chrome-plegado): el mismo alto que plegado.
+  // Alto ocupado arriba de la cuadrícula (encabezado + línea de filtros plegada), medido solo con el
+  // panel plegado. Con el panel abierto la cuadrícula mide calc(100vh - --chrome-plegado): el mismo alto.
   const medirChrome = () => {
     const grid = gridRef.current;
     const app = appRef.current;
@@ -209,11 +211,16 @@ function PublicDashboard() {
   // Al abrir se mide una última vez con el panel aún plegado (por si la ventana cambió en este cuadro)
   const handleFiltersOpenChange = (open) => {
     if (open) medirChrome();
-    setFiltersOpen(open);
+    filtersOpenRef.current = open;
+    const app = appRef.current;
+    if (!app) return;
+    if (open) app.dataset.filtersOpen = 'true';
+    else delete app.dataset.filtersOpen;
   };
   useEffect(() => {
-    if (filtersOpen || activeTab !== 'dashboard') return undefined;
-    const medir = () => medirChrome();
+    if (activeTab !== 'dashboard') return undefined;
+    // Solo se mide con el panel plegado (abierto, la cuadrícula tiene alto fijo)
+    const medir = () => { if (!filtersOpenRef.current) medirChrome(); };
     medir();
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(medir) : null;
     if (ro && gridRef.current) ro.observe(gridRef.current);
@@ -222,7 +229,7 @@ function PublicDashboard() {
       if (ro) ro.disconnect();
       window.removeEventListener('resize', medir);
     };
-  }, [filtersOpen, activeTab, appliedFilters.anio]);
+  }, [activeTab, appliedFilters.anio]);
 
   const mesFinal = mesFinalInfo
     && mesFinalInfo.dataset === appliedFilters.dataset
@@ -232,12 +239,7 @@ function PublicDashboard() {
 
   return (
     <MesFinalContext.Provider value={mesFinal}>
-    <div
-      ref={appRef}
-      className="app-container"
-      data-filters-open={activeTab === 'dashboard' && filtersOpen ? 'true' : undefined}
-      style={{ display: 'flex', flexDirection: 'column' }}
-    >
+    <div ref={appRef} className="app-container" style={{ display: 'flex', flexDirection: 'column' }}>
       
       {/* Capa de cargando inicial (Loading overlay) */}
       {initialLoading && (
@@ -319,6 +321,7 @@ function PublicDashboard() {
             onOpenChange={handleFiltersOpenChange}
           />
 
+          {/* flex/min-height en index.css (.dashboard-grid): con el panel abierto se fija su alto */}
           <main ref={gridRef} className="dashboard-grid">
             {/* Left Column */}
             <div className="dashboard-col">
