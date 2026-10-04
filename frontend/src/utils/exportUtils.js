@@ -39,6 +39,10 @@ export const downloadCSV = (filename, data, headers, filters) => {
     }
     
     csvContent += `Meses,${(filters.meses && filters.meses.length > 0) ? filters.meses.join(' | ') : 'Todos'}\n`;
+    // Búsqueda de la tabla: el archivo trae solo las filas que coinciden, y lo dice
+    if (filters.busquedaTabla) {
+      csvContent += `Búsqueda en la tabla,"${String(filters.busquedaTabla).replace(/"/g, '""')}"\n`;
+    }
   }
   csvContent += "\n";
 

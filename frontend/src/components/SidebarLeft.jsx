@@ -376,13 +376,15 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
 
   const handleDownloadCSV = () => {
     const headers = ["Rank", colLabel, csvValLabel];
-    const dataForExport = allRows.map(m => [m.id, m.name, m.value]);
-    downloadCSV(getExportFilename('csv'), dataForExport, headers, { ...selectedFilters, metricType });
+    // Se exporta lo que se ve: con búsqueda, solo las filas que coinciden (cada una con su lugar real)
+    const dataForExport = rows.map(m => [m.id, m.name, m.value]);
+    downloadCSV(getExportFilename('csv'), dataForExport, headers, { ...selectedFilters, metricType, busquedaTabla: q ? busqueda.trim() : undefined });
   };
 
   const handleCopy = () => {
     const headers = ["Rank", colLabel, csvValLabel];
-    const dataForExport = allRows.map(m => [m.id, m.name, m.value]);
+    // Se exporta lo que se ve: con búsqueda, solo las filas que coinciden (cada una con su lugar real)
+    const dataForExport = rows.map(m => [m.id, m.name, m.value]);
     copyTableToClipboard(dataForExport, headers);
   };
 
