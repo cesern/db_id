@@ -106,8 +106,8 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
 
   // Auto-switch to municipios when a specific entity is selected
   useEffect(() => {
-    setTableView(selectedFilters?.entidad && selectedFilters.entidad !== 'All' ? 'municipios' : 'entidades');
-  }, [selectedFilters?.entidad]);
+    setTableView(selectedFilters?.dataset !== 'victimas' && selectedFilters?.entidad && selectedFilters.entidad !== 'All' ? 'municipios' : 'entidades');
+  }, [selectedFilters?.entidad, selectedFilters?.dataset]);
 
   const dataset = selectedFilters?.dataset || 'delitos';
   const isVictimas = dataset === 'victimas';
@@ -432,7 +432,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
                   })}
                 </div>
               )}
-              <ExportMenu
+              <ExportMenu subject={tableTitle}
                 elementRef={tableCardRef}
                 imageFilename={getExportFilename('png')}
                 onDownloadCSV={handleDownloadCSV}
@@ -664,7 +664,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
             </span>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ExportMenu
+            <ExportMenu subject={tableTitle}
               elementRef={tableCardRef}
               imageFilename={getExportFilename('png')}
               onDownloadCSV={handleDownloadCSV}
@@ -675,7 +675,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
               type="button"
               className="card-icon-btn"
               title="Ver en pantalla completa"
-              aria-label="Ver en pantalla completa"
+              aria-label={`Ver en pantalla completa: ${tableTitle}`}
               ref={fsTriggerRef}
               onClick={() => setFsOpen(true)}
             >

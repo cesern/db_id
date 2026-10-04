@@ -78,7 +78,7 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
         type="button"
         id={`${uid}-trigger`}
         className="input-select"
-        aria-haspopup="listbox"
+        aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-labelledby={`${uid}-label ${uid}-trigger`}
         style={{ cursor: 'pointer', userSelect: 'none', minHeight: 'var(--input-min-height, 30px)', display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}
@@ -92,6 +92,15 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
           role="dialog"
           aria-label={`Opciones de ${label}`}
           onKeyDown={(e) => {
+            // Flechas: del buscador a "Seleccionar todo" y entre las opciones (sin un Tab por casilla)
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+              const items = [...e.currentTarget.querySelectorAll('input')];
+              const i = items.indexOf(document.activeElement);
+              if (i < 0) return;
+              e.preventDefault();
+              items[Math.max(0, Math.min(items.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))].focus();
+              return;
+            }
             if (e.key === 'Escape') {
               e.preventDefault();
               e.stopPropagation();

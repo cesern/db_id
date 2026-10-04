@@ -129,7 +129,7 @@ const DrillDownModal = ({
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
               {hasRows && exportFilename && (
-                <ExportMenu
+                <ExportMenu subject={title}
                   isTable
                   onDownloadCSV={() => downloadCSV(exportFilename, exportRows(), exportHeaders, exportFilters)}
                   onCopyTable={() => copyTableToClipboard(exportRows(), exportHeaders)}

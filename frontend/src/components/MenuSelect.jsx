@@ -40,7 +40,7 @@ const MenuSelect = ({ value, options, onChange, title, prefix = '' }) => {
         }}
       >
         {prefix}{active.label}
-        <span aria-hidden="true" style={{ fontSize: '0.6rem', color: 'var(--color-accent)' }}>▾</span>
+        <span aria-hidden="true" style={{ fontSize: '0.75rem', color: 'var(--color-accent)' }}>▾</span>
       </button>
       {isOpen && (
         <div

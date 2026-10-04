@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import json
 import time
+import unicodedata
 from datetime import datetime
 import duckdb
 import pandas as pd
@@ -155,6 +156,12 @@ reload_duckdb_views()
 if ADMIN_ACTIVE:
     admin.init(STORE)
     app.include_router(admin.router)
+
+def _orden_es(texto: str) -> tuple:
+    """Clave de orden alfabético español: sin acentos ni mayúsculas (Álamos con la A, México antes
+    de Morelos); el texto original desempata. DuckDB ordena por código y dejaba las tildes al final."""
+    base = "".join(c for c in unicodedata.normalize("NFD", texto) if not unicodedata.combining(c))
+    return (base.casefold(), texto)
 
 def get_columns(dataset_name: str) -> list[str]:
     try:
@@ -368,7 +375,7 @@ async def obtener_filtros(
         if col not in valid_cols: return []
         w_sql = w_sql_base + (f' AND "{col}" IS NOT NULL' if w_sql_base else f' WHERE "{col}" IS NOT NULL')
         res = db.cursor().execute(f'SELECT DISTINCT "{col}" FROM {dataset.value} {w_sql} ORDER BY "{col}"', params).fetchall()
-        return [str(r[0]) for r in res]
+        return sorted((str(r[0]) for r in res), key=_orden_es)
         
     anios_raw = get_distinct("Año", "", [])
     anios = sorted([int(a) for a in anios_raw])

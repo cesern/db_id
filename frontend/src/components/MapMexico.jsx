@@ -398,7 +398,7 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
           onClose={() => setFsOpen(false)}
           returnFocusRef={fsTriggerRef}
           extraActions={
-            <ExportMenu
+            <ExportMenu subject={mapTitle}
               elementRef={cardRef}
               imageFilename={isSonora ? "mapa_sonora.png" : (isVictimasBase ? "mapa_victimas_mexico.png" : "mapa_delitos_mexico.png")}
               onDownloadCSV={handleDownloadCSV}
@@ -415,7 +415,7 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
             <div className="card-period">{periodLabel(selectedFilters?.anio ?? '', selectedFilters?.meses, mesFinal)}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ExportMenu
+            <ExportMenu subject={mapTitle}
               elementRef={cardRef}
               imageFilename={isSonora ? "mapa_sonora.png" : (isVictimasBase ? "mapa_victimas_mexico.png" : "mapa_delitos_mexico.png")}
               onDownloadCSV={handleDownloadCSV}

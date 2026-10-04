@@ -470,7 +470,7 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
     if (metricType === 'rate') {
       return new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
     }
-    return new Intl.NumberFormat('es-MX').format(num);
+    return new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 }).format(num);
   };
 
   // Índices confirmados clamped al tamaño actual de datos
@@ -696,6 +696,8 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
                 {toggleButtons.map((btn) => (
                   <button
                     key={btn.key}
+                    type="button"
+                    aria-pressed={activeToggles[btn.key]}
                     onClick={() => handleToggle(btn.key)}
                     style={btnStyle(activeToggles[btn.key])}
                   >
@@ -713,7 +715,7 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
               {/* Separador visual */}
               <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
 
-              <ExportMenu
+              <ExportMenu subject={chartTitle}
                 elementRef={cardRef}
                 imageFilename={isVictimasBase ? "historico_victimas.png" : "historico_incidencia.png"}
                 onDownloadCSV={handleDownloadCSV}
@@ -736,7 +738,7 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
               )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <ExportMenu
+              <ExportMenu subject={chartTitle}
                 elementRef={cardRef}
                 imageFilename={isVictimasBase ? "historico_victimas.png" : "historico_incidencia.png"}
                 onDownloadCSV={handleDownloadCSV}
@@ -746,7 +748,7 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
                 type="button"
                 className="card-icon-btn"
                 title="Ver en pantalla completa"
-                aria-label="Ver en pantalla completa"
+                aria-label={`Ver en pantalla completa: ${chartTitle}`}
                 ref={fsTriggerRef}
                 onClick={() => setFsOpen(true)}
               >
@@ -764,7 +766,9 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
               {toggleButtons.map((btn) => (
                 <button
                   key={btn.key}
-                  onClick={() => handleToggle(btn.key)}
+                  type="button"
+                    aria-pressed={activeToggles[btn.key]}
+                    onClick={() => handleToggle(btn.key)}
                   style={btnStyle(activeToggles[btn.key])}
                 >
                   {btn.label}
@@ -809,7 +813,7 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
                 .filter((d, i, arr) => i === arr.findIndex(x => x.year === d.year))
                 .map(d => d.name)}
               tickFormatter={(name) => {
-                if (displayData.length <= 24) return name.replace(' ', '-');
+                if (displayData.length <= 24) return name;
                 const parts = name.split(' ');
                 return parts[parts.length - 1];
               }}

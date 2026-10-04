@@ -165,6 +165,7 @@ function PublicDashboard() {
     setAppliedFilters(cleared);
     if (cambio) {
       toast('Filtros restablecidos', {
+        duration: 10000,
         action: {
           label: 'Deshacer',
           onClick: () => { setSelectedFilters(prevSelected); setAppliedFilters(prevApplied); }

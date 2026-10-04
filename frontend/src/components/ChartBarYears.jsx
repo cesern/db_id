@@ -407,7 +407,7 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
           extraActions={
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <FontSizeSelect value={fontBoost} onChange={handleFontBoost} />
-              <ExportMenu
+              <ExportMenu subject={chartTitle}
                 elementRef={cardRef}
                 imageFilename={isVictimasMun ? "victimas_por_mes.png" : (isVictimasBase ? "victimas_por_anio.png" : "incidencia_por_anio.png")}
                 onDownloadCSV={handleDownloadCSV}
@@ -428,7 +428,7 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ExportMenu
+            <ExportMenu subject={chartTitle}
               elementRef={cardRef}
               imageFilename={isVictimasMun ? "victimas_por_mes.png" : (isVictimasBase ? "victimas_por_anio.png" : "incidencia_por_anio.png")}
               onDownloadCSV={handleDownloadCSV}
@@ -438,7 +438,7 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
               type="button"
               className="card-icon-btn"
               title="Ver en pantalla completa"
-              aria-label="Ver en pantalla completa"
+              aria-label={`Ver en pantalla completa: ${chartTitle}`}
               ref={fsTriggerRef}
               onClick={() => setFsOpen(true)}
             >

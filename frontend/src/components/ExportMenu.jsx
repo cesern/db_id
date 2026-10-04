@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { downloadImage, downloadPNGFromSVG } from '../utils/exportUtils';
 
-const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isTable = false, style = {} }) => {
+const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isTable = false, style = {}, subject }) => {
+  // Con varias tarjetas en pantalla, el nombre accesible dice de cuál es cada botón
+  const label = subject ? `Exportar: ${subject}` : 'Exportar (CSV, copiar o imagen)';
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -72,7 +74,7 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         title="Exportar (CSV, copiar o imagen)"
-        aria-label="Exportar (CSV, copiar o imagen)"
+        aria-label={label}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         className="card-icon-btn"
@@ -96,7 +98,19 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
       </button>
 
       {isOpen && (
-        <div style={{
+        <div
+          role="menu"
+          aria-label={label}
+          onKeyDown={(e) => {
+            // Flechas entre las opciones del menú
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+            const items = [...e.currentTarget.querySelectorAll('[role="menuitem"]')];
+            if (!items.length) return;
+            e.preventDefault();
+            const i = items.indexOf(document.activeElement);
+            items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
+          }}
+          style={{
           position: 'absolute',
           top: '38px',
           right: 0,
@@ -109,6 +123,7 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
           zIndex: 9999
         }}>
           <button
+            role="menuitem"
             onClick={handleExportCSV}
             style={{
               display: 'flex',
@@ -157,6 +172,7 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
           
           {onCopyTable && (
             <button
+              role="menuitem"
               onClick={handleCopyTable}
               style={{
                 display: 'flex',
@@ -203,6 +219,7 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
 
           {!isTable && (
             <button
+              role="menuitem"
               onClick={handleExportPNG}
               style={{
                 display: 'flex',

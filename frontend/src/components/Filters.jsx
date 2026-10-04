@@ -756,6 +756,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
                           });
                         }}
                         type="button"
+                        className="ai-chip"
                         aria-pressed={isActive}
                         title={parsed.isCustom ? `Personalizado: ${token.slice(0, 120)}` : token}
                         style={{
@@ -795,6 +796,8 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
                   });
                 })()}
                 <button
+                  type="button"
+                  className="ai-chip"
                   onClick={() => setIsCustomModalOpen(true)}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: '0.25rem',

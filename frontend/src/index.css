@@ -1528,3 +1528,8 @@ select:focus:not(:focus-visible) {
 @media (max-width: 1023px) {
   .sidebar-table-card { max-height: none; }
 }
+
+/* Ronda 17: delitos de alto impacto y "+ Agregar delito" con alto táctil en pantallas angostas */
+@media (max-width: 1023px) {
+  .ai-chip { min-height: 40px; }
+}

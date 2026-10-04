@@ -500,7 +500,7 @@ const HistoryRankings = ({ tempColor }) => {
           onClose={() => setFsOpen(false)}
           returnFocusRef={fsTriggerRef}
           extraActions={
-            <ExportMenu
+            <ExportMenu subject={`Evolución del ranking de ${selectedEntidad}`}
               imageFilename="evolucion_ranking"
               onDownloadCSV={handleDownloadCSV}
               onCopyTable={handleCopyTable}
@@ -632,7 +632,7 @@ const HistoryRankings = ({ tempColor }) => {
       <div className={isFullScreen ? undefined : 'rankings-chart-area'} style={{ flex: 1, minHeight: 0, backgroundColor: '#ffffff', position: 'relative' }}>
         {!isFullScreen && (
           <div style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', zIndex: 110, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ExportMenu
+            <ExportMenu subject={`Evolución del ranking de ${selectedEntidad}`}
               imageFilename="evolucion_ranking"
               onDownloadCSV={handleDownloadCSV}
               onCopyTable={handleCopyTable}
@@ -642,7 +642,7 @@ const HistoryRankings = ({ tempColor }) => {
               type="button"
               className="card-icon-btn"
               title="Ver en pantalla completa"
-              aria-label="Ver en pantalla completa"
+              aria-label={`Ver en pantalla completa: evolución del ranking de ${selectedEntidad}`}
               ref={fsTriggerRef}
               onClick={() => setFsOpen(true)}
             >
