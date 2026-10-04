@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useId, useContext } from 'react';
 import axios from 'axios';
+import { toast } from 'sonner';
 import { API_URL } from '../api';
 import { ALTO_IMPACTO_PRESETS, parseCapsule } from '../utils/altoImpacto';
 import AltoImpactoModal from './AltoImpactoModal';
@@ -284,7 +285,7 @@ const DetalleFiltros = ({ nombres, extra, grupos, onEditar }) => {
 };
 
 // ── Filters Component ──────────────────────────────────────────────────────────
-const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelectedFilters, appliedFilters, onApply, onClear, onInitialLoadComplete, customCapsules, onAddCustomCapsule, onRemoveCustomCapsule, onOpenChange }) => {
+const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelectedFilters, appliedFilters, onApply, onClear, onInitialLoadComplete, customCapsules, onAddCustomCapsule, onRemoveCustomCapsule, onOpenChange, onYearUnavailable }) => {
   const isAltoImpacto = dataset === 'alto_impacto';
   const wireDataset = isAltoImpacto ? 'delitos' : dataset;
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
@@ -471,6 +472,13 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
             rangosEdad: res.data.rangosEdad || []
           }));
 
+          // El conjunto no tiene el año aplicado (p. ej. Víctimas Municipios solo trae 2026 y se venía
+          // de 2020): el tablero pasa a su año más reciente en vez de quedarse en cero sin salida
+          const aniosDisp = (res.data.anios || []).map(Number);
+          if (aniosDisp.length > 0 && appliedFilters.anio !== null && !aniosDisp.includes(Number(appliedFilters.anio))) {
+            onYearUnavailable?.(Math.max(...aniosDisp), aniosDisp);
+          }
+
           // Solo inicializar el año si está en null (PublicDashboard ya lo fija al año más reciente)
           setSelectedFilters(prev => {
             if (prev.anio === null && res.data.anios && res.data.anios.length > 0) {
@@ -487,6 +495,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
       .catch(err => {
         if (axios.isCancel(err)) return;
         console.error("Error fetching filtros base", err);
+        toast.error('No se pudieron cargar las opciones de los filtros', { id: 'filtros-error' });
         if (onInitialLoadComplete) {
           onInitialLoadComplete();
         }
@@ -573,6 +582,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
       .catch(err => {
         if (axios.isCancel(err)) return;
         console.error("Error fetching filtros en cascada", err);
+        toast.error('No se pudieron cargar las opciones de los filtros', { id: 'filtros-error' });
       });
 
     return () => controller.abort();

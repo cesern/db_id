@@ -281,6 +281,7 @@ const SmoothingMenu = ({ maWindow, onSelect, btnStyle }) => {
   return (
     <>
       <button
+        type="button"
         onClick={() => setIsOpen(true)}
         style={btnStyle(maWindow !== null)}
         title="Método de suavizado"

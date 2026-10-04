@@ -12,6 +12,7 @@ import DrillDownModal from './DrillDownModal';
 import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
 import { CHART_ANIM } from '../utils/motion';
 import { useExitAnimation } from '../utils/useExitAnimation';
+import { menuArrows, focusFirstMenuItem } from '../utils/menuKeys';
 
 const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -28,14 +29,17 @@ const FONT_OPTIONS = [
 const FontSizeSelect = ({ value, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
+  const trigRef = useRef(null);
+  const listRef = useRef(null);
   const active = FONT_OPTIONS.find(o => o.value === value) || FONT_OPTIONS[1];
 
   useEffect(() => {
     if (!isOpen) return undefined;
+    focusFirstMenuItem(listRef.current);
     const handleClickOutside = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) setIsOpen(false);
     };
-    const handleKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); setIsOpen(false); } };
+    const handleKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); setIsOpen(false); trigRef.current?.focus({ preventScroll: true }); } };
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKey);
     return () => {
@@ -47,6 +51,8 @@ const FontSizeSelect = ({ value, onChange }) => {
   return (
     <div style={{ position: 'relative' }} ref={containerRef}>
       <button
+        type="button"
+        ref={trigRef}
         onClick={() => setIsOpen(v => !v)}
         title="Tamaño de letra de la gráfica"
         aria-haspopup="menu"
@@ -65,6 +71,9 @@ const FontSizeSelect = ({ value, onChange }) => {
       {isOpen && (
         <div
           role="menu"
+          ref={listRef}
+          aria-label="Tamaño de letra de la gráfica"
+          onKeyDown={menuArrows}
           style={{
             position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: '150px',
             background: 'var(--bg-card)', border: '1px solid var(--border-color)',
@@ -76,6 +85,7 @@ const FontSizeSelect = ({ value, onChange }) => {
             return (
               <button
                 key={o.value}
+                type="button"
                 role="menuitemradio"
                 aria-checked={selected}
                 onClick={() => { onChange(o.value); setIsOpen(false); }}
@@ -264,7 +274,7 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
     const monthName = isVictimasMun && barData.month ? monthNames[barData.month - 1] : null;
     const periodDisplay = isVictimasMun ? barData.label : rawYear;
 
-    setDrillModal({ title: `Periodo ${periodDisplay}`, data: null, loading: true });
+    setDrillModal({ title: `Periodo ${periodDisplay}`, data: null, loading: true, retry: () => handleBarClick(barData) });
     try {
       const params = new URLSearchParams();
       params.append('categoria', 'subtipo_delito');
@@ -320,12 +330,15 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
         isRate: metricType === 'rate',
         exportFilename: `desglose_subtipos_${String(periodDisplay).replace(/\s+/g, '-')}.csv`,
         exportFilters: { ...selectedFilters, metricType, anio: rawYear, meses: mesesDrill },
+        nameLabel: 'Subtipo de delito',
+        countNoun: ['subtipo', 'subtipos'],
         showRank: true,
         showPct: true,
       });
     } catch (err) {
       console.error('Error fetching bar drill-down', err);
-      setDrillModal(prev => ({ ...prev, loading: false, data: [] }));
+      // Fallo de red: se dice que falló (con reintento), no "sin datos"
+      setDrillModal(prev => ({ ...prev, loading: false, data: [], error: true }));
     }
   };
 
@@ -566,6 +579,10 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
           showRank={drillModal.showRank || false}
           showPct={drillModal.showPct || false}
           isRate={drillModal.isRate || false}
+          nameLabel={drillModal.nameLabel}
+          countNoun={drillModal.countNoun}
+          error={drillModal.error || false}
+          onRetry={drillModal.retry}
           exportFilename={drillModal.exportFilename}
           exportFilters={drillModal.exportFilters}
         />

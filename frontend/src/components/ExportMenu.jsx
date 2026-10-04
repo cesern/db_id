@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { downloadImage, downloadPNGFromSVG } from '../utils/exportUtils';
+import { menuArrows, focusFirstMenuItem } from '../utils/menuKeys';
 
 const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isTable = false, style = {}, subject }) => {
   // Con varias tarjetas en pantalla, el nombre accesible dice de cuál es cada botón
   const label = subject ? `Exportar: ${subject}` : 'Exportar (CSV, copiar o imagen)';
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
+  const triggerRef = useRef(null);
+  const listRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -23,10 +26,13 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
   // Escape cierra solo el menú (preventDefault: la pantalla completa no se cierra con él)
   useEffect(() => {
     if (!isOpen) return undefined;
+    // El foco entra al menú al abrirlo (las flechas funcionan de inmediato) y vuelve al botón con Escape
+    focusFirstMenuItem(listRef.current);
     const handleKey = (e) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         setIsOpen(false);
+        triggerRef.current?.focus({ preventScroll: true });
       }
     };
     document.addEventListener('keydown', handleKey);
@@ -72,6 +78,7 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
     <div ref={menuRef} style={{ position: 'relative', display: 'inline-block', zIndex: 90, ...style }}>
       <button
         type="button"
+        ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
         title="Exportar (CSV, copiar o imagen)"
         aria-label={label}
@@ -101,15 +108,8 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
         <div
           role="menu"
           aria-label={label}
-          onKeyDown={(e) => {
-            // Flechas entre las opciones del menú
-            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-            const items = [...e.currentTarget.querySelectorAll('[role="menuitem"]')];
-            if (!items.length) return;
-            e.preventDefault();
-            const i = items.indexOf(document.activeElement);
-            items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
-          }}
+          ref={listRef}
+          onKeyDown={menuArrows}
           style={{
           position: 'absolute',
           top: '38px',
@@ -123,6 +123,7 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
           zIndex: 9999
         }}>
           <button
+            type="button"
             role="menuitem"
             onClick={handleExportCSV}
             style={{
@@ -172,7 +173,8 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
           
           {onCopyTable && (
             <button
-              role="menuitem"
+              type="button"
+            role="menuitem"
               onClick={handleCopyTable}
               style={{
                 display: 'flex',
@@ -219,7 +221,8 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
 
           {!isTable && (
             <button
-              role="menuitem"
+              type="button"
+            role="menuitem"
               onClick={handleExportPNG}
               style={{
                 display: 'flex',

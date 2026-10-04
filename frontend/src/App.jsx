@@ -9,7 +9,7 @@ import { ADMIN_ENABLED } from './api';
 function App() {
   return (
     <>
-      <Toaster position="top-center" richColors />
+      <Toaster position="bottom-center" richColors containerAriaLabel="Avisos" />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<PublicDashboard />} />

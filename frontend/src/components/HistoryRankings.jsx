@@ -12,6 +12,7 @@ import { csvValueLabel } from '../utils/labels';
 import { useDialogFocus } from '../utils/useDialogFocus';
 import MultiSelectDropdown from './MultiSelectDropdown';
 import LoadingSpinner from './LoadingSpinner';
+import EmptyState from './EmptyState';
 
 // Ayuda "Cómo leer el ranking": diálogo con foco atrapado, Escape y foco de vuelta al botón
 const RankingHelp = ({ onClose }) => {
@@ -58,7 +59,7 @@ const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, da
     const formatVal = (val) => {
       if (val === null || val === undefined) return '';
       const numStr = Number(val).toLocaleString('es-MX');
-      return metricType === 'rate' ? `${numStr} (tasa)` : `${numStr} ${metricLabel}`;
+      return metricType === 'rate' ? `${numStr} por 100 mil hab.` : `${numStr} ${metricLabel}`;
     };
 
     const parts = label.split('-');
@@ -188,6 +189,9 @@ const HistoryRankings = ({ tempColor }) => {
   const [rankingData, setRankingData] = useState([]);
   // false hasta la primera respuesta: antes no se afirma "No hay datos" (era un vacío falso de ~2 s)
   const [hasLoaded, setHasLoaded] = useState(false);
+  // La consulta falló: error con reintento (antes quedaba a la vista la línea de la consulta anterior)
+  const [error, setError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const headerRef = useRef(null);
   // Pantalla completa: aquí el overlay es la propia tarjeta, así que se cierra sin fundido (0ms):
@@ -245,6 +249,7 @@ const HistoryRankings = ({ tempColor }) => {
   }, [applied]);
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRanking = async () => {
       setIsFading(true);
       try {
@@ -267,17 +272,24 @@ const HistoryRankings = ({ tempColor }) => {
         if (applied.filters.sexo.length > 0) params.sexo = applied.filters.sexo.join('|');
         if (applied.filters.rangoEdad.length > 0) params.rangoEdad = applied.filters.rangoEdad.join('|');
 
-        const res = await axios.get(`${API_URL}/api/ranking_historico`, { params });
+        const res = await axios.get(`${API_URL}/api/ranking_historico`, { params, signal: controller.signal });
         setRankingData(Array.isArray(res.data) ? res.data : []);
+        setError(false);
       } catch (err) {
+        if (axios.isCancel(err)) return; // reemplazada por una consulta más nueva
         console.error("Error fetching ranking", err);
+        setError(true);
       } finally {
-        setHasLoaded(true);
-        setTimeout(() => setIsFading(false), 300);
+        // Cancelada: la consulta nueva sigue en curso y ella apaga el atenuado
+        if (!controller.signal.aborted) {
+          setHasLoaded(true);
+          setTimeout(() => setIsFading(false), 300);
+        }
       }
     };
     fetchRanking();
-  }, [applied]);
+    return () => controller.abort();
+  }, [applied, retryKey]);
 
   // Último mes publicado por año del conjunto aplicado (mes_final sale del conjunto completo, sin filtros)
   const [mesFinalPorAnio, setMesFinalPorAnio] = useState({});
@@ -399,7 +411,7 @@ const HistoryRankings = ({ tempColor }) => {
     if (applied.metricType === 'rate') {
       const num = Number(val);
       const formatted = num % 1 === 0 ? num.toLocaleString('es-MX') : num.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      return `${formatted} (tasa)`;
+      return `${formatted} por 100 mil hab.`;
     } else {
       return `${Math.round(val).toLocaleString('es-MX')} ${metricLabel}`;
     }
@@ -510,9 +522,9 @@ const HistoryRankings = ({ tempColor }) => {
         />
       ) : (
         <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border-color)', backgroundColor: 'white' }}>
-          <h2 style={{ fontSize: 'clamp(1.05rem, 2.5vw, 1.25rem)', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 'clamp(1.05rem, 2.5vw, 1.25rem)', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem 0.5rem', flexWrap: 'wrap' }}>
-              <span>Evolución del ranking nacional de</span>{' '}
+              <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>Evolución del ranking nacional de <span className="sr-only">{selectedEntidad}</span></h2>{' '}
               <select
                 value={selectedEntidad}
                 onChange={e => setSelectedEntidad(e.target.value)}
@@ -533,6 +545,8 @@ const HistoryRankings = ({ tempColor }) => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <div className="btn-toggle" style={{ display: 'flex' }}>
                 <button
+                  type="button"
+                  aria-pressed={metricType === 'absolute'}
                   className={metricType === 'absolute' ? 'active' : ''}
                   onClick={() => {
                     setMetricType('absolute');
@@ -542,6 +556,8 @@ const HistoryRankings = ({ tempColor }) => {
                   Cifras absolutas
                 </button>
                 <button
+                  type="button"
+                  aria-pressed={metricType === 'rate'}
                   className={metricType === 'rate' ? 'active' : ''}
                   onClick={() => {
                     setMetricType('rate');
@@ -552,7 +568,7 @@ const HistoryRankings = ({ tempColor }) => {
                 </button>
               </div>
             </div>
-          </h2>
+          </div>
 
         {/* Filters and Selectors Container */}
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', padding: '1rem', backgroundColor: 'var(--bg-main)', borderRadius: '8px', marginTop: '1rem' }}>
@@ -659,7 +675,9 @@ const HistoryRankings = ({ tempColor }) => {
           opacity: isFading ? 0.55 : 1,
           transition: 'opacity 150ms cubic-bezier(0.23, 1, 0.32, 1)'
         }}>
-          {chartData.length > 0 ? (
+          {error ? (
+            <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />
+          ) : chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 20, right: rightMargin, left: AXIS_GUTTER, bottom: 0 }}>
                 {/* Sin cuadrícula: solo las divisorias entre niveles (abajo) para no competir con ellas */}

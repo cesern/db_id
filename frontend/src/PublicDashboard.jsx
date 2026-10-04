@@ -221,6 +221,18 @@ function PublicDashboard() {
     setAppliedFilters(rm);
   };
 
+  // El conjunto elegido no tiene el año aplicado: se pasa a su año más reciente y se avisa
+  const handleYearUnavailable = useCallback((anio, anios) => {
+    setSelectedFilters(prev => ({ ...prev, anio }));
+    setAppliedFilters(prev => {
+      if (prev.anio === anio) return prev;
+      const nombre = { delitos: 'Delitos', alto_impacto: 'Delitos Alto Impacto', victimas: 'Víctimas', victimas_mun: 'Víctimas Municipios' }[prev.dataset] || 'Este conjunto';
+      const motivo = anios.length === 1 ? `solo tiene ${anio}` : `no tiene ${prev.anio}`;
+      toast(`${nombre} ${motivo}: se muestra ${anio}`, { id: 'anio-no-disponible' });
+      return { ...prev, anio };
+    });
+  }, []);
+
   // Alto que ocupa arriba de la cuadrícula el encabezado + la línea de filtros PLEGADA. Se calcula en
   // cualquier estado restando el alto actual del contenido plegable (0 plegado; el que tenga abierto o a
   // media transición), así que también es válido con el panel abierto o si la ventana cambia de tamaño.
@@ -324,6 +336,7 @@ function PublicDashboard() {
         </div>
       )}
 
+      <a href="#contenido" className="skip-link">Saltar al contenido</a>
       <Header 
         dataset={appliedFilters.dataset} 
         setDataset={handleDatasetChange} 
@@ -348,10 +361,11 @@ function PublicDashboard() {
             onAddCustomCapsule={handleAddCustomCapsule}
             onRemoveCustomCapsule={handleRemoveCustomCapsule}
             onOpenChange={handleFiltersOpenChange}
+            onYearUnavailable={handleYearUnavailable}
           />
 
           {/* flex/min-height en index.css (.dashboard-grid): con el panel abierto se fija su alto */}
-          <main ref={gridRef} className="dashboard-grid">
+          <main id="contenido" tabIndex={-1} ref={gridRef} className="dashboard-grid">
             {/* Left Column */}
             <div className="dashboard-col">
               <SidebarLeft
@@ -397,7 +411,9 @@ function PublicDashboard() {
         </>
         )
       ) : (
-        <HistoryRankings tempColor={DATASET_COLORS[appliedFilters.dataset] || "#455993"} />
+        <main id="contenido" tabIndex={-1} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <HistoryRankings tempColor={DATASET_COLORS[appliedFilters.dataset] || "#455993"} />
+        </main>
       )}
     </div>
     </MesFinalContext.Provider>

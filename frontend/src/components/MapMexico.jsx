@@ -140,7 +140,7 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
     if (!entidadName || entidadName === 'Desconocido') return;
     // Con una consulta en curso los datos a la vista son de los filtros anteriores: sin drill hasta que llegue
     if (loading) return;
-    setDrillModal({ title: entidadName, data: null, loading: true });
+    setDrillModal({ title: entidadName, data: null, loading: true, retry: () => handleEntityClick(entidadName) });
     try {
       const params = new URLSearchParams();
       params.append('dataset', wireDataset);
@@ -175,6 +175,8 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
         isRate,
         exportFilename: `desglose_${isVictimas ? 'subtipos' : 'municipios'}_${slug(entidadName)}.csv`,
         exportFilters: { ...selectedFilters, metricType, entidad: entidadName, municipio: 'All' },
+        nameLabel: isVictimas ? 'Subtipo de delito' : 'Municipio',
+        countNoun: isVictimas ? ['subtipo', 'subtipos'] : ['municipio', 'municipios'],
         showRank: true,
         // Las tasas de municipios distintos no se suman: sin "% del total" ni total al pie
         showPct: isVictimas || !isRate,
@@ -182,7 +184,7 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
       });
     } catch (err) {
       console.error('Error fetching entity drill-down', err);
-      setDrillModal(prev => ({ ...prev, loading: false, data: [] }));
+      setDrillModal(prev => ({ ...prev, loading: false, data: [], error: true }));
     }
   };
 
@@ -191,7 +193,7 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
     if (!municipioName || municipioName === 'Desconocido') return;
     // Con una consulta en curso los datos a la vista son de los filtros anteriores: sin drill hasta que llegue
     if (loading) return;
-    setDrillModal({ title: municipioName, data: null, loading: true });
+    setDrillModal({ title: municipioName, data: null, loading: true, retry: () => handleMunicipioClick(municipioName) });
     try {
       const params = new URLSearchParams();
       params.append('categoria', 'subtipo_delito');
@@ -219,12 +221,14 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
         isRate,
         exportFilename: `desglose_subtipos_${slug(municipioName)}.csv`,
         exportFilters: { ...selectedFilters, metricType, entidad: 'Sonora', municipio: municipioName },
+        nameLabel: 'Subtipo de delito',
+        countNoun: ['subtipo', 'subtipos'],
         showRank: true,
         showPct: true,
       });
     } catch (err) {
       console.error('Error fetching subtipo drill-down', err);
-      setDrillModal(prev => ({ ...prev, loading: false, data: [] }));
+      setDrillModal(prev => ({ ...prev, loading: false, data: [], error: true }));
     }
   };
 
@@ -353,7 +357,7 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
   };
 
   // Título compartido (utils/labels): sigue al dataset, incluida Víctimas Municipios
-  const mapTitle = chartTitle(dataset, metricType, isSonora ? 'por municipio (Sonora)' : 'por entidad (México)');
+  const mapTitle = chartTitle(dataset, metricType, isSonora ? 'por municipio (Sonora)' : 'por entidad (Nacional)');
 
   const tooltipLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
 
@@ -499,23 +503,26 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
                   });
 
                 const realValue = foundData ? foundData.value : 0;
+                // Nombre a mostrar y a consultar: el de los datos ("Álamos"), no el del archivo
+                // geográfico ("Alamos"), que no coincide con el filtro por municipio
+                const shownName = foundData ? ((isSonora ? foundData.municipio : foundData.name) || stateName) : stateName;
 
                 return (
                   <Geography
                     key={geo.rsmKey}
                     geography={geo}
-                    onMouseEnter={() => setTooltipData({ name: stateName, value: realValue })}
+                    onMouseEnter={() => setTooltipData({ name: shownName, value: realValue })}
                     onMouseLeave={() => setTooltipData(null)}
-                    onClick={() => openDrill(stateName)}
+                    onClick={() => openDrill(shownName)}
                     // Tabulación itinerante (una parada de Tab); con foco muestra el tooltip,
                     // flechas/Inicio/Fin cambian de región y Enter/Espacio abre el desglose
                     tabIndex={regionsFocusable && geo.rsmKey === tabKey ? 0 : -1}
                     role="button"
-                    aria-label={`${stateName}: ${formatValue(realValue)}. ${drillHint}`}
+                    aria-label={`${shownName}: ${formatValue(realValue)}. ${drillHint}`}
                     aria-describedby={keysHintId}
-                    onFocus={() => { setRovingKey(geo.rsmKey); setTooltipData({ name: stateName, value: realValue }); }}
+                    onFocus={() => { setRovingKey(geo.rsmKey); setTooltipData({ name: shownName, value: realValue }); }}
                     onBlur={() => setTooltipData(null)}
-                    onKeyDown={(e) => handleRegionKeyDown(e, stateName)}
+                    onKeyDown={(e) => handleRegionKeyDown(e, shownName)}
                     style={{
                       default: {
                         fill: getFillColor(realValue),
@@ -599,6 +606,10 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
           showPct={drillModal.showPct || false}
           showTotal={drillModal.showTotal !== false}
           isRate={drillModal.isRate || false}
+          nameLabel={drillModal.nameLabel}
+          countNoun={drillModal.countNoun}
+          error={drillModal.error || false}
+          onRetry={drillModal.retry}
           exportFilename={drillModal.exportFilename}
           exportFilters={drillModal.exportFilters}
         />

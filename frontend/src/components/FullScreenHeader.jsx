@@ -106,7 +106,7 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
       if (selectedFilters.temporalidad === 'acumulado' && selectedFilters.mesAcumulado) {
         tempLabel += ` (Ene-${selectedFilters.mesAcumulado.slice(0, 3)})`;
       }
-      badges.push({ label: 'Temporalidad', value: tempLabel });
+      badges.push({ label: 'Periodo', value: tempLabel });
     }
 
     // 5. Mostrar filtros específicos aplicados (tanto planos como anidados en .filters)

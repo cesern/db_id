@@ -229,7 +229,7 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.25rem' }}>
-          <button className="btn" onClick={onClose} style={{ padding: '0.45rem 1rem', fontSize: '0.875rem', fontWeight: 600 }}>
+          <button type="button" className="btn" onClick={onClose} style={{ padding: '0.45rem 1rem', fontSize: '0.875rem', fontWeight: 600 }}>
             Cancelar
           </button>
           <button

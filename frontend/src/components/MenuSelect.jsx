@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { menuArrows, focusFirstMenuItem } from '../utils/menuKeys';
 
 /**
  * Selector compacto con menú (mismo aspecto que "Letra chica ▾" de la gráfica de barras).
@@ -7,14 +8,17 @@ import React, { useState, useEffect, useRef } from 'react';
 const MenuSelect = ({ value, options, onChange, title, prefix = '' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
+  const trigRef = useRef(null);
+  const listRef = useRef(null);
   const active = options.find(o => o.value === value) || options[0];
 
   useEffect(() => {
     if (!isOpen) return undefined;
+    focusFirstMenuItem(listRef.current);
     const handleClickOutside = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) setIsOpen(false);
     };
-    const handleKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setIsOpen(false); } };
+    const handleKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setIsOpen(false); trigRef.current?.focus({ preventScroll: true }); } };
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKey, true);
     return () => {
@@ -27,6 +31,7 @@ const MenuSelect = ({ value, options, onChange, title, prefix = '' }) => {
     <div style={{ position: 'relative' }} ref={containerRef}>
       <button
         type="button"
+        ref={trigRef}
         onClick={() => setIsOpen(v => !v)}
         title={title}
         aria-haspopup="menu"
@@ -45,6 +50,9 @@ const MenuSelect = ({ value, options, onChange, title, prefix = '' }) => {
       {isOpen && (
         <div
           role="menu"
+          ref={listRef}
+          aria-label={title}
+          onKeyDown={menuArrows}
           className="menu-select-pop"
           style={{
             position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: '150px',

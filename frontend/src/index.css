@@ -1533,3 +1533,44 @@ select:focus:not(:focus-visible) {
 @media (max-width: 1023px) {
   .ai-chip { min-height: 40px; }
 }
+
+/* ───────────────── Ronda 18 ───────────────── */
+/* Enlace de salto: visible solo al recibir el foco con teclado */
+.skip-link {
+  position: absolute; left: 8px; top: -48px; z-index: 100001;
+  padding: 0.5rem 0.9rem; border-radius: var(--radius-md);
+  background: var(--color-primary); color: #ffffff; font-size: 0.875rem; font-weight: 600; text-decoration: none;
+}
+.skip-link:focus { top: 8px; }
+#contenido:focus { outline: none; }
+
+/* Buscador de la tabla nacional de municipios */
+.table-search {
+  width: 100%; min-height: 32px; padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  background: #ffffff; color: var(--text-primary); font-size: 0.8125rem;
+}
+.table-search:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+
+/* Tableta (768–1023 px): tabla y mapa lado a lado arriba; las gráficas, a todo el ancho debajo
+   (antes la tabla ocupaba todo el ancho y las barras quedaban en media columna) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root { --chart-card-min-height: 340px; }
+  .dashboard-col:nth-child(1) { grid-column: span 1; }
+  .dashboard-col:nth-child(3) { grid-column: span 1; order: 2; }
+  .dashboard-col:nth-child(2) { grid-column: span 2; order: 3; }
+  .filters-controls-right .btn-toggle button { min-height: 40px; }
+}
+
+/* Celular: la fila de filtros se disuelve en una columna, donde flex-basis sería ALTO (dejaba una
+   franja vacía bajo los delitos de alto impacto) */
+@media (max-width: 767px) {
+  .filters-fields { flex: 0 0 auto !important; }
+  .table-search { min-height: 40px; }
+}
+
+/* Botón del aviso ("Deshacer") con área táctil suficiente */
+[data-sonner-toast] [data-button] { min-height: 32px; padding-inline: 0.75rem; }
+@media (pointer: coarse) {
+  [data-sonner-toast] [data-button] { min-height: 40px; }
+}

@@ -61,6 +61,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
   // <1024px: la tabla crece con la página (sin scroll propio) y muestra top 10 + "Ver todos"
   const [isNarrow, setIsNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches);
   const [showAllRows, setShowAllRows] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1023px)');
     const onChange = (e) => setIsNarrow(e.matches);
@@ -303,10 +304,23 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
   const kpiAmbito = selectedMunicipio || (entidadFiltrada ? null : activeEntityName);
   const kpiLabel = metricType === 'rate'
     ? (kpiAmbito ? `${kpiAmbito} · ${RATE_LABEL}` : RATE_LABEL)
-    : (selectedMunicipio || (kpiAmbito ? `${kpiAmbito} · ${baseKpiLabel}` : baseKpiLabel));
+    : (kpiAmbito ? `${kpiAmbito} · ${baseKpiLabel}` : baseKpiLabel);
+  // Con un municipio elegido la tarjeta del lugar habla de él: su lugar entre los municipios de la
+  // entidad (los "No especificado" no cuentan). Sin municipio, el lugar de la entidad entre las 32.
+  const munRow = selectedMunicipio ? municipios.find(m => m.municipio === selectedMunicipio) : null;
+  const kpiRankName = selectedMunicipio || activeEntityName;
+  const kpiRank = selectedMunicipio
+    ? (munRow && munRow.id !== '—' && !todoEnCero(municipios) ? munRow.id : null)
+    : rankShown;
+  const kpiRankTotal = selectedMunicipio ? municipios.filter(m => m.id !== '—').length : totalEntidades;
 
   const isEntidades = tableView === 'entidades' || isVictimas;
-  const rows = isEntidades ? entidades : municipios;
+  const allRows = isEntidades ? entidades : municipios;
+  // Tabla nacional de municipios (2,510 filas): se puede buscar por municipio o entidad
+  const buscable = !isEntidades && !(selectedFilters?.entidad && selectedFilters.entidad !== 'All');
+  const sinAcentos = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const q = buscable ? sinAcentos(busqueda).trim() : '';
+  const rows = q ? allRows.filter(m => sinAcentos(m.name).includes(q)) : allRows;
   const colLabel = isEntidades ? 'Entidad' : 'Municipio';
   const tableTitle = `Ranking de ${metricPhrase(dataset, metricType).toLowerCase()} por ${isEntidades ? 'entidad' : 'municipio'}`;
 
@@ -362,13 +376,13 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
 
   const handleDownloadCSV = () => {
     const headers = ["Rank", colLabel, csvValLabel];
-    const dataForExport = rows.map(m => [m.id, m.name, m.value]);
+    const dataForExport = allRows.map(m => [m.id, m.name, m.value]);
     downloadCSV(getExportFilename('csv'), dataForExport, headers, { ...selectedFilters, metricType });
   };
 
   const handleCopy = () => {
     const headers = ["Rank", colLabel, csvValLabel];
-    const dataForExport = rows.map(m => [m.id, m.name, m.value]);
+    const dataForExport = allRows.map(m => [m.id, m.name, m.value]);
     copyTableToClipboard(dataForExport, headers);
   };
 
@@ -531,9 +545,9 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
               (así "21 de 32" conserva todo el ancho de la tarjeta angosta) */}
           <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', minWidth: 0 }}>
             <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {activeEntityName}
+              {kpiRankName}
             </span>
-              {!error && !loading && rankShown !== null && prevRank && prevRank.metric === metricType && prevRank.filters === selectedFilters && (() => {
+              {!error && !loading && !selectedMunicipio && rankShown !== null && prevRank && prevRank.metric === metricType && prevRank.filters === selectedFilters && (() => {
                 const diff = prevRank.rank - activeEntityRank; // > 0: subió hacia el 1
                 const up = diff > 0, down = diff < 0;
                 const cmpPrev = `${prevRank.periodo ? prevRank.periodo + ' ' : ''}${prevRank.anio}`;
@@ -570,13 +584,17 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
           <span className="tabular" style={{ lineHeight: 1.1, display: 'flex', alignItems: 'baseline', gap: '0.3rem' }}>
             {/* Cifra principal: mismo color oscuro que el total (el azul se reserva a lo interactivo) */}
             <span style={{ fontSize: 'clamp(1.5rem, 2.4vw, 1.9rem)', fontWeight: 700, color: 'var(--color-primary)', letterSpacing: '-0.02em' }}>
-              {error || rankShown === null ? '—' : rankShown}
+              {error || kpiRank === null ? '—' : kpiRank}
             </span>
-            {!error && rankShown !== null && totalEntidades > 0 && (
-              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>de {totalEntidades}</span>
+            {!error && kpiRank !== null && kpiRankTotal > 0 && (
+              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>de {kpiRankTotal}</span>
             )}
           </span>
-          {!error && rankShown !== null && (
+          {/* Con municipio: de qué lista es el lugar */}
+          {!error && kpiRank !== null && selectedMunicipio && (
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>municipios de {activeEntityName}</span>
+          )}
+          {!error && kpiRank !== null && (
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{periodLabel}</span>
           )}
           {/* Sin lugar: solo el periodo (la tarjeta es angosta; el aviso "Sin datos publicados" va en la del total) */}
@@ -687,6 +705,18 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
         </div>
 
         <div className="card-period" style={{ padding: '0 1rem 0.35rem' }}>{periodLabel}</div>
+        {buscable && (
+          <div style={{ padding: '0 1rem 0.5rem' }}>
+            <input
+              type="search"
+              className="table-search"
+              aria-label="Buscar municipio o entidad"
+              placeholder="Buscar municipio o entidad…"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
+          </div>
+        )}
         {/* Tabla con semántica ARIA (rejilla de div): encabezado y filas dentro de role="table" */}
         <div className="sidebar-table" role="table" aria-label={tableTitle}>
         <div role="rowgroup" style={{ padding: isVictimas ? '1rem 1rem 0.5rem' : '0 1rem 0.5rem', borderBottom: '2px solid var(--border-color)' }}>
@@ -701,6 +731,8 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
         <div ref={rowsRef} role="rowgroup" className="sidebar-table-rows" style={{ overflowY: 'auto', flex: 1, padding: '0.25rem 0', position: 'relative', minHeight: '140px' }}>
           {error ? (
             <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />
+          ) : (rows.length === 0 && !loading && q) ? (
+            <EmptyState title={`Ningún municipio coincide con “${busqueda.trim()}”`} detail="Revisa la escritura o busca por el nombre de la entidad." />
           ) : (rows.length === 0 && !loading) ? (
             <EmptyState />
           ) : tablaEnCero ? (
@@ -735,7 +767,13 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
                   {m.id}
                 </span>
                 <span role="cell" title={m.name} style={{ fontWeight: hl ? 700 : (level === 'soft' ? 600 : 500), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {displayName}
+                  {buscable ? (
+                    // Nacional: municipio y entidad en dos renglones (la entidad desambigua y no se corta)
+                    <>
+                      <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.municipio || m.name}</span>
+                      <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-secondary)' }}>{m.entidad}</span>
+                    </>
+                  ) : displayName}
                 </span>
                 <span
                   role="cell"

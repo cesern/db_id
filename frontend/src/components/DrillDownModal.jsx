@@ -3,6 +3,7 @@ import { useDialogFocus } from '../utils/useDialogFocus';
 import { PREFERS_REDUCED_MOTION } from '../utils/motion';
 import ExportMenu from './ExportMenu';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
+import EmptyState from './EmptyState';
 
 const EXIT_MS = 150; // fundido de salida (.modal-backdrop.is-closing)
 
@@ -22,6 +23,12 @@ const DrillDownModal = ({
   // Exportar/copiar el desglose: nombre de archivo y filtros de la consulta (bloque de filtros del CSV)
   exportFilename,
   exportFilters,
+  // Encabezado de la columna de nombres y sustantivo del pie ("79 subtipos")
+  nameLabel = 'Nombre',
+  countNoun = ['registro', 'registros'],
+  // La consulta falló: se muestra el error con reintento, no "sin datos"
+  error = false,
+  onRetry,
 }) => {
   // El padre desmonta el modal en onClose: primero se desvanece (150ms) y luego se avisa
   const [closing, setClosing] = useState(false);
@@ -49,9 +56,9 @@ const DrillDownModal = ({
     : isRate ? v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     : v.toLocaleString('es-MX'));
 
-  const exportHeaders = showRank ? ['Lugar', 'Nombre', valueLabel] : ['Nombre', valueLabel];
+  const exportHeaders = showRank ? ['Lugar', nameLabel, valueLabel] : [nameLabel, valueLabel];
   const exportRows = () => (data || []).map(r => (showRank ? [r.rank ?? r.id, r.name, r.value] : [r.name, r.value]));
-  const hasRows = !loading && Array.isArray(data) && data.length > 0;
+  const hasRows = !loading && !error && Array.isArray(data) && data.length > 0;
 
   const th = (extra = {}) => ({
     padding: '0.6rem 1rem',
@@ -165,6 +172,8 @@ const DrillDownModal = ({
                 <div style={{ width: '34px', height: '34px', border: '3px solid var(--border-color)', borderTopColor: 'var(--color-accent)', borderRadius: '50%', animation: 'spin 0.75s linear infinite' }} />
                 <span style={{ fontSize: '0.875rem' }}>Cargando datos…</span>
               </div>
+            ) : error ? (
+              <EmptyState variant="error" inline onRetry={onRetry} />
             ) : !data || data.length === 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '160px', gap: '0.5rem', color: 'var(--text-secondary)' }}>
                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
@@ -177,7 +186,7 @@ const DrillDownModal = ({
                 <thead>
                   <tr>
                     {showRank && <th style={th({ textAlign: 'left', width: '56px', paddingLeft: '1.5rem' })} aria-label="Lugar">#</th>}
-                    <th style={th({ textAlign: 'left', paddingLeft: showRank ? '0.5rem' : '1.5rem' })}>Nombre</th>
+                    <th style={th({ textAlign: 'left', paddingLeft: showRank ? '0.5rem' : '1.5rem' })}>{nameLabel}</th>
                     <th style={th({ textAlign: 'right' })}>{valueLabel}</th>
                     {showPct && <th style={th({ textAlign: 'right', paddingRight: '1.5rem', width: '100px' })}>% del total</th>}
                   </tr>
@@ -217,7 +226,7 @@ const DrillDownModal = ({
           </div>
 
           {/* ── Footer ── */}
-          {!loading && data && data.length > 0 && (
+          {hasRows && (
             <div style={{
               padding: '0.65rem 1.5rem',
               borderTop: '1px solid var(--border-color)',
@@ -228,7 +237,7 @@ const DrillDownModal = ({
               alignItems: 'center',
             }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                {data.length} {data.length === 1 ? 'registro' : 'registros'}
+                {data.length} {data.length === 1 ? countNoun[0] : countNoun[1]}
               </span>
               {showTotal && total > 0 && (
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>

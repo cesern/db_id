@@ -72,7 +72,24 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
             <path d="M12 11v5M12 7.5h.01" />
           </svg>
         </button>
-        <div ref={tabsRef} className="dataset-tabs" role="tablist" aria-label="Conjunto de datos">
+        <div
+          ref={tabsRef}
+          className="dataset-tabs"
+          role="tablist"
+          aria-label="Conjunto de datos y modo de análisis"
+          onKeyDown={(e) => {
+            // Flechas, Inicio y Fin cambian de pestaña (el foco sigue a la selección)
+            if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return;
+            const tabs = [...e.currentTarget.querySelectorAll('[role="tab"]')];
+            const i = tabs.indexOf(document.activeElement);
+            if (i < 0) return;
+            e.preventDefault();
+            const n = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1
+              : (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+            tabs[n].focus();
+            tabs[n].click();
+          }}
+        >
           {[
             { id: 'delitos', label: 'Delitos' },
             { id: 'alto_impacto', label: 'Delitos Alto Impacto' },
@@ -99,6 +116,7 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
                 type="button"
                 role="tab"
                 aria-selected={isActive}
+                tabIndex={isActive ? 0 : -1}
                 onClick={handleClick}
               >
                 {opt.label}

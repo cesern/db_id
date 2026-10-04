@@ -7,6 +7,10 @@ export const downloadCSV = (filename, data, headers, filters) => {
   let csvContent = "";
 
   // 1. Metadata / Filters block
+  // Procedencia: para que la cifra citada lleve su fuente y la fecha en que se bajó
+  csvContent += "=== FUENTE ===\n";
+  csvContent += `Fuente,"SESNSP, incidencia delictiva del fuero común; población: proyecciones CONAPO"\n`;
+  csvContent += `Descargado,${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}\n\n`;
   csvContent += "=== FILTROS APLICADOS ===\n";
   if (filters) {
     const dataset = filters.dataset || 'delitos';
