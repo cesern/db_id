@@ -354,10 +354,15 @@ const SmoothingMenu = ({ maWindow, onSelect, btnStyle }) => {
   );
 };
 
-const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitialLoad }) => {
+const ChartLineTrend = ({ selectedFilters: requestedFilters, metricType: requestedMetric, onInitialLoad }) => {
   // Métrica con la que se pidieron los datos mostrados: rótulos y formato la siguen a ella, no a la
   // prop, para que al cambiar Cifras↔Tasa nunca aparezca una cifra absoluta rotulada como tasa.
   const [dataMetric, setDataMetric] = useState(requestedMetric);
+  // Filtros con los que se pidieron los datos mostrados. Todo lo que se pinta (rótulos, periodo,
+  // lugar, ámbito) sale de ellos, no de la prop: mientras carga una consulta nueva se sigue viendo
+  // la anterior completa bajo el velo, nunca un rótulo nuevo con la cifra vieja.
+  const [dataFilters, setDataFilters] = useState(requestedFilters);
+  const selectedFilters = dataFilters;
   const metricType = dataMetric;
   const [data, setData] = useState([]);
   // true desde el inicio: antes de la primera respuesta no se muestra un "sin datos" falso
@@ -402,12 +407,12 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
 
 
   useEffect(() => {
-    if (!selectedFilters) return;
+    if (!requestedFilters) return;
 
     const controller = new AbortController();
     setLoading(true);
 
-    const dataset = selectedFilters.dataset || 'delitos';
+    const dataset = requestedFilters.dataset || 'delitos';
     const isVictimas = dataset === 'victimas';
   const isVictimasMun = dataset === 'victimas_mun';
   const isAltoImpacto = dataset === 'alto_impacto';
@@ -416,17 +421,17 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
     params.append("dataset", isAltoImpacto ? "delitos" : dataset);
     params.append("metric_type", requestedMetric);
     if (isAltoImpacto) {
-      const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
+      const ai = Array.isArray(requestedFilters.altoImpacto) ? requestedFilters.altoImpacto : [];
       params.append("altoImpacto", ai.join('|'));
     }
-    if (selectedFilters.entidad && selectedFilters.entidad !== "All") params.append("entidad", selectedFilters.entidad);
-    if (!isVictimas && selectedFilters.municipio && selectedFilters.municipio !== "All") params.append("municipio", selectedFilters.municipio);
-    const bj = Array.isArray(selectedFilters.bienJuridico) ? selectedFilters.bienJuridico : [];
-    const td = Array.isArray(selectedFilters.tipoDelito) ? selectedFilters.tipoDelito : [];
-    const sd = Array.isArray(selectedFilters.subtipoDelito) ? selectedFilters.subtipoDelito : [];
-    const mo = Array.isArray(selectedFilters.modalidad) ? selectedFilters.modalidad : [];
-    const sx = Array.isArray(selectedFilters.sexo) ? selectedFilters.sexo : [];
-    const re = Array.isArray(selectedFilters.rangoEdad) ? selectedFilters.rangoEdad : [];
+    if (requestedFilters.entidad && requestedFilters.entidad !== "All") params.append("entidad", requestedFilters.entidad);
+    if (!isVictimas && requestedFilters.municipio && requestedFilters.municipio !== "All") params.append("municipio", requestedFilters.municipio);
+    const bj = Array.isArray(requestedFilters.bienJuridico) ? requestedFilters.bienJuridico : [];
+    const td = Array.isArray(requestedFilters.tipoDelito) ? requestedFilters.tipoDelito : [];
+    const sd = Array.isArray(requestedFilters.subtipoDelito) ? requestedFilters.subtipoDelito : [];
+    const mo = Array.isArray(requestedFilters.modalidad) ? requestedFilters.modalidad : [];
+    const sx = Array.isArray(requestedFilters.sexo) ? requestedFilters.sexo : [];
+    const re = Array.isArray(requestedFilters.rangoEdad) ? requestedFilters.rangoEdad : [];
 
     if (bj.length > 0) params.append("bienJuridico", bj.join('|'));
     if (td.length > 0) params.append("tipoDelito", td.join('|'));
@@ -438,7 +443,7 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
     axios.get(`${API_URL}/api/incidencia_por_mes_historico?${params.toString()}`, { signal: controller.signal })
       .then(res => {
         setError(false);
-        if (res.data) { setData(res.data); setDataMetric(requestedMetric); }
+        if (res.data) { setData(res.data); setDataMetric(requestedMetric); setDataFilters(requestedFilters); }
       })
       .catch(err => {
         if (axios.isCancel(err)) return;
@@ -456,7 +461,7 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
       });
 
     return () => controller.abort();
-  }, [selectedFilters, requestedMetric, retryKey]);
+  }, [requestedFilters, requestedMetric, retryKey]);
 
   const dataset = selectedFilters?.dataset || 'delitos';
   const isVictimas = dataset === 'victimas';
@@ -794,6 +799,7 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
         {!loading && !error && data.length === 0 && <EmptyState />}
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
+            title={chartTitle}
             data={displayData}
             margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
           >

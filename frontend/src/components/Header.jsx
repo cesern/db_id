@@ -78,7 +78,8 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
           role="tablist"
           aria-label="Conjunto de datos y modo de análisis"
           onKeyDown={(e) => {
-            // Flechas, Inicio y Fin cambian de pestaña (el foco sigue a la selección)
+            // Flechas, Inicio y Fin mueven el foco entre pestañas; Enter o Espacio activan la enfocada
+            // (activar al pasar recargaba cada conjunto intermedio y limpiaba sus filtros)
             if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return;
             const tabs = [...e.currentTarget.querySelectorAll('[role="tab"]')];
             const i = tabs.indexOf(document.activeElement);
@@ -87,7 +88,6 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
             const n = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1
               : (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
             tabs[n].focus();
-            tabs[n].click();
           }}
         >
           {[

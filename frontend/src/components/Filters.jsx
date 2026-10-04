@@ -727,7 +727,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
                   disabled={selectedFilters.entidad === 'All'}
                 >
                   {selectedFilters.entidad === 'All' ? (
-                    <option value="All">Seleccione una entidad</option>
+                    <option value="All">Selecciona una entidad</option>
                   ) : (
                     <>
                       <option value="All">Todos los municipios</option>
@@ -768,7 +768,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
                         type="button"
                         className="ai-chip"
                         aria-pressed={isActive}
-                        title={parsed.isCustom ? `Personalizado: ${token.slice(0, 120)}` : token}
+                        title={parsed.isCustom && parsed.config ? `Personalizado: ${['b', 't', 's', 'm'].map(k => parsed.config[k]).filter(Boolean).join(' › ')}` : parsed.name}
                         style={{
                           display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
                           padding: '0.35rem 0.75rem', fontSize: '0.8rem', fontWeight: isActive ? 700 : 500,

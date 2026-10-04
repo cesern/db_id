@@ -223,7 +223,7 @@ export const copyTableToClipboard = (data, headers) => {
     content += rowValues.join("\t") + "\n";
   });
   navigator.clipboard.writeText(content).then(() => {
-    toast.success("¡Tabla copiada al portapapeles!");
+    toast.success(`Tabla copiada: ${data.length.toLocaleString('es-MX')} ${data.length === 1 ? 'fila' : 'filas'}`);
   }).catch(err => {
     console.error("Error al copiar:", err);
     toast.error("Error al copiar la tabla");

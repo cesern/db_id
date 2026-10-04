@@ -10,6 +10,15 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
   const triggerRef = useRef(null);
   const listRef = useRef(null);
 
+  // Al cerrarse el menú (opción elegida) el foco no debe quedar suelto en <body>: vuelve al botón
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (wasOpenRef.current && !isOpen && (!document.activeElement || document.activeElement === document.body)) {
+      triggerRef.current?.focus({ preventScroll: true });
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen]);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {

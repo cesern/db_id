@@ -126,7 +126,7 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
           ...actives.map(e => getTotal([token, e].join('|')))
         ]);
         const contained = actives.filter((e, i) => cTotal > 0 && unions[i] === cTotal).map(e => parseCapsule(e).name);
-        setOverlap({ checking: false, redundant: aTotal > 0 && uTotal === aTotal, contained });
+        setOverlap({ checking: false, redundant: aTotal > 0 && uTotal === aTotal, contained, total: cTotal });
       } catch (err) {
         if (axios.isCancel(err)) return;
         setOverlap({ checking: false, redundant: false, contained: [] });
@@ -216,6 +216,11 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
               Comprobando si se traslapa con los delitos activos…
             </p>
           )}
+          {!overlap.checking && hasLevels && typeof overlap.total === 'number' && (
+            <p className="tabular" style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', margin: 0 }}>
+              Con los filtros actuales este delito suma <strong style={{ color: 'var(--text-primary)' }}>{overlap.total.toLocaleString('es-MX')}</strong> {overlap.total === 1 ? 'registro' : 'registros'}.
+            </p>
+          )}
           {!overlap.checking && overlap.contained.length > 0 && (
             <p style={{ fontSize: '0.8rem', color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
               Incluye por completo a: {overlap.contained.join(', ')}. Pueden convivir; los delitos no se cuentan dos veces.
@@ -228,7 +233,13 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
           )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.25rem' }}>
+        {/* Motivo del botón deshabilitado, a la vista (antes solo en el title) */}
+        {!canConfirm && !duplicate && (
+          <p id="ai-motivo" style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', margin: '1rem 0 0', textAlign: 'right' }}>
+            {!hasLevels ? 'Elige al menos un nivel.' : cleanName.length === 0 ? 'Escribe un nombre para el delito.' : 'El nombre no puede llevar el carácter "|".'}
+          </p>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: canConfirm || duplicate ? '1.25rem' : '0.5rem' }}>
           <button type="button" className="btn" onClick={onClose} style={{ padding: '0.45rem 1rem', fontSize: '0.875rem', fontWeight: 600 }}>
             Cancelar
           </button>

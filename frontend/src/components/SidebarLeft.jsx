@@ -49,10 +49,15 @@ const rankMunicipios = (list) => {
   return [...ranked, ...rest];
 };
 
-const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLoad, onMesFinal }) => {
+const SidebarLeft = ({ selectedFilters: requestedFilters, metricType: requestedMetric, onInitialLoad, onMesFinal }) => {
   // Métrica con la que se pidieron los datos mostrados: rótulos y formato la siguen a ella, no a la
   // prop, para que al cambiar Cifras↔Tasa nunca aparezca una cifra absoluta rotulada como tasa.
   const [dataMetric, setDataMetric] = useState(requestedMetric);
+  // Filtros con los que se pidieron los datos mostrados. Todo lo que se pinta (rótulos, periodo,
+  // lugar, ámbito) sale de ellos, no de la prop: mientras carga una consulta nueva se sigue viendo
+  // la anterior completa bajo el velo, nunca un rótulo nuevo con la cifra vieja.
+  const [dataFilters, setDataFilters] = useState(requestedFilters);
+  const selectedFilters = dataFilters;
   const metricType = dataMetric;
   const [totalIncidencia, setTotalIncidencia] = useState(null); // null = aún sin respuesta → "—"
   const [entidades, setEntidades] = useState([]);
@@ -62,6 +67,8 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
   const [isNarrow, setIsNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches);
   const [showAllRows, setShowAllRows] = useState(false);
   const [busqueda, setBusqueda] = useState('');
+  // Tandas de la tabla larga: filas extra pedidas con "Ver más" para la lista actual (clave)
+  const [extraRows, setExtraRows] = useState({ key: '', n: 0 });
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1023px)');
     const onChange = (e) => setIsNarrow(e.matches);
@@ -125,25 +132,30 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
   }, [dataset]);
 
   useEffect(() => {
-    if (!selectedFilters || selectedFilters.anio === null) return;
+    if (!requestedFilters || requestedFilters.anio === null) return;
+    // Lo pedido (no lo mostrado): la consulta sale con los filtros recién aplicados
+    const reqDataset = requestedFilters.dataset || 'delitos';
+    const isVictimas = reqDataset === 'victimas';
+    const isAltoImpacto = reqDataset === 'alto_impacto';
+    const wireDataset = isAltoImpacto ? 'delitos' : reqDataset;
 
     const controller = new AbortController();
     setLoading(true);
 
     const params = { dataset: wireDataset };
-    params.anio = selectedFilters.anio;
+    params.anio = requestedFilters.anio;
     params.metric_type = requestedMetric;
     if (isAltoImpacto) {
-      const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
+      const ai = Array.isArray(requestedFilters.altoImpacto) ? requestedFilters.altoImpacto : [];
       params.altoImpacto = ai.join('|');
     }
-    if (selectedFilters.entidad !== 'All') params.entidad = selectedFilters.entidad;
-    const bj = Array.isArray(selectedFilters.bienJuridico) ? selectedFilters.bienJuridico : [];
-    const td = Array.isArray(selectedFilters.tipoDelito) ? selectedFilters.tipoDelito : [];
-    const sd = Array.isArray(selectedFilters.subtipoDelito) ? selectedFilters.subtipoDelito : [];
-    const mo = Array.isArray(selectedFilters.modalidad) ? selectedFilters.modalidad : [];
-    const sx = Array.isArray(selectedFilters.sexo) ? selectedFilters.sexo : [];
-    const re = Array.isArray(selectedFilters.rangoEdad) ? selectedFilters.rangoEdad : [];
+    if (requestedFilters.entidad !== 'All') params.entidad = requestedFilters.entidad;
+    const bj = Array.isArray(requestedFilters.bienJuridico) ? requestedFilters.bienJuridico : [];
+    const td = Array.isArray(requestedFilters.tipoDelito) ? requestedFilters.tipoDelito : [];
+    const sd = Array.isArray(requestedFilters.subtipoDelito) ? requestedFilters.subtipoDelito : [];
+    const mo = Array.isArray(requestedFilters.modalidad) ? requestedFilters.modalidad : [];
+    const sx = Array.isArray(requestedFilters.sexo) ? requestedFilters.sexo : [];
+    const re = Array.isArray(requestedFilters.rangoEdad) ? requestedFilters.rangoEdad : [];
 
     if (bj.length > 0) params.bienJuridico = bj.join('|');
     if (td.length > 0) params.tipoDelito = td.join('|');
@@ -151,11 +163,11 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
     if (mo.length > 0) params.modalidad = mo.join('|');
     if (sx.length > 0) params.sexo = sx.join('|');
     if (re.length > 0) params.rangoEdad = re.join('|');
-    if (selectedFilters.meses && selectedFilters.meses.length > 0) params.meses = selectedFilters.meses.join(',');
+    if (requestedFilters.meses && requestedFilters.meses.length > 0) params.meses = requestedFilters.meses.join(',');
     
     const totalParams = { ...params };
-    if (!isVictimas && selectedFilters.municipio && selectedFilters.municipio !== 'All') {
-      totalParams.municipio = selectedFilters.municipio;
+    if (!isVictimas && requestedFilters.municipio && requestedFilters.municipio !== 'All') {
+      totalParams.municipio = requestedFilters.municipio;
     }
 
     const signal = controller.signal;
@@ -173,6 +185,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
       .then(([resTotal, resEntidades, resMunicipios]) => {
         setError(false);
         setDataMetric(requestedMetric);
+        setDataFilters(requestedFilters);
         if (resTotal.data?.total_incidencia !== undefined) {
           setTotalIncidencia(resTotal.data.total_incidencia);
         }
@@ -199,7 +212,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
       });
 
     return () => controller.abort();
-  }, [selectedFilters, requestedMetric, retryKey]);
+  }, [requestedFilters, requestedMetric, retryKey]);
 
   // Lugar nacional del año anterior con los mismos filtros. Si el año actual es parcial
   // (sin meses elegidos), se compara contra los mismos meses del año anterior.
@@ -209,34 +222,42 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
   const [curMesFinal, setCurMesFinal] = useState(null);
   // Para qué conjunto|año se resolvió curMesFinal: mientras no coincida, el último mes es desconocido
   const [mesFinalFor, setMesFinalFor] = useState(null);
+  // Último mes publicado por conjunto|año (se acumula): el periodo mostrado se rotula con el del
+  // conjunto y año MOSTRADOS, no con el de la consulta en curso ("108 · Año 2026" era falso)
+  const [mesFinalMap, setMesFinalMap] = useState({});
   useEffect(() => {
-    if (!selectedFilters || selectedFilters.anio == null) return undefined;
+    if (!requestedFilters || requestedFilters.anio == null) return undefined;
+    // Lo pedido (no lo mostrado): la consulta sale con los filtros recién aplicados
+    const reqDataset = requestedFilters.dataset || 'delitos';
+    const isAltoImpacto = reqDataset === 'alto_impacto';
+    const wireDataset = isAltoImpacto ? 'delitos' : reqDataset;
     const controller = new AbortController();
     const signal = controller.signal;
-    const anio = Number(selectedFilters.anio);
+    const anio = Number(requestedFilters.anio);
     const base = { dataset: wireDataset, metric_type: requestedMetric };
     if (isAltoImpacto) {
-      const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
+      const ai = Array.isArray(requestedFilters.altoImpacto) ? requestedFilters.altoImpacto : [];
       base.altoImpacto = ai.join('|');
     }
     for (const k of ['bienJuridico', 'tipoDelito', 'subtipoDelito', 'modalidad', 'sexo', 'rangoEdad']) {
-      const v = Array.isArray(selectedFilters[k]) ? selectedFilters[k] : [];
+      const v = Array.isArray(requestedFilters[k]) ? requestedFilters[k] : [];
       if (v.length > 0) base[k] = v.join('|');
     }
-    const entityName = (!selectedFilters.entidad || selectedFilters.entidad === 'All') ? 'Sonora' : selectedFilters.entidad;
+    const entityName = (!requestedFilters.entidad || requestedFilters.entidad === 'All') ? 'Sonora' : requestedFilters.entidad;
     let mfResolved = false;
     (async () => {
       try {
-        let meses = Array.isArray(selectedFilters.meses) ? selectedFilters.meses : [];
+        let meses = Array.isArray(requestedFilters.meses) ? requestedFilters.meses : [];
         const years = await axios.get(`${API_URL}/api/incidencia_por_anio`, { params: base, signal });
         const rows = Array.isArray(years.data) ? years.data : [];
+        setMesFinalMap(prev => ({ ...prev, ...Object.fromEntries(rows.map(d => [`${wireDataset}|${Number(d.year)}`, typeof d.mes_final === 'number' ? d.mes_final : null])) }));
         const cur = rows.find(d => Number(d.year) === anio);
         const mf = cur && typeof cur.mes_final === 'number' ? cur.mes_final : null;
         setCurMesFinal(mf);
         setMesFinalFor(`${wireDataset}|${anio}`);
         mfResolved = true;
         // Se reporta con su conjunto y año: PublicDashboard solo lo reenvía si coinciden con lo aplicado
-        if (onMesFinal) onMesFinal({ dataset: selectedFilters.dataset || 'delitos', anio, mesFinal: mf });
+        if (onMesFinal) onMesFinal({ dataset: requestedFilters.dataset || 'delitos', anio, mesFinal: mf });
         if (!cur || !rows.some(d => Number(d.year) === anio - 1)) { setPrevRank(null); return; }
         if (meses.length === 0 && cur.mes_final && cur.mes_final < 12) meses = MESES.slice(0, cur.mes_final);
         const params = { ...base, anio: anio - 1 };
@@ -247,7 +268,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
         const periodo = idx.length > 0 && idx.length < 12 ? `${MESES_CORTOS[idx[0]]}–${MESES_CORTOS[idx[idx.length - 1]]}` : null;
         // Se guarda con los filtros de su consulta: al pintar solo vale si siguen siendo los aplicados
         // (si no, se vería el ▲/▼ de un conjunto junto al lugar de otro mientras llega el nuevo)
-        setPrevRank(row ? { anio: anio - 1, rank: row.id, periodo, value: row.value, metric: requestedMetric, filters: selectedFilters } : null);
+        setPrevRank(row ? { anio: anio - 1, rank: row.id, periodo, value: row.value, metric: requestedMetric, filters: requestedFilters } : null);
       } catch (err) {
         if (axios.isCancel(err)) return;
         setPrevRank(null);
@@ -255,12 +276,12 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
         if (!mfResolved) {
           setCurMesFinal(undefined);
           setMesFinalFor(`${wireDataset}|${anio}`);
-          if (onMesFinal) onMesFinal({ dataset: selectedFilters.dataset || 'delitos', anio, mesFinal: undefined });
+          if (onMesFinal) onMesFinal({ dataset: requestedFilters.dataset || 'delitos', anio, mesFinal: undefined });
         }
       }
     })();
     return () => controller.abort();
-  }, [selectedFilters, requestedMetric, retryKey]);
+  }, [requestedFilters, requestedMetric, retryKey]);
 
   const formatNumber = (num) => {
     if (num === 'N/D' || num === undefined || num === null) return 'N/D';
@@ -285,15 +306,16 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
   const entidadesEnCero = !error && todoEnCero(entidades);
   // Último mes publicado solo si ya se resolvió para el conjunto y año actuales (si no: undefined =
   // desconocido, texto neutro; nunca "Sin datos publicados" con un dato viejo o pendiente)
-  const mesFinalResuelto = mesFinalFor === `${wireDataset}|${Number(selectedFilters?.anio)}`;
-  const mesFinalActual = mesFinalResuelto ? curMesFinal : undefined;
+  const keyShown = `${wireDataset}|${Number(selectedFilters?.anio)}`;
+  const mesFinalResuelto = keyShown in mesFinalMap || mesFinalFor === keyShown;
+  const mesFinalActual = keyShown in mesFinalMap ? mesFinalMap[keyShown] : (mesFinalFor === keyShown ? curMesFinal : undefined);
   const sinDatos = sinDatosCopy(selectedFilters?.anio ?? '', selectedFilters?.meses, mesFinalActual, !mesFinalResuelto);
   const sinPublicar = entidadesEnCero && periodoSinPublicar(selectedFilters?.meses, mesFinalActual);
   const rankShown = entidadesEnCero ? null : activeEntityRank;
   const rankCriterion = metricType === 'rate' ? 'mayor tasa' : (isVictimasBase ? 'más víctimas' : 'mayor incidencia');
 
   // Periodo explícito del KPI: meses seleccionados (o todos) + año
-  const periodLabel = formatPeriod(selectedFilters?.anio ?? '', selectedFilters?.meses, curMesFinal);
+  const periodLabel = formatPeriod(selectedFilters?.anio ?? '', selectedFilters?.meses, mesFinalActual);
   const entidadFiltrada = !!(selectedFilters?.entidad && selectedFilters.entidad !== 'All');
   const selectedMunicipio = (!isVictimas && selectedFilters?.municipio && selectedFilters.municipio !== 'All') ? selectedFilters.municipio : null;
   // A nivel Nacional las dos tarjetas hablan de la entidad de referencia (Sonora): antes el lugar era
@@ -338,20 +360,49 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
   
   // Móvil: top 10 (más la fila resaltada si queda fuera) hasta pulsar "Ver todos"
   const MOBILE_ROWS = 10;
-  const visibleRows = (isNarrow && !showAllRows)
+  // Listas largas (2,510 municipios del país): se pintan por tandas; montar todas de una vez
+  // bloqueaba más de un segundo al borrar la búsqueda
+  const TANDA = 200;
+  const tandaKey = `${tableView}|${q}|${allRows.length}`;
+  const shownCount = TANDA + (extraRows.key === tandaKey ? extraRows.n : 0);
+  const limited = rows.length > TANDA ? rows.slice(0, shownCount) : rows;
+  const restantes = rows.length - limited.length;
+  const verMas = () => setExtraRows(prev => ({ key: tandaKey, n: (prev.key === tandaKey ? prev.n : 0) + TANDA }));
+  const narrowCollapsed = isNarrow && !showAllRows;
+  const visibleRows = narrowCollapsed
     ? rows.filter((m, i) => i < MOBILE_ROWS || rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio, entidadFiltrada) === 'strong')
-    : rows;
-  const hiddenCount = rows.length - visibleRows.length;
+    : limited;
+  const hiddenCount = narrowCollapsed ? rows.length - visibleRows.length : 0;
+  const conteoBusqueda = q ? `${rows.length.toLocaleString('es-MX')} de ${allRows.length.toLocaleString('es-MX')}` : '';
+  const botonVerMas = (!narrowCollapsed && restantes > 0 && !error) ? (
+    <button type="button" className="table-more-btn table-more-btn--inline" onClick={verMas}>
+      Ver {Math.min(TANDA, restantes).toLocaleString('es-MX')} más ({restantes.toLocaleString('es-MX')} restantes)
+    </button>
+  ) : null;
+  const buscador = buscable ? (
+    <span className="table-search-wrap">
+      <input
+        type="search"
+        className="table-search"
+        aria-label="Buscar municipio o entidad"
+        placeholder="Buscar municipio o entidad…"
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+      />
+      {q && <span className="table-search-count tabular" aria-hidden="true">{conteoBusqueda}</span>}
+      <span className="sr-only" aria-live="polite">{q ? `${conteoBusqueda} municipios` : ''}</span>
+    </span>
+  ) : null;
 
   // Tabla en columnas (pantalla completa): tantas columnas como quepan (≥ FS_COL_MIN px cada una)
   // hasta que todas las filas entren sin desplazamiento; si ni así caben, se desplaza en vertical.
   const fsColumns = (() => {
-    if (!isFullScreen || fsView !== 'tabla' || rows.length === 0) return [rows];
+    if (!isFullScreen || fsView !== 'tabla' || limited.length === 0) return [limited];
     const maxCols = Math.max(1, Math.floor((fsBox.w || 0) / FS_COL_MIN));
     const fitRows = Math.max(1, Math.floor(((fsBox.h || 0) - FS_HEAD_H) / FS_ROW_H));
-    const cols = Math.min(maxCols, Math.max(1, Math.ceil(rows.length / fitRows)));
-    const per = Math.ceil(rows.length / cols);
-    return Array.from({ length: cols }, (_, i) => rows.slice(i * per, (i + 1) * per)).filter(c => c.length > 0);
+    const cols = Math.min(maxCols, Math.max(1, Math.ceil(limited.length / fitRows)));
+    const per = Math.ceil(limited.length / cols);
+    return Array.from({ length: cols }, (_, i) => limited.slice(i * per, (i + 1) * per)).filter(c => c.length > 0);
   })();
 
   // Tabla con todas las filas en 0: estado vacío en vez de un empate en 1
@@ -375,14 +426,14 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
   };
 
   const handleDownloadCSV = () => {
-    const headers = ["Rank", colLabel, csvValLabel];
+    const headers = ["Lugar", colLabel, csvValLabel];
     // Se exporta lo que se ve: con búsqueda, solo las filas que coinciden (cada una con su lugar real)
     const dataForExport = rows.map(m => [m.id, m.name, m.value]);
     downloadCSV(getExportFilename('csv'), dataForExport, headers, { ...selectedFilters, metricType, busquedaTabla: q ? busqueda.trim() : undefined });
   };
 
   const handleCopy = () => {
-    const headers = ["Rank", colLabel, csvValLabel];
+    const headers = ["Lugar", colLabel, csvValLabel];
     // Se exporta lo que se ve: con búsqueda, solo las filas que coinciden (cada una con su lugar real)
     const dataForExport = rows.map(m => [m.id, m.name, m.value]);
     copyTableToClipboard(dataForExport, headers);
@@ -402,7 +453,8 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
           onClose={() => setFsOpen(false)}
           returnFocusRef={fsTriggerRef}
           extraActions={
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {buscador}
               <MenuSelect
                 value={fsView}
                 onChange={setFsViewPersist}
@@ -469,13 +521,15 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
           {loading && <LoadingSpinner size="md" />}
           {error ? (
             <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />
+          ) : (rows.length === 0 && !loading && q) ? (
+            <EmptyState title={`Ningún municipio coincide con “${busqueda.trim()}”`} detail="Revisa la escritura o busca por el nombre de la entidad." />
           ) : (rows.length === 0 && !loading) ? (
             <EmptyState />
           ) : tablaEnCero ? (
             <EmptyState title={sinDatos.title} detail={sinDatos.detail} />
           ) : fsView === 'barras' ? (
             <div className="fs-bars">
-              {rows.map((m) => {
+              {limited.map((m) => {
                 const level = rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio, entidadFiltrada);
                 const isNum = typeof m.value === 'number';
                 const pct = maxVal > 0 && isNum ? Math.max(0.5, (m.value / maxVal) * 100) : 0;
@@ -522,6 +576,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
               ))}
             </div>
           )}
+          {!tablaEnCero && botonVerMas}
         </div>
       </div>
   ) : null;
@@ -594,7 +649,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
           </span>
           {/* Con municipio: de qué lista es el lugar */}
           {!error && kpiRank !== null && selectedMunicipio && (
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>municipios de {activeEntityName}</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>en {activeEntityName}</span>
           )}
           {!error && kpiRank !== null && (
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{periodLabel}</span>
@@ -707,17 +762,8 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
         </div>
 
         <div className="card-period" style={{ padding: '0 1rem 0.35rem' }}>{periodLabel}</div>
-        {buscable && (
-          <div style={{ padding: '0 1rem 0.5rem' }}>
-            <input
-              type="search"
-              className="table-search"
-              aria-label="Buscar municipio o entidad"
-              placeholder="Buscar municipio o entidad…"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-            />
-          </div>
+        {buscable && !isFullScreen && (
+          <div style={{ padding: '0 1rem 0.5rem' }}>{buscador}</div>
         )}
         {/* Tabla con semántica ARIA (rejilla de div): encabezado y filas dentro de role="table" */}
         <div className="sidebar-table" role="table" aria-label={tableTitle}>
@@ -792,6 +838,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
               </div>
             );
           })}
+          {!tablaEnCero && botonVerMas}
         </div>
         </div>
         {hiddenCount > 0 && !error && !tablaEnCero && (

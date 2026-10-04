@@ -12,6 +12,15 @@ const MenuSelect = ({ value, options, onChange, title, prefix = '' }) => {
   const listRef = useRef(null);
   const active = options.find(o => o.value === value) || options[0];
 
+  // Al cerrarse el menú (opción elegida) el foco no debe quedar suelto en <body>: vuelve al botón
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (wasOpenRef.current && !isOpen && (!document.activeElement || document.activeElement === document.body)) {
+      trigRef.current?.focus({ preventScroll: true });
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen) return undefined;
     focusFirstMenuItem(listRef.current);

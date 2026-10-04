@@ -59,6 +59,11 @@ const DrillDownModal = ({
   const exportHeaders = showRank ? ['Lugar', nameLabel, valueLabel] : [nameLabel, valueLabel];
   const exportRows = () => (data || []).map(r => (showRank ? [r.rank ?? r.id, r.name, r.value] : [r.name, r.value]));
   const hasRows = !loading && !error && Array.isArray(data) && data.length > 0;
+  // Filas en cero: con cinco o más se resumen en un renglón (20 subtipos empatados en el mismo
+  // lugar no aportan); la exportación sigue llevando todas
+  const zeros = hasRows ? data.filter(r => r.value === 0) : [];
+  const collapseZeros = zeros.length >= 5;
+  const shownRows = collapseZeros ? data.filter(r => r.value !== 0) : (data || []);
 
   const th = (extra = {}) => ({
     padding: '0.6rem 1rem',
@@ -192,7 +197,7 @@ const DrillDownModal = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((row, i) => {
+                  {shownRows.map((row, i) => {
                     const rank = row.rank ?? row.id;
                     return (
                       <tr
@@ -220,6 +225,13 @@ const DrillDownModal = ({
                       </tr>
                     );
                   })}
+                  {collapseZeros && (
+                    <tr>
+                      <td colSpan={2 + (showRank ? 1 : 0) + (showPct ? 1 : 0)} style={tdStyle({ paddingLeft: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.8125rem' })}>
+                        {zeros.length} {countNoun[1]} sin registros
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             )}

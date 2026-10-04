@@ -33,6 +33,15 @@ const FontSizeSelect = ({ value, onChange }) => {
   const listRef = useRef(null);
   const active = FONT_OPTIONS.find(o => o.value === value) || FONT_OPTIONS[1];
 
+  // Al cerrarse el menú (opción elegida) el foco no debe quedar suelto en <body>: vuelve al botón
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (wasOpenRef.current && !isOpen && (!document.activeElement || document.activeElement === document.body)) {
+      trigRef.current?.focus({ preventScroll: true });
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen) return undefined;
     focusFirstMenuItem(listRef.current);
@@ -117,10 +126,15 @@ const ActiveLabelTracker = ({ labelRef }) => {
   return null;
 };
 
-const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitialLoad }) => {
+const ChartBarYears = ({ selectedFilters: requestedFilters, metricType: requestedMetric, onInitialLoad }) => {
   // Métrica con la que se pidieron los datos mostrados: rótulos y formato la siguen a ella, no a la
   // prop, para que al cambiar Cifras↔Tasa nunca aparezca una cifra absoluta rotulada como tasa.
   const [dataMetric, setDataMetric] = useState(requestedMetric);
+  // Filtros con los que se pidieron los datos mostrados. Todo lo que se pinta (rótulos, periodo,
+  // lugar, ámbito) sale de ellos, no de la prop: mientras carga una consulta nueva se sigue viendo
+  // la anterior completa bajo el velo, nunca un rótulo nuevo con la cifra vieja.
+  const [dataFilters, setDataFilters] = useState(requestedFilters);
+  const selectedFilters = dataFilters;
   const metricType = dataMetric;
   const [data, setData] = useState([]);
   // true desde el inicio: antes de la primera respuesta no se muestra un "sin datos" falso
@@ -150,12 +164,12 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
 
 
   useEffect(() => {
-    if (!selectedFilters) return;
+    if (!requestedFilters) return;
 
     const controller = new AbortController();
     setLoading(true);
 
-    const dataset = selectedFilters.dataset || 'delitos';
+    const dataset = requestedFilters.dataset || 'delitos';
     const isVictimas = dataset === 'victimas';
   const isVictimasMun = dataset === 'victimas_mun';
   const isVictimasBase = isVictimas || isVictimasMun;
@@ -165,17 +179,17 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
     params.append("dataset", isAltoImpacto ? "delitos" : dataset);
     params.append("metric_type", requestedMetric);
     if (isAltoImpacto) {
-      const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
+      const ai = Array.isArray(requestedFilters.altoImpacto) ? requestedFilters.altoImpacto : [];
       params.append("altoImpacto", ai.join('|'));
     }
-    if (selectedFilters.entidad && selectedFilters.entidad !== "All") params.append("entidad", selectedFilters.entidad);
-    if (!isVictimas && selectedFilters.municipio && selectedFilters.municipio !== "All") params.append("municipio", selectedFilters.municipio);
-    const bj = Array.isArray(selectedFilters.bienJuridico) ? selectedFilters.bienJuridico : [];
-    const td = Array.isArray(selectedFilters.tipoDelito) ? selectedFilters.tipoDelito : [];
-    const sd = Array.isArray(selectedFilters.subtipoDelito) ? selectedFilters.subtipoDelito : [];
-    const mo = Array.isArray(selectedFilters.modalidad) ? selectedFilters.modalidad : [];
-    const sx = Array.isArray(selectedFilters.sexo) ? selectedFilters.sexo : [];
-    const re = Array.isArray(selectedFilters.rangoEdad) ? selectedFilters.rangoEdad : [];
+    if (requestedFilters.entidad && requestedFilters.entidad !== "All") params.append("entidad", requestedFilters.entidad);
+    if (!isVictimas && requestedFilters.municipio && requestedFilters.municipio !== "All") params.append("municipio", requestedFilters.municipio);
+    const bj = Array.isArray(requestedFilters.bienJuridico) ? requestedFilters.bienJuridico : [];
+    const td = Array.isArray(requestedFilters.tipoDelito) ? requestedFilters.tipoDelito : [];
+    const sd = Array.isArray(requestedFilters.subtipoDelito) ? requestedFilters.subtipoDelito : [];
+    const mo = Array.isArray(requestedFilters.modalidad) ? requestedFilters.modalidad : [];
+    const sx = Array.isArray(requestedFilters.sexo) ? requestedFilters.sexo : [];
+    const re = Array.isArray(requestedFilters.rangoEdad) ? requestedFilters.rangoEdad : [];
 
     if (bj.length > 0) params.append("bienJuridico", bj.join('|'));
     if (td.length > 0) params.append("tipoDelito", td.join('|'));
@@ -183,7 +197,7 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
     if (mo.length > 0) params.append("modalidad", mo.join('|'));
     if (sx.length > 0) params.append("sexo", sx.join('|'));
     if (re.length > 0) params.append("rangoEdad", re.join('|'));
-    if (selectedFilters.meses && selectedFilters.meses.length > 0) params.append("meses", selectedFilters.meses.join(','));
+    if (requestedFilters.meses && requestedFilters.meses.length > 0) params.append("meses", requestedFilters.meses.join(','));
 
     const endpoint = isVictimasMun ? "api/incidencia_por_mes_historico" : "api/incidencia_por_anio";
     axios.get(`${API_URL}/${endpoint}?${params.toString()}`, { signal: controller.signal })
@@ -192,7 +206,7 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
         if (res.data) {
           // Año parcial: la fuente aún no publica todos los meses pedidos. La etiqueta dice qué meses
           // pedidos sí están ("Ene–Ago"); si ninguno está publicado, "Sin datos" (p. ej. solo Dic en 2026)
-          const selMeses = (selectedFilters.meses || []).map(m => MESES_LARGOS.indexOf(m)).filter(i => i >= 0).sort((a, b) => a - b);
+          const selMeses = (requestedFilters.meses || []).map(m => MESES_LARGOS.indexOf(m)).filter(i => i >= 0).sort((a, b) => a - b);
           const pedidos = selMeses.length ? selMeses : MESES_LARGOS.map((_, i) => i);
           const formatted = res.data.map(d => {
             const publicados = typeof d.mes_final === 'number' ? pedidos.filter(i => i < d.mes_final) : pedidos;
@@ -208,6 +222,7 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
           });
           setData(formatted);
           setDataMetric(requestedMetric);
+          setDataFilters(requestedFilters);
         }
       })
       .catch(err => {
@@ -226,7 +241,7 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
       });
 
     return () => controller.abort();
-  }, [selectedFilters, requestedMetric, retryKey]);
+  }, [requestedFilters, requestedMetric, retryKey]);
 
   const dataset = selectedFilters?.dataset || 'delitos';
   const isVictimas = dataset === 'victimas';
@@ -469,6 +484,7 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
         {!loading && !error && data.length === 0 && <EmptyState />}
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
+            title={chartTitle}
             data={data}
             margin={{ top: chartTop, right: chartSide, left: chartSide, bottom: FF(6) }}
             barCategoryGap="6%"

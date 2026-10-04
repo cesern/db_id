@@ -175,6 +175,15 @@ function PublicDashboard() {
   };
 
   const handleDatasetChange = (newDataset) => {
+    // Cada conjunto empieza limpio (decisión del usuario): se dice qué se quitó para que no pase inadvertido
+    if (appliedFilters.dataset !== newDataset) {
+      const nDelito = ['bienJuridico', 'tipoDelito', 'subtipoDelito', 'modalidad', 'sexo', 'rangoEdad']
+        .filter(k => Array.isArray(appliedFilters[k]) && appliedFilters[k].length > 0).length;
+      const partes = [];
+      if (appliedFilters.municipio && appliedFilters.municipio !== 'All') partes.push(`municipio ${appliedFilters.municipio}`);
+      if (nDelito > 0) partes.push(`${nDelito} ${nDelito === 1 ? 'filtro' : 'filtros'} de delito`);
+      if (partes.length > 0) toast(`Al cambiar de conjunto se quitó: ${partes.join(' y ')}`, { id: 'cambio-conjunto' });
+    }
     setSelectedFilters(prev => {
       const next = {
         ...prev,
@@ -227,8 +236,8 @@ function PublicDashboard() {
     setAppliedFilters(prev => {
       if (prev.anio === anio) return prev;
       const nombre = { delitos: 'Delitos', alto_impacto: 'Delitos Alto Impacto', victimas: 'Víctimas', victimas_mun: 'Víctimas Municipios' }[prev.dataset] || 'Este conjunto';
-      const motivo = anios.length === 1 ? `solo tiene ${anio}` : `no tiene ${prev.anio}`;
-      toast(`${nombre} ${motivo}: se muestra ${anio}`, { id: 'anio-no-disponible' });
+      const motivo = anios.length === 1 ? `solo tiene datos de ${anio}` : `no tiene datos de ${prev.anio}`;
+      toast(`${nombre} ${motivo}. Se cambió el año (antes ${prev.anio}).`, { id: 'anio-no-disponible', duration: 8000 });
       return { ...prev, anio };
     });
   }, []);

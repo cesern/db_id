@@ -355,6 +355,27 @@ const HistoryRankings = ({ tempColor }) => {
   const hasPending = JSON.stringify({ dataset, temporalidad, metricType, mesAcumulado, filters })
     !== JSON.stringify({ dataset: applied.dataset, temporalidad: applied.temporalidad, metricType: applied.metricType, mesAcumulado: applied.mesAcumulado, filters: applied.filters });
 
+  // Cambios sin aplicar (uno por campo distinto), como el contador del tablero
+  const nPend = [
+    dataset !== applied.dataset,
+    temporalidad !== applied.temporalidad,
+    temporalidad === 'acumulado' && mesAcumulado !== applied.mesAcumulado,
+    ...Object.keys(filters).map(k => JSON.stringify(filters[k]) !== JSON.stringify(applied.filters[k])),
+  ].filter(Boolean).length;
+  // Último mes publicado del año más reciente: los cortes posteriores aún no existen en la fuente
+  const aniosPub = Object.keys(mesFinalPorAnio).map(Number);
+  const ultimoMes = aniosPub.length > 0 ? mesFinalPorAnio[String(Math.max(...aniosPub))] : null;
+  // Lo que la gráfica muestra AHORA (lo aplicado), aunque el formulario ya diga otra cosa
+  const MESES_LISTA = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  const corteTxt = (mes) => (mes === 'Enero' ? 'Ene' : `Ene–${mes.slice(0, 3)}`);
+  const nFiltros = Object.values(applied.filters).filter(v => Array.isArray(v) && v.length > 0).length;
+  const aplicadoTxt = [
+    applied.dataset === 'victimas' ? 'Víctimas' : 'Delitos',
+    applied.temporalidad === 'anual' ? 'Anual' : applied.temporalidad === 'mensual' ? 'Mensual' : `Acumulado ${corteTxt(applied.mesAcumulado)}`,
+    applied.metricType === 'rate' ? 'Tasa por 100 mil hab.' : 'Cifras absolutas',
+    nFiltros > 0 ? `${nFiltros} ${nFiltros === 1 ? 'filtro' : 'filtros'} de delito` : null,
+  ].filter(Boolean).join(' · ');
+
   const handleApply = () => {
     setApplied({
       dataset, temporalidad, metricType, mesAcumulado, filters: { ...filters }
@@ -591,8 +612,8 @@ const HistoryRankings = ({ tempColor }) => {
             <div style={{ flex: '1 1 min(100%, 180px)' }}>
               <label className="label-sm" htmlFor="rk-corte">Mes de corte</label>
               <select id="rk-corte" className="input-select" value={mesAcumulado} onChange={e => setMesAcumulado(e.target.value)}>
-                {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'].map(mes => (
-                  <option key={mes} value={mes}>Enero - {mes}</option>
+                {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'].map((mes, i) => (
+                  <option key={mes} value={mes}>{corteTxt(mes)}{ultimoMes && i + 1 > ultimoMes ? ' (aún sin publicar)' : ''}</option>
                 ))}
               </select>
             </div>
@@ -618,6 +639,11 @@ const HistoryRankings = ({ tempColor }) => {
                 {renderPositionCard('Peor posición', summaryEntidad.peor, summaryEntidad.peorItems)}
               </>
             )}
+            {/* Estado aplicado: lo que la gráfica muestra ahora, aunque el formulario ya diga otra cosa */}
+            <p style={{ flexBasis: '100%', margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+              <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>La gráfica muestra:</strong> {aplicadoTxt}
+              {nPend > 0 && <span style={{ color: 'var(--color-accent)', fontWeight: 600 }}> · {nPend} sin aplicar</span>}
+            </p>
             {summaryEntidad && (
               <p style={{ flexBasis: '100%', margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                 Escala 1–32: 1 = entidad con {applied.metricType === 'rate' ? 'mayor tasa' : 'más ' + (applied.dataset === 'delitos' ? 'delitos' : 'víctimas')} en el periodo.
@@ -636,7 +662,7 @@ const HistoryRankings = ({ tempColor }) => {
               aria-disabled={!hasPending}
               style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0.45rem 1.1rem', height: 'fit-content', ...(hasPending ? {} : { background: 'var(--bg-main)', color: 'var(--text-secondary)' }) }}
             >
-              Aplicar filtros
+              Aplicar filtros{nPend > 0 ? ` (${nPend})` : ''}
             </button>
           </div>
         </div>
@@ -679,7 +705,7 @@ const HistoryRankings = ({ tempColor }) => {
             <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />
           ) : chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 20, right: rightMargin, left: AXIS_GUTTER, bottom: 0 }}>
+              <LineChart title={`Evolución del ranking nacional de ${selectedEntidad}: ${aplicadoTxt}`} data={chartData} margin={{ top: 20, right: rightMargin, left: AXIS_GUTTER, bottom: 0 }}>
                 {/* Sin cuadrícula: solo las divisorias entre niveles (abajo) para no competir con ellas */}
                 <XAxis
                   dataKey="period"

@@ -26,10 +26,15 @@ import { useExitAnimation } from '../utils/useExitAnimation';
 // Para cualquier otra entidad seleccionada, el mapa nacional se mantiene visible
 // con el filtro activo (los datos se filtran) pero sin cambio de zoom ni de región.
 
-const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad, mesFinal }) => {
+const MapMexico = ({ selectedFilters: requestedFilters, metricType: requestedMetric, onInitialLoad, mesFinal }) => {
   // Métrica con la que se pidieron los datos mostrados: rótulos y formato la siguen a ella, no a la
   // prop, para que al cambiar Cifras↔Tasa nunca aparezca una cifra absoluta rotulada como tasa.
   const [dataMetric, setDataMetric] = useState(requestedMetric);
+  // Filtros con los que se pidieron los datos mostrados. Todo lo que se pinta (rótulos, periodo,
+  // lugar, ámbito) sale de ellos, no de la prop: mientras carga una consulta nueva se sigue viendo
+  // la anterior completa bajo el velo, nunca un rótulo nuevo con la cifra vieja.
+  const [dataFilters, setDataFilters] = useState(requestedFilters);
+  const selectedFilters = dataFilters;
   const metricType = dataMetric;
   const dataset = selectedFilters?.dataset || 'delitos';
   const isVictimas = dataset === 'victimas';
@@ -234,7 +239,12 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
 
 
   useEffect(() => {
-    if (!selectedFilters) return;
+    if (!requestedFilters) return;
+    // Lo pedido (no lo mostrado): conjunto, ámbito y mapa de la consulta que sale ahora
+    const reqDataset = requestedFilters.dataset || 'delitos';
+    const isAltoImpacto = reqDataset === 'alto_impacto';
+    const wireDataset = isAltoImpacto ? 'delitos' : reqDataset;
+    const isSonora = reqDataset !== 'victimas' && requestedFilters.entidad === 'Sonora';
 
     const controller = new AbortController();
     setLoading(true);
@@ -242,9 +252,9 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
     const params = new URLSearchParams();
     params.append("dataset", wireDataset);
     params.append("metric_type", requestedMetric);
-    if (selectedFilters.anio) params.append("anio", selectedFilters.anio);
+    if (requestedFilters.anio) params.append("anio", requestedFilters.anio);
     if (isAltoImpacto) {
-      const ai = Array.isArray(selectedFilters.altoImpacto) ? selectedFilters.altoImpacto : [];
+      const ai = Array.isArray(requestedFilters.altoImpacto) ? requestedFilters.altoImpacto : [];
       params.append("altoImpacto", ai.join('|'));
     }
 
@@ -254,12 +264,12 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
       params.append("entidad", "Sonora");
     }
 
-    const bj = Array.isArray(selectedFilters.bienJuridico) ? selectedFilters.bienJuridico : [];
-    const td = Array.isArray(selectedFilters.tipoDelito) ? selectedFilters.tipoDelito : [];
-    const sd = Array.isArray(selectedFilters.subtipoDelito) ? selectedFilters.subtipoDelito : [];
-    const mo = Array.isArray(selectedFilters.modalidad) ? selectedFilters.modalidad : [];
-    const sx = Array.isArray(selectedFilters.sexo) ? selectedFilters.sexo : [];
-    const re = Array.isArray(selectedFilters.rangoEdad) ? selectedFilters.rangoEdad : [];
+    const bj = Array.isArray(requestedFilters.bienJuridico) ? requestedFilters.bienJuridico : [];
+    const td = Array.isArray(requestedFilters.tipoDelito) ? requestedFilters.tipoDelito : [];
+    const sd = Array.isArray(requestedFilters.subtipoDelito) ? requestedFilters.subtipoDelito : [];
+    const mo = Array.isArray(requestedFilters.modalidad) ? requestedFilters.modalidad : [];
+    const sx = Array.isArray(requestedFilters.sexo) ? requestedFilters.sexo : [];
+    const re = Array.isArray(requestedFilters.rangoEdad) ? requestedFilters.rangoEdad : [];
 
     if (bj.length > 0) params.append("bienJuridico", bj.join('|'));
     if (td.length > 0) params.append("tipoDelito", td.join('|'));
@@ -267,7 +277,7 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
     if (mo.length > 0) params.append("modalidad", mo.join('|'));
     if (sx.length > 0) params.append("sexo", sx.join('|'));
     if (re.length > 0) params.append("rangoEdad", re.join('|'));
-    if (selectedFilters.meses && selectedFilters.meses.length > 0) params.append("meses", selectedFilters.meses.join(','));
+    if (requestedFilters.meses && requestedFilters.meses.length > 0) params.append("meses", requestedFilters.meses.join(','));
 
     const endpoint = isSonora ? "api/incidencia_por_municipio" : "api/incidencia_por_entidad";
 
@@ -277,6 +287,7 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
         if (res.data) {
           setStateData(res.data);
           setDataMetric(requestedMetric);
+          setDataFilters(requestedFilters);
           const numericValues = res.data
             .map(d => typeof d.value === 'number' ? d.value : parseFloat(d.value))
             .filter(v => !isNaN(v));
@@ -300,7 +311,7 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
       });
 
     return () => controller.abort();
-  }, [selectedFilters, isSonora, dataset, requestedMetric, retryKey]);
+  }, [requestedFilters, requestedMetric, retryKey]);
 
   // Escala de raíz cuadrada: el color refleja la magnitud (Hermosillo 7,157 intenso,
   // San Luis Río Colorado 1,296 en tono medio) sin que el valor máximo deje al resto en blanco.
