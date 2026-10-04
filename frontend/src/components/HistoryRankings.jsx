@@ -546,11 +546,21 @@ const HistoryRankings = ({ tempColor }) => {
           <div style={{ fontSize: 'clamp(1.05rem, 2.5vw, 1.25rem)', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem 0.5rem', flexWrap: 'wrap' }}>
               <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>Evolución del ranking nacional de <span className="sr-only">{selectedEntidad}</span></h2>{' '}
+              {/* Selector de entidad a la medida del nombre elegido: el texto visible es una etiqueta y el
+                  <select> nativo va encima, invisible (antes medía lo que el nombre más largo de la
+                  lista y dejaba la flecha lejos de "Sonora") */}
+              <span className="title-select">
+                <span className="title-select-value" aria-hidden="true">
+                  <span className="title-select-text">{selectedEntidad}</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </span>
               <select
                 value={selectedEntidad}
                 onChange={e => setSelectedEntidad(e.target.value)}
                 aria-label="Entidad"
-                className="inline-title-select"
+                className="title-select-native"
               >
                 {(options.entidades || []).map(ent => (
                   <option key={ent} value={ent} style={{ fontSize: '0.875rem', fontWeight: 'normal', color: 'var(--text-primary)', background: 'white' }}>
@@ -558,6 +568,7 @@ const HistoryRankings = ({ tempColor }) => {
                   </option>
                 ))}
               </select>
+              </span>
               <button type="button" className="icon-btn" onClick={() => setIsModalOpen(true)} title="Cómo leer el ranking" aria-label="Cómo leer el ranking">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
               </button>

@@ -1596,3 +1596,38 @@ select:focus:not(:focus-visible) {
 @media (max-width: 767px) {
   select.input-select, .table-search, input[type="search"], input[type="text"] { font-size: 16px; }
 }
+
+/* Selector de entidad en el título de Rankings: pastilla del ancho del nombre elegido.
+   El <select> nativo cubre la pastilla, invisible, y conserva teclado, lector y lista del sistema. */
+.title-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.12em 0.5em 0.12em 0.55em;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: var(--color-accent-light);
+  color: var(--color-accent-dark);
+  font: inherit;
+  font-weight: 800;
+  line-height: 1.25;
+  transition: background-color 150ms var(--ease-out), border-color 150ms var(--ease-out);
+}
+.title-select-value { display: inline-flex; align-items: center; gap: 0.3em; min-width: 0; }
+.title-select-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.title-select-value svg { flex-shrink: 0; }
+.title-select-native {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  margin: 0; border: 0; opacity: 0; cursor: pointer;
+  appearance: none; -webkit-appearance: none;
+  font-size: 16px; /* la lista del sistema a tamaño legible; en iOS evita el zoom */
+}
+.title-select:focus-within { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .title-select:hover { background: #dfe4f1; border-color: rgba(69, 89, 147, 0.35); }
+}
+@media (max-width: 1023px) {
+  .title-select { min-height: 40px; }
+}
