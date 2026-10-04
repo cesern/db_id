@@ -176,8 +176,8 @@ const DrillDownModal = ({
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    <th style={th({ textAlign: 'left', paddingLeft: '1.5rem' })}>Nombre</th>
-                    {showRank && <th style={th({ textAlign: 'center', width: '72px' })}>Lugar</th>}
+                    {showRank && <th style={th({ textAlign: 'left', width: '56px', paddingLeft: '1.5rem' })} aria-label="Lugar">#</th>}
+                    <th style={th({ textAlign: 'left', paddingLeft: showRank ? '0.5rem' : '1.5rem' })}>Nombre</th>
                     <th style={th({ textAlign: 'right' })}>{valueLabel}</th>
                     {showPct && <th style={th({ textAlign: 'right', paddingRight: '1.5rem', width: '100px' })}>% del total</th>}
                   </tr>
@@ -192,12 +192,12 @@ const DrillDownModal = ({
                         onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
                         onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                       >
-                        <td style={tdStyle({ paddingLeft: '1.5rem', fontWeight: 500 })}>{row.name}</td>
                         {showRank && (
-                          <td style={tdStyle({ textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' })}>
+                          <td style={tdStyle({ paddingLeft: '1.5rem', color: 'var(--text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' })}>
                             {rank}
                           </td>
                         )}
+                        <td style={tdStyle({ paddingLeft: showRank ? '0.5rem' : '1.5rem', fontWeight: 500 })}>{row.name}</td>
                         <td style={tdStyle({ textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' })}>
                           {fmt(row.value)}
                         </td>

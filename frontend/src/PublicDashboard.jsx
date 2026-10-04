@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
+import { toast } from 'sonner';
 import { API_URL } from './api';
 import Header from './components/Header';
 import Filters from './components/Filters';
@@ -156,8 +157,20 @@ function PublicDashboard() {
         ? [...ALTO_IMPACTO_DEFAULT, ...customCapsules]
         : []
     };
+    // Limpiar aplica al instante: si de verdad quitó algo, se ofrece deshacerlo
+    const prevSelected = selectedFilters;
+    const prevApplied = appliedFilters;
+    const cambio = JSON.stringify(cleared) !== JSON.stringify(prevApplied) || JSON.stringify(cleared) !== JSON.stringify(prevSelected);
     setSelectedFilters(cleared);
     setAppliedFilters(cleared);
+    if (cambio) {
+      toast('Filtros restablecidos', {
+        action: {
+          label: 'Deshacer',
+          onClick: () => { setSelectedFilters(prevSelected); setAppliedFilters(prevApplied); }
+        }
+      });
+    }
   };
 
   const handleDatasetChange = (newDataset) => {

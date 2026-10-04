@@ -60,7 +60,7 @@ const FontSizeSelect = ({ value, onChange }) => {
         }}
       >
         {active.label}
-        <span style={{ fontSize: '0.6rem', color: 'var(--color-accent)' }}>▾</span>
+        <span aria-hidden="true" style={{ fontSize: '0.75rem', color: 'var(--color-accent)' }}>▾</span>
       </button>
       {isOpen && (
         <div

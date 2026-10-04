@@ -160,37 +160,38 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div>
-            <label className="label-sm">Bien jurídico afectado</label>
-            <select ref={firstFieldRef} className="input-select" style={selectStyle} value={bien} onChange={e => { setBien(e.target.value); setTipo(''); setSubtipo(''); setModalidad(''); }}>
+            <label className="label-sm" htmlFor="ai-bien">Bien jurídico afectado</label>
+            <select ref={firstFieldRef} className="input-select" style={selectStyle} id="ai-bien" value={bien} onChange={e => { setBien(e.target.value); setTipo(''); setSubtipo(''); setModalidad(''); }}>
               <option value="">Todos</option>
               {opciones.bienesJuridicos.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           </div>
           <div>
-            <label className="label-sm">Tipo de delito</label>
-            <select className="input-select" style={selectStyle} value={tipo} onChange={e => { setTipo(e.target.value); setSubtipo(''); setModalidad(''); }} disabled={!bien}>
+            <label className="label-sm" htmlFor="ai-tipo">Tipo de delito</label>
+            <select className="input-select" style={selectStyle} id="ai-tipo" value={tipo} onChange={e => { setTipo(e.target.value); setSubtipo(''); setModalidad(''); }} disabled={!bien}>
               <option value="">{bien ? 'Todos' : 'Elige primero un bien jurídico'}</option>
               {opciones.tiposDelito.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           </div>
           <div>
-            <label className="label-sm">Subtipo de delito</label>
-            <select className="input-select" style={selectStyle} value={subtipo} onChange={e => { setSubtipo(e.target.value); setModalidad(''); }} disabled={!tipo}>
+            <label className="label-sm" htmlFor="ai-subtipo">Subtipo de delito</label>
+            <select className="input-select" style={selectStyle} id="ai-subtipo" value={subtipo} onChange={e => { setSubtipo(e.target.value); setModalidad(''); }} disabled={!tipo}>
               <option value="">{tipo ? 'Todos' : 'Elige primero un tipo'}</option>
               {opciones.subtiposDelito.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           </div>
           <div>
-            <label className="label-sm">Modalidad</label>
-            <select className="input-select" style={selectStyle} value={modalidad} onChange={e => setModalidad(e.target.value)} disabled={!subtipo}>
+            <label className="label-sm" htmlFor="ai-modalidad">Modalidad</label>
+            <select className="input-select" style={selectStyle} id="ai-modalidad" value={modalidad} onChange={e => setModalidad(e.target.value)} disabled={!subtipo}>
               <option value="">{subtipo ? 'Todas' : 'Elige primero un subtipo'}</option>
               {opciones.modalidades.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           </div>
           <div>
-            <label className="label-sm">Nombre del delito</label>
+            <label className="label-sm" htmlFor="ai-nombre">Nombre del delito</label>
             <input
               type="text"
+              id="ai-nombre"
               value={nombre}
               onChange={e => setNombre(e.target.value)}
               placeholder="Ej. Robo a negocio con violencia"

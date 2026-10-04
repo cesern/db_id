@@ -35,6 +35,8 @@ const FS_ROW_H = 33;    // alto de fila (.fs-col-row)
 const FS_HEAD_H = 40;   // encabezado de columna (.fs-col-head)
 
 const NO_MUNICIPIO = /^(no especificado|otros municipios)$/i;
+// "N/D" en una fila: la tasa no se puede calcular (p. ej. "No especificado" no tiene población)
+const ND_TITLE = 'N/D: sin población CONAPO para calcular la tasa';
 const rankMunicipios = (list) => {
   const isReal = (m) => !NO_MUNICIPIO.test(String(m.municipio || m.name.split(',')[0]).trim());
   const real = list.filter(isReal);
@@ -75,6 +77,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
   const [retryKey, setRetryKey] = useState(0);
 
   const initialLoadCalled = useRef(false);
+  const rowsRef = useRef(null); // lista con scroll propio: para llevar la fila resaltada a la vista
   const tableCardRef = useRef(null);
 
   // Pantalla completa: vista "tabla" (en columnas) o "barras"; se recuerda en el navegador
@@ -103,9 +106,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
 
   // Auto-switch to municipios when a specific entity is selected
   useEffect(() => {
-    if (selectedFilters?.entidad && selectedFilters.entidad !== 'All') {
-      setTableView('municipios');
-    }
+    setTableView(selectedFilters?.entidad && selectedFilters.entidad !== 'All' ? 'municipios' : 'entidades');
   }, [selectedFilters?.entidad]);
 
   const dataset = selectedFilters?.dataset || 'delitos';
@@ -307,6 +308,19 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
   const isEntidades = tableView === 'entidades' || isVictimas;
   const rows = isEntidades ? entidades : municipios;
   const colLabel = isEntidades ? 'Entidad' : 'Municipio';
+  const tableTitle = `Ranking de ${metricPhrase(dataset, metricType).toLowerCase()} por ${isEntidades ? 'entidad' : 'municipio'}`;
+
+  // La fila resaltada (Sonora en Entidades, o el municipio elegido) puede quedar bajo el pliegue
+  // (p. ej. lugar 25 en tasa): se desplaza solo la lista, nunca la página
+  useEffect(() => {
+    const box = rowsRef.current;
+    if (!box || loading || box.scrollHeight <= box.clientHeight) return;
+    const row = box.querySelector('[aria-current="true"]');
+    if (!row) { box.scrollTop = 0; return; }
+    const top = row.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+    const visible = top >= box.scrollTop && top + row.offsetHeight <= box.scrollTop + box.clientHeight;
+    if (!visible) box.scrollTop = Math.max(0, top - (box.clientHeight - row.offsetHeight) / 2);
+  }, [loading, tableView, entidades, municipios]);
   
   // Móvil: top 10 (más la fila resaltada si queda fuera) hasta pulsar "Ver todos"
   const MOBILE_ROWS = 10;
@@ -366,7 +380,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
         className={`fullscreen-immersive-overlay${fsClosing ? ' is-closing' : ''}`}
       >
         <FullScreenHeader
-          title={`Ranking de ${metricPhrase(dataset, metricType).toLowerCase()} por ${isEntidades ? 'entidad' : 'municipio'}`}
+          title={tableTitle}
           selectedFilters={selectedFilters}
           metricType={metricType}
           onClose={() => setFsOpen(false)}
@@ -396,7 +410,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
                     return (
                       <button
                         key={view}
-                        onClick={() => setTableView(view)}
+                        type="button" aria-pressed={active} onClick={() => setTableView(view)}
                         style={{
                           flex: 1,
                           padding: '0.4rem 0.9rem', /* ancho por contenido: sin width fijo el texto ya no se encima */
@@ -465,11 +479,11 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
           ) : (
             <div className="fs-cols">
               {fsColumns.map((col, ci) => (
-                <div key={ci} className="fs-col">
-                  <div className="fs-col-head">
-                    <span>#</span>
-                    <span>{colLabel}</span>
-                    <span style={{ textAlign: 'right' }}>{valLabel}</span>
+                <div key={ci} className="fs-col" role="table" aria-label={fsColumns.length > 1 ? `${tableTitle}, parte ${ci + 1} de ${fsColumns.length}` : tableTitle}>
+                  <div className="fs-col-head" role="row">
+                    <span role="columnheader" aria-label="Lugar">#</span>
+                    <span role="columnheader">{colLabel}</span>
+                    <span role="columnheader" style={{ textAlign: 'right' }}>{valLabel}</span>
                   </div>
                   {col.map((m) => {
                     const level = rowHighlight(m, isEntidades, activeEntityName, selectedMunicipio, entidadFiltrada);
@@ -477,13 +491,14 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
                     return (
                       <div
                         key={`${tableView}-${m.name}-${m.id}`}
+                        role="row"
                         className="fs-col-row"
                         aria-current={level === 'strong' ? 'true' : undefined}
                         data-highlight={level || undefined}
                       >
-                        <span className="tabular fs-col-rank">{m.id}</span>
-                        <span className="fs-col-name" title={m.name}>{displayName}</span>
-                        <span className="tabular fs-col-value">{formatNumber(m.value)}</span>
+                        <span role="cell" className="tabular fs-col-rank">{m.id}</span>
+                        <span role="cell" className="fs-col-name" title={m.name}>{displayName}</span>
+                        <span role="cell" className="tabular fs-col-value" title={m.value === 'N/D' ? ND_TITLE : undefined}>{formatNumber(m.value)}</span>
                       </div>
                     );
                   })}
@@ -599,6 +614,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
       <div ref={tableCardRef} className="card sidebar-table-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', position: 'relative', minHeight: 0 }}>
         {loading && <LoadingSpinner size="md" />}
 
+        <h2 className="sr-only">{tableTitle}</h2>
         {/* Segmented Control and Export Button */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem 0.5rem', gap: '1rem' }}>
           {!isVictimas ? (
@@ -617,7 +633,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
                 return (
                   <button
                     key={view}
-                    onClick={() => setTableView(view)}
+                    type="button" aria-pressed={active} onClick={() => setTableView(view)}
                     style={{
                       flex: 1,
                       padding: '0.4rem 0',
@@ -671,17 +687,18 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
         </div>
 
         <div className="card-period" style={{ padding: '0 1rem 0.35rem' }}>{periodLabel}</div>
-        {/* Table Header */}
-        <div style={{ padding: isVictimas ? '1rem 1rem 0.5rem' : '0 1rem 0.5rem', borderBottom: '2px solid var(--border-color)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: `30px 1fr ${valColW}`, gap: '0.5rem', fontWeight: 600, color: 'var(--color-primary)', fontSize: '0.875rem', lineHeight: 1.25, alignItems: 'end' }}>
-            <span>#</span>
-            <span style={{ transition: 'opacity 0.2s' }}>{colLabel}</span>
-            <span style={{ textAlign: 'right' }}>{valLabel}</span>
+        {/* Tabla con semántica ARIA (rejilla de div): encabezado y filas dentro de role="table" */}
+        <div className="sidebar-table" role="table" aria-label={tableTitle}>
+        <div role="rowgroup" style={{ padding: isVictimas ? '1rem 1rem 0.5rem' : '0 1rem 0.5rem', borderBottom: '2px solid var(--border-color)' }}>
+          <div role="row" style={{ display: 'grid', gridTemplateColumns: `30px 1fr ${valColW}`, gap: '0.5rem', fontWeight: 600, color: 'var(--color-primary)', fontSize: '0.875rem', lineHeight: 1.25, alignItems: 'end' }}>
+            <span role="columnheader" aria-label="Lugar">#</span>
+            <span role="columnheader" style={{ transition: 'opacity 0.2s' }}>{colLabel}</span>
+            <span role="columnheader" style={{ textAlign: 'right' }}>{valLabel}</span>
           </div>
         </div>
 
         {/* Table Rows */}
-        <div className="sidebar-table-rows" style={{ overflowY: 'auto', flex: 1, padding: '0.25rem 0', position: 'relative', minHeight: '140px' }}>
+        <div ref={rowsRef} role="rowgroup" className="sidebar-table-rows" style={{ overflowY: 'auto', flex: 1, padding: '0.25rem 0', position: 'relative', minHeight: '140px' }}>
           {error ? (
             <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />
           ) : (rows.length === 0 && !loading) ? (
@@ -696,6 +713,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
             return (
               <div
                 key={`${tableView}-${m.name}-${m.id}`}
+                role="row"
                 aria-current={hl ? 'true' : undefined}
                 data-highlight={level || undefined}
                 style={{
@@ -713,14 +731,16 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
                   fontWeight: hl ? 700 : 400,
                 }}
               >
-                <span className="tabular" style={{ color: hl ? 'var(--color-accent-dark)' : 'var(--text-secondary)', fontWeight: hl ? 700 : 500 }}>
+                <span role="cell" className="tabular" style={{ color: hl ? 'var(--color-accent-dark)' : 'var(--text-secondary)', fontWeight: hl ? 700 : 500 }}>
                   {m.id}
                 </span>
-                <span title={m.name} style={{ fontWeight: hl ? 700 : (level === 'soft' ? 600 : 500), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span role="cell" title={m.name} style={{ fontWeight: hl ? 700 : (level === 'soft' ? 600 : 500), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {displayName}
                 </span>
                 <span
+                  role="cell"
                   className="tabular"
+                  title={m.value === 'N/D' ? ND_TITLE : undefined}
                   style={{
                     textAlign: 'right',
                     fontWeight: hl ? 700 : 600,
@@ -732,6 +752,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
               </div>
             );
           })}
+        </div>
         </div>
         {hiddenCount > 0 && !error && !tablaEnCero && (
           <button type="button" className="table-more-btn" onClick={() => setShowAllRows(true)}>

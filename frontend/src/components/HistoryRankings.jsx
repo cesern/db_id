@@ -10,6 +10,8 @@ import { PREFERS_REDUCED_MOTION } from '../utils/motion';
 import { useExitAnimation } from '../utils/useExitAnimation';
 import { csvValueLabel } from '../utils/labels';
 import { useDialogFocus } from '../utils/useDialogFocus';
+import MultiSelectDropdown from './MultiSelectDropdown';
+import LoadingSpinner from './LoadingSpinner';
 
 // Ayuda "Cómo leer el ranking": diálogo con foco atrapado, Escape y foco de vuelta al botón
 const RankingHelp = ({ onClose }) => {
@@ -35,192 +37,11 @@ const RankingHelp = ({ onClose }) => {
       >
         <h2 id={titleId} style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 0.75rem', color: 'var(--text-primary)' }}>Cómo leer el ranking</h2>
         <p style={p}>La línea muestra el lugar que ocupa la entidad entre las 32 en cada periodo. El <strong>1</strong> es la entidad con más delitos o víctimas (o mayor tasa); el <strong>32</strong>, la que tiene menos. Por eso la línea sube cuando la incidencia empeora frente al resto del país.</p>
-        <p style={p}>Las dos líneas punteadas separan los tercios: lugares 1–10, 11–20 y 21–32.</p>
+        <p style={p}>Las dos líneas punteadas separan tres niveles: lugares 1–10, 11–20 y 21–32.</p>
         <p style={p}><strong>Anual</strong> compara años completos; <strong>Acumulado</strong>, de enero al mes de corte de cada año; <strong>Mensual</strong>, mes por mes. Un año marcado como parcial (por ejemplo "Ene–Ago") aún no tiene todos sus meses publicados.</p>
         <p style={{ ...p, marginBottom: '1.25rem' }}>Los filtros de esta vista son independientes de los del tablero.</p>
         <button ref={closeRef} type="button" className="btn btn-primary" onClick={onClose} style={{ width: '100%', display: 'flex', justifyContent: 'center', fontWeight: 600 }}>Entendido</button>
       </div>
-    </div>
-  );
-};
-
-const MultiSelectDropdown = ({ label, options, selected, onChange, maxSelection }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const containerRef = useRef(null);
-  const masterCheckboxRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (!isOpen) setSearchTerm('');
-  }, [isOpen]);
-
-  const safeSelected = Array.isArray(selected) ? selected : [];
-  const safeOptions = Array.isArray(options) ? options : [];
-
-  const filteredOptions = safeOptions.filter(opt =>
-    opt.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const visibleSelectedCount = filteredOptions.filter(opt => safeSelected.includes(opt)).length;
-  const isAllVisibleSelected = filteredOptions.length > 0 && visibleSelectedCount === filteredOptions.length;
-  const isIndeterminate = visibleSelectedCount > 0 && visibleSelectedCount < filteredOptions.length;
-
-  useEffect(() => {
-    if (masterCheckboxRef.current) {
-      masterCheckboxRef.current.indeterminate = isIndeterminate;
-    }
-  }, [isIndeterminate]);
-
-  const handleToggle = (opt) => {
-    if (safeSelected.includes(opt)) {
-      onChange(safeSelected.filter(item => item !== opt));
-    } else {
-      onChange([...safeSelected, opt]);
-    }
-  };
-
-  const handleMasterChange = () => {
-    if (isAllVisibleSelected) {
-      onChange(safeSelected.filter(opt => !filteredOptions.includes(opt)));
-    } else {
-      const nextSelected = [...new Set([...safeSelected, ...filteredOptions])];
-      if (maxSelection && nextSelected.length > maxSelection) {
-        alert(`Puedes seleccionar un máximo de ${maxSelection} opciones.`);
-        return;
-      }
-      onChange(nextSelected);
-    }
-  };
-
-  const handleLimpiar = (e) => {
-    e.stopPropagation();
-    onChange([]);
-  };
-
-  const handleOptionChange = (opt) => {
-    if (safeSelected.includes(opt)) {
-      onChange(safeSelected.filter(item => item !== opt));
-    } else {
-      if (maxSelection && safeSelected.length >= maxSelection) {
-        alert(`Puedes seleccionar un máximo de ${maxSelection} opciones.`);
-        return;
-      }
-      onChange([...safeSelected, opt]);
-    }
-  };
-
-  let displayText = "Todos";
-  if (safeSelected.length > 0 && safeSelected.length < safeOptions.length) {
-    if (safeSelected.length <= 3) {
-      displayText = safeSelected.join(', ');
-    } else {
-      displayText = `${safeSelected.slice(0, 3).join(', ')} ... +${safeSelected.length - 3}`;
-    }
-  }
-
-  return (
-    <div style={{ position: 'relative', flex: '1 1 min(100%, 180px)' }} ref={containerRef}>
-      <label className="label-sm">{label}</label>
-      <div
-        className="input-select"
-        style={{ cursor: 'pointer', userSelect: 'none', minHeight: 'var(--input-min-height, 30px)', display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-        onClick={() => setIsOpen(!isOpen)}
-        title={displayText}
-      >
-        {displayText}
-      </div>
-      {isOpen && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0,
-          backgroundColor: 'white', border: '1px solid var(--border-color)',
-          borderRadius: '6px', marginTop: '4px', zIndex: 100,
-          boxShadow: 'var(--shadow-lg)', display: 'flex', flexDirection: 'column',
-          maxHeight: '350px'
-        }}>
-          <div style={{
-            position: 'sticky', top: 0, zIndex: 10,
-            backgroundColor: 'var(--bg-main)', borderBottom: '1px solid var(--border-color)',
-            borderTopLeftRadius: '6px', borderTopRightRadius: '6px',
-            padding: '0.6rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem'
-          }}>
-            <input
-              type="text"
-              placeholder="Buscar..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: '100%', padding: '0.4rem 0.5rem',
-                border: '1px solid var(--border-color)', borderRadius: '4px',
-                fontSize: '0.8rem', outline: 'none'
-              }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
-                onClick={(e) => { e.stopPropagation(); handleMasterChange(); }}
-              >
-                <input
-                  type="checkbox"
-                  ref={masterCheckboxRef}
-                  checked={isAllVisibleSelected}
-                  onChange={() => { }}
-                  style={{ cursor: 'pointer' }}
-                />
-                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>Sel. todo</span>
-              </div>
-              <button
-                onClick={handleLimpiar}
-                style={{
-                  background: 'none', border: 'none', color: 'var(--color-accent)',
-                  fontSize: '0.8rem', cursor: 'pointer', fontWeight: 700, padding: 0
-                }}
-              >
-                Limpiar
-              </button>
-            </div>
-          </div>
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            {filteredOptions.length === 0 ? (
-              <div style={{ padding: '1rem', fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-                No se encontraron
-              </div>
-            ) : (
-              filteredOptions.map(opt => {
-                const isSel = safeSelected.includes(opt);
-                return (
-                  <div
-                    key={opt}
-                    title={opt}
-                    style={{
-                      padding: '0.55rem 0.75rem', cursor: 'pointer', display: 'flex',
-                      alignItems: 'center', gap: '0.5rem',
-                      background: isSel ? 'var(--bg-main)' : 'white',
-                      borderBottom: '1px solid var(--border-color)'
-                    }}
-                    onClick={(e) => { e.stopPropagation(); handleToggle(opt); }}
-                  >
-                    <input type="checkbox" checked={isSel} readOnly style={{ cursor: 'pointer' }} />
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {opt}
-                    </span>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
@@ -365,6 +186,8 @@ const HistoryRankings = ({ tempColor }) => {
   const [metricType, setMetricType] = useState('absolute');
   const [isFading, setIsFading] = useState(false);
   const [rankingData, setRankingData] = useState([]);
+  // false hasta la primera respuesta: antes no se afirma "No hay datos" (era un vacío falso de ~2 s)
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const headerRef = useRef(null);
   // Pantalla completa: aquí el overlay es la propia tarjeta, así que se cierra sin fundido (0ms):
@@ -449,6 +272,7 @@ const HistoryRankings = ({ tempColor }) => {
       } catch (err) {
         console.error("Error fetching ranking", err);
       } finally {
+        setHasLoaded(true);
         setTimeout(() => setIsFading(false), 300);
       }
     };
@@ -692,6 +516,7 @@ const HistoryRankings = ({ tempColor }) => {
               <select
                 value={selectedEntidad}
                 onChange={e => setSelectedEntidad(e.target.value)}
+                aria-label="Entidad"
                 className="inline-title-select"
               >
                 {(options.entidades || []).map(ent => (
@@ -732,15 +557,15 @@ const HistoryRankings = ({ tempColor }) => {
         {/* Filters and Selectors Container */}
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', padding: '1rem', backgroundColor: 'var(--bg-main)', borderRadius: '8px', marginTop: '1rem' }}>
           <div style={{ flex: '1 1 min(100%, 180px)' }}>
-            <label className="label-sm">Conjunto de datos</label>
-            <select className="input-select" value={dataset} onChange={e => setDataset(e.target.value)}>
+            <label className="label-sm" htmlFor="rk-dataset">Conjunto de datos</label>
+            <select id="rk-dataset" className="input-select" value={dataset} onChange={e => setDataset(e.target.value)}>
               <option value="delitos">Delitos</option>
               <option value="victimas">Víctimas</option>
             </select>
           </div>
           <div style={{ flex: '1 1 min(100%, 180px)' }}>
-            <label className="label-sm">Periodo</label>
-            <select className="input-select" value={temporalidad} onChange={e => setTemporalidad(e.target.value)}>
+            <label className="label-sm" htmlFor="rk-periodo">Periodo</label>
+            <select id="rk-periodo" className="input-select" value={temporalidad} onChange={e => setTemporalidad(e.target.value)}>
               <option value="anual">Anual</option>
               <option value="mensual">Mensual</option>
               <option value="acumulado">Acumulado</option>
@@ -748,8 +573,8 @@ const HistoryRankings = ({ tempColor }) => {
           </div>
           {temporalidad === 'acumulado' && (
             <div style={{ flex: '1 1 min(100%, 180px)' }}>
-              <label className="label-sm">Mes de corte</label>
-              <select className="input-select" value={mesAcumulado} onChange={e => setMesAcumulado(e.target.value)}>
+              <label className="label-sm" htmlFor="rk-corte">Mes de corte</label>
+              <select id="rk-corte" className="input-select" value={mesAcumulado} onChange={e => setMesAcumulado(e.target.value)}>
                 {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'].map(mes => (
                   <option key={mes} value={mes}>Enero - {mes}</option>
                 ))}
@@ -917,9 +742,11 @@ const HistoryRankings = ({ tempColor }) => {
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
-              No hay datos disponibles para estos filtros.
-            </div>
+            hasLoaded ? (
+              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+                No hay datos disponibles para estos filtros.
+              </div>
+            ) : <LoadingSpinner size="md" />
           )}
         </div>
       </div>

@@ -1516,3 +1516,15 @@ select:focus:not(:focus-visible) {
 @media (min-width: 1600px) {
   .dashboard-grid { grid-template-columns: 360px 1.4fr 0.8fr; }
 }
+
+/* ───────────────── Ronda 16: accesibilidad y tabla ───────────────── */
+/* Envoltura con role="table" de la tabla del tablero: mantiene el reparto de alto de la tarjeta */
+.sidebar-table { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+@media (max-width: 1023px) {
+  .sidebar-table { flex: none; }
+}
+/* Celular/tablet: la tabla crece con la página (top 10 + "Ver todos"); sin tope de alto, que
+   recortaba el botón "Ver todos" bajo la tarjeta */
+@media (max-width: 1023px) {
+  .sidebar-table-card { max-height: none; }
+}

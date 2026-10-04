@@ -5,6 +5,9 @@ import { scaleSqrt } from 'd3-scale';
 // Extremos del degradado del azul institucional
 const MAP_LOW = '#e6e9f2';
 const MAP_HIGH = '#455993';
+// "Sin dato": gris cálido, fuera de la rampa azul (antes #e2e8f0, casi igual al tono de 0)
+const MAP_NODATA = '#d6d3d1';
+const MAP_NODATA_BORDER = '#a8a29e';
 import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
@@ -299,13 +302,18 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
   // San Luis Río Colorado 1,296 en tono medio) sin que el valor máximo deje al resto en blanco.
   const colorScale = scaleSqrt().domain([0, maxVal]).range([MAP_LOW, MAP_HIGH]).clamp(true);
 
+  // Leyenda fiel a la escala: el color en cada punto de la barra es el de ese valor (raíz cuadrada),
+  // no un degradado lineal entre los extremos (con el lineal, el centro parecía la mitad y era el 25 %)
+  const legendGradient = `linear-gradient(to right, ${[0, 0.0625, 0.25, 0.5625, 1]
+    .map(p => `${colorScale(maxVal * p)} ${p * 100}%`).join(', ')})`;
+
   const getFillColor = (val) => {
     if (val === "N/D" || val === undefined || val === null) {
-      return "#e2e8f0"; // Gris claro para datos no disponibles
+      return MAP_NODATA;
     }
     const num = typeof val === 'number' ? val : parseFloat(val);
     if (isNaN(num)) {
-      return "#e2e8f0";
+      return MAP_NODATA;
     }
     return colorScale(num);
   };
@@ -456,7 +464,7 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
               {tooltipData.name}
             </div>
             <div style={{ fontSize: `${0.75 * fsScale}rem`, color: 'var(--text-secondary)' }}>
-              {tooltipLabel}: <strong style={{ color: 'var(--text-primary)' }}>{formatValue(tooltipData.value)}</strong>
+              {metricType === 'rate' ? RATE_LABEL : tooltipLabel}: <strong style={{ color: 'var(--text-primary)' }}>{formatValue(tooltipData.value)}</strong>
             </div>
             {tooltipData.name !== 'Desconocido' && (
               <div className="chart-tip-hint" style={{ fontSize: `${0.75 * fsScale}rem` }}>{drillHint}</div>
@@ -556,22 +564,23 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
                 <div style={{ fontWeight: 600, color: 'var(--color-primary)', marginBottom: '0.25rem' }}>
                   {metricType === 'rate' ? `${tooltipLabel} · tasa por 100 mil hab.` : tooltipLabel}
                 </div>
-                <div style={{ height: '8px', borderRadius: '4px', background: `linear-gradient(to right, ${MAP_LOW}, ${MAP_HIGH})`, border: '1px solid rgba(69,89,147,0.2)' }} />
+                <div style={{ height: '8px', borderRadius: '4px', background: legendGradient, border: '1px solid rgba(69,89,147,0.2)' }} />
                 <div className="tabular" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.2rem', gap: '0.75rem' }}>
                   <span>0</span>
+                  <span>{formatValue(metricType === 'rate' ? maxVal / 2 : Math.round(maxVal / 2))}</span>
                   <span>{formatValue(maxVal)}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
-                  <span aria-hidden="true" style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#e2e8f0', border: '1px solid #cbd5e1' }} />
+                  <span aria-hidden="true" style={{ width: '10px', height: '10px', borderRadius: '2px', background: MAP_NODATA, border: `1px solid ${MAP_NODATA_BORDER}` }} />
                   Sin dato
                 </div>
               </>
             ) : (
               <>
                 <span className="tabular">0</span>
-                <span aria-hidden="true" style={{ width: '64px', height: '6px', borderRadius: '3px', background: `linear-gradient(to right, ${MAP_LOW}, ${MAP_HIGH})`, border: '1px solid rgba(69,89,147,0.2)' }} />
+                <span aria-hidden="true" style={{ width: '64px', height: '6px', borderRadius: '3px', background: legendGradient, border: '1px solid rgba(69,89,147,0.2)' }} />
                 <span className="tabular">{formatValue(maxVal)}</span>
-                <span aria-hidden="true" style={{ width: '8px', height: '8px', marginLeft: '0.3rem', borderRadius: '2px', background: '#e2e8f0', border: '1px solid #cbd5e1' }} />
+                <span aria-hidden="true" style={{ width: '8px', height: '8px', marginLeft: '0.3rem', borderRadius: '2px', background: MAP_NODATA, border: `1px solid ${MAP_NODATA_BORDER}` }} />
                 <span>Sin dato</span>
               </>
             )}
