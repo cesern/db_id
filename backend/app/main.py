@@ -71,6 +71,8 @@ CACHE_CATALOGO = {}
 MES_NUM = {m: i for i, m in enumerate(
     ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto',
      'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'], start=1)}
+# Filas de municipio que no son un municipio: no se clasifican en el ranking
+NO_MUNICIPIO = {"No especificado", "Otros Municipios"}
 
 def reload_duckdb_views(strict: bool = False):
     """Recrea las vistas y caches. Con `strict`, un error en los caches se relanza
@@ -256,6 +258,36 @@ def _completar_meses(dataset: DatasetEnum, df_res, meses, altoImpacto):
     out = rejilla.merge(df_res, on=['Año', 'Mes'], how='left')
     out['total'] = out['total'].fillna(0)
     return out, True
+
+def _periodos_publicados(dataset: DatasetEnum, temporalidad: str, meses: Optional[str]) -> dict:
+    """{año: [periodos]} ya publicados: "AAAA" en anual/acumulado, "AAAA-MM" en mensual."""
+    publicados = CACHE_MES_FINAL.get(dataset.value, {})
+    pedidos = _meses_pedidos(meses)
+    out = {}
+    for anio in sorted(publicados):
+        if temporalidad == "mensual":
+            out[anio] = [f"{anio}-{n:02d}" for n in range(1, publicados[anio] + 1)
+                         if pedidos is None or n in pedidos]
+        elif _periodo_publicado(dataset, anio, meses):
+            out[anio] = [str(anio)]
+    return out
+
+def _completar_ranking_municipios(dataset: DatasetEnum, df, temporalidad: str, meses: Optional[str]):
+    """Ranking municipal: los municipios del catálogo sin fila entran con total 0 en cada periodo
+    publicado (victimas_mun no trae ceros; sin esto "de N" contaría solo a los que tienen filas)."""
+    cat = CACHE_CATALOGO.get(dataset.value, {}).get("municipios")
+    periodos = _periodos_publicados(dataset, temporalidad, meses)
+    if cat is None or not periodos:
+        return df
+    cat = cat[~cat['Municipio'].isin(NO_MUNICIPIO)]
+    per = pd.DataFrame([(a, pp) for a, lista in periodos.items() for pp in lista], columns=['Año', 'period'])
+    rejilla = cat.merge(per, on='Año')[['period', 'Año', 'Entidad', 'Municipio']]
+    if len(rejilla) <= len(df):
+        return df  # conjunto denso (delitos): ya vienen todos
+    out = rejilla.merge(df[['period', 'Entidad', 'Municipio', 'total']], on=['period', 'Entidad', 'Municipio'], how='left')
+    out['total'] = out['total'].fillna(0.0)
+    out['name'] = out['Municipio'].astype(str) + ', ' + out['Entidad'].astype(str)
+    return out
 
 def get_columns(dataset_name: str) -> list[str]:
     try:
@@ -938,21 +970,40 @@ async def obtener_ranking_historico(
         df_res['period'] = df_res['year'].astype(str) + '-' + df_res['month_name'].map(mes_map)
         df_res = df_res.dropna(subset=['period'])
 
+    if nivel == "municipio":
+        # "No especificado" y "Otros Municipios" no son municipios
+        df_res = df_res[~df_res['Municipio'].isin(NO_MUNICIPIO)]
+        if metric_type == "rate":
+            # Sin población CONAPO no hay tasa: el municipio queda fuera del ranking (no entra con 0)
+            df_res = df_res[df_res['population'] > 0]
+
     if metric_type == "rate":
         df_res['total'] = df_res.apply(
             lambda r: (r['total'] / r['population']) * 100000 if r['population'] > 0 else 0.0, axis=1
         )
 
-    # Recortar la cola de periodos sin datos (ej. meses futuros del año en
-    # curso con total 0, que empatarían a todos en #1). Misma regla que
-    # incidencia_por_mes_historico: conservar hasta el último periodo con total > 0.
     df_nonzero = df_res[df_res['total'] > 0]
     if df_nonzero.empty:
         return []
-    df_res = df_res[df_res['period'] <= df_nonzero['period'].max()]
+
+    if nivel == "municipio":
+        # Solo periodos ya publicados; en ellos, los municipios sin fila valen 0
+        validos = {pp for lista in _periodos_publicados(dataset, temporalidad, meses).values() for pp in lista}
+        if validos:
+            df_res = df_res[df_res['period'].isin(validos)]
+            df_res = _completar_ranking_municipios(dataset, df_res, temporalidad, meses)
+        else:
+            df_res = df_res[df_res['period'] <= df_nonzero['period'].max()]
+    else:
+        # Recortar la cola de periodos sin datos (ej. meses futuros del año en curso con total 0,
+        # que empatarían a todos en #1): conservar hasta el último periodo con total > 0.
+        df_res = df_res[df_res['period'] <= df_nonzero['period'].max()]
 
     df_res = df_res.sort_values(['period', 'total'], ascending=[True, False])
     df_res['rank'] = df_res.groupby('period')['total'].rank(method='min', ascending=False).astype(int)
+    # Total clasificado en el periodo y cuántos comparten cada lugar (para "lugar 9 de 2,476" y la nota de empate)
+    df_res['n'] = df_res.groupby('period')['rank'].transform('size').astype(int)
+    df_res['empatados'] = df_res.groupby(['period', 'rank'])['rank'].transform('size').astype(int)
     
     if nivel == "municipio":
         is_sonora = df_res['name'].str.endswith(', Sonora')
@@ -974,8 +1025,8 @@ async def obtener_ranking_historico(
     # Return flat array as expected by the new frontend RankingSection
     df_res['total'] = df_res['total'].astype(float)
     df_res['rank'] = df_res['rank'].astype(int)
-    
-    return df_res[['period', 'name', 'rank', 'total']].to_dict('records')
+
+    return df_res[['period', 'name', 'rank', 'total', 'n', 'empatados']].to_dict('records')
 
 @app.get("/incidencia")
 async def obtener_incidencia():
