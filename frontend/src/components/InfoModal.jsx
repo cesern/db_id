@@ -75,7 +75,7 @@ const InfoModal = ({ isOpen, onClose }) => {
           borderTopRightRadius: '16px'
         }}>
           <h2 id={titleId} style={{ margin: 0, color: 'var(--color-primary)', fontSize: '1.5rem', fontWeight: 800 }}>
-            Metodología y Fuentes de Información
+            Metodología y fuentes de información
           </h2>
           <button
             ref={closeRef}
@@ -108,10 +108,10 @@ const InfoModal = ({ isOpen, onClose }) => {
         <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           <section>
             <h3 style={{ color: 'var(--color-accent)', fontSize: '1.2rem', marginBottom: '0.75rem', fontWeight: 700 }}>
-              Fuentes de Información
+              Fuentes de información
             </h3>
             <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '0.5rem' }}>
-              Los datos presentados en este dashboard son de carácter <strong>público y oficial</strong>. Provienen directamente del <strong>Secretariado Ejecutivo del Sistema Nacional de Seguridad Pública (SESNSP)</strong>.
+              Los datos de este tablero son de carácter <strong>público y oficial</strong>. Provienen directamente del <strong>Secretariado Ejecutivo del Sistema Nacional de Seguridad Pública (SESNSP)</strong>.
             </p>
             <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               Se actualizan mensualmente conforme a los reportes de incidencia delictiva del fuero común proporcionados por las Procuradurías de Justicia y Fiscalías Generales de las entidades federativas.
@@ -129,7 +129,7 @@ const InfoModal = ({ isOpen, onClose }) => {
 
           <section>
             <h3 style={{ color: 'var(--color-accent)', fontSize: '1.2rem', marginBottom: '0.75rem', fontWeight: 700 }}>
-              Cálculo de Tasas
+              Cálculo de tasas
             </h3>
             <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '0.5rem' }}>
               Las <strong>tasas por cada 100,000 habitantes</strong> se calculan utilizando las proyecciones de población oficiales de <strong>CONAPO</strong> (Consejo Nacional de Población).
@@ -137,32 +137,43 @@ const InfoModal = ({ isOpen, onClose }) => {
             <ul style={{ color: 'var(--text-secondary)', lineHeight: 1.6, paddingLeft: '1.5rem', marginTop: '0.5rem' }}>
               <li>Permiten comparar de manera justa la incidencia delictiva entre entidades o municipios con diferentes tamaños de población.</li>
               <li>Fórmula: <code>(Número de delitos o víctimas / Población proyectada) × 100,000</code></li>
+              <li><strong>N/D</strong> (no disponible) aparece cuando no hay población para el cálculo; por ejemplo, en los registros con municipio "No especificado".</li>
+              <li>En un año aún incompleto la tasa usa los meses publicados y la población de todo el año, por lo que es menor que la de un año cerrado.</li>
             </ul>
           </section>
 
           <section>
             <h3 style={{ color: 'var(--color-accent)', fontSize: '1.2rem', marginBottom: '0.75rem', fontWeight: 700 }}>
-              Metodología de Rankings
+              Delitos de alto impacto
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              La pestaña <strong>Delitos Alto Impacto</strong> suma una selección de delitos del conjunto Delitos: homicidio doloso, feminicidio, secuestro, extorsión, robo de vehículo (coche de 4 ruedas), robo con violencia (sin contar el de vehículo) y violación. Se pueden activar o desactivar, y agregar delitos propios; un mismo registro nunca se cuenta dos veces.
+            </p>
+          </section>
+
+          <section>
+            <h3 style={{ color: 'var(--color-accent)', fontSize: '1.2rem', marginBottom: '0.75rem', fontWeight: 700 }}>
+              Metodología de rankings
             </h3>
             <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '0.5rem' }}>
               Los rankings muestran los estados y municipios ordenados por su nivel de incidencia delictiva para el periodo seleccionado.
             </p>
             <ul style={{ color: 'var(--text-secondary)', lineHeight: 1.6, paddingLeft: '1.5rem', marginTop: '0.5rem' }}>
-              <li><strong>Manejo de Empates:</strong> Se utiliza el método de <em>Ranking Competitivo Estándar (Min Ranking)</em>. Si dos entidades tienen exactamente el mismo valor, comparten el mismo lugar (ej. 2º, 2º), y el siguiente en la lista salta a la posición real correspondiente (4º).</li>
+              <li><strong>Empates:</strong> si dos entidades tienen exactamente el mismo valor, comparten el mismo lugar (ej. 2º, 2º), y el siguiente en la lista salta a la posición real correspondiente (4º).</li>
             </ul>
           </section>
 
           <section>
             <h3 style={{ color: 'var(--color-accent)', fontSize: '1.2rem', marginBottom: '0.75rem', fontWeight: 700 }}>
-              Promedios Móviles y Tendencias
+              Promedios móviles y tendencias
             </h3>
             <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '0.5rem' }}>
-              En las gráficas de líneas históricas, ofrecemos herramientas de análisis avanzado:
+              El histórico mensual ofrece estas herramientas:
             </p>
             <ul style={{ color: 'var(--text-secondary)', lineHeight: 1.6, paddingLeft: '1.5rem', marginTop: '0.5rem' }}>
-              <li><strong>Promedio Móvil 3M y 6M:</strong> Suavizan los picos irregulares (ruido) promediando los últimos 3 o 6 meses, facilitando ver la dirección de corto y mediano plazo.</li>
-              <li><strong>Suavizado (12M):</strong> Elimina la estacionalidad (ej. delitos que suben en ciertos meses del año) promediando todo un año, revelando la verdadera tendencia estructural.</li>
-              <li><strong>Línea de Tendencia:</strong> Calculada mediante regresión lineal simple sobre todos los datos visibles, mostrando una recta que indica si el fenómeno va al alza (rojo) o a la baja (verde) en el periodo analizado.</li>
+              <li><strong>Promedio móvil 3M y 6M:</strong> suavizan los picos irregulares (ruido) promediando los últimos 3 o 6 meses, facilitando ver la dirección de corto y mediano plazo.</li>
+              <li><strong>Suavizado (12M):</strong> elimina la estacionalidad (ej. delitos que suben en ciertos meses del año) promediando todo un año, revelando la verdadera tendencia estructural.</li>
+              <li><strong>Línea de tendencia:</strong> calculada mediante regresión lineal simple sobre todos los datos visibles, mostrando una recta que indica si el fenómeno va al alza (rojo) o a la baja (verde) en el periodo analizado.</li>
             </ul>
           </section>
 

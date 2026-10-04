@@ -272,7 +272,8 @@ function PublicDashboard() {
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', textAlign: 'center' }}>
             {/* Logo */}
-            <img src="/logo.png" alt="Logo Institucional" style={{ height: '70px', objectFit: 'contain', marginBottom: '0.5rem' }} />
+            {/* El logotipo es oscuro: va sobre una placa clara para leerse en el fondo navy */}
+            <img src="/logo.png" alt="Fiscalía General de Justicia del Estado de Sonora" style={{ height: '70px', objectFit: 'contain', marginBottom: '0.5rem', background: '#ffffff', padding: '10px 18px', borderRadius: '12px', boxSizing: 'content-box' }} />
             
             {/* Spinner premium */}
             <div className="spinner-loading-screen" style={{

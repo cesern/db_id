@@ -9,7 +9,7 @@ import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
-import { chartTitle, periodLabel, todoEnCero, sinDatosCopy, csvValueLabel } from '../utils/labels';
+import { chartTitle, periodLabel, todoEnCero, sinDatosCopy, csvValueLabel, RATE_LABEL, metricLabel } from '../utils/labels';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
@@ -128,6 +128,10 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
     }
   };
 
+  // Periodo del desglose (mismo rótulo que la tarjeta) y nombre de archivo sin acentos ni espacios
+  const drillPeriod = periodLabel(selectedFilters?.anio ?? '', selectedFilters?.meses, mesFinal);
+  const slug = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+
   // Clic en entidad (mapa nacional) → desglose de municipios (o subtipos en Víctimas)
   const handleEntityClick = async (entidadName) => {
     if (!entidadName || entidadName === 'Desconocido') return;
@@ -154,19 +158,24 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
         value: typeof d.value === 'number' ? d.value : (parseFloat(d.value) || 0),
         rank: d.id,
       }));
-      const anioLabel = selectedFilters.anio ? ` · ${selectedFilters.anio}` : ' · Todos los años';
       const dataLabel = isVictimasBase ? 'Víctimas' : 'Delitos';
+      const isRate = metricType === 'rate';
       const modalTitle = isVictimas ? `${entidadName}` : `Municipios — ${entidadName}`;
-      const modalSubtitle = isVictimas ? `Subtipo de delito${anioLabel}` : `Desglose por municipio${anioLabel} · ${dataLabel}`;
+      const modalSubtitle = `${isVictimas ? 'Subtipo de delito' : 'Desglose por municipio'} · ${drillPeriod} · ${metricLabel(metricType)}`;
 
       setDrillModal({
         title: modalTitle,
         subtitle: modalSubtitle,
         data: mappedData,
         loading: false,
-        valueLabel: dataLabel,
+        valueLabel: isRate ? RATE_LABEL : dataLabel,
+        isRate,
+        exportFilename: `desglose_${isVictimas ? 'subtipos' : 'municipios'}_${slug(entidadName)}.csv`,
+        exportFilters: { ...selectedFilters, metricType, entidad: entidadName, municipio: 'All' },
         showRank: true,
-        showPct: true,
+        // Las tasas de municipios distintos no se suman: sin "% del total" ni total al pie
+        showPct: isVictimas || !isRate,
+        showTotal: isVictimas || !isRate,
       });
     } catch (err) {
       console.error('Error fetching entity drill-down', err);
@@ -196,14 +205,17 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
         value: typeof d.value === 'number' ? d.value : (parseFloat(d.value) || 0),
         rank: d.id,
       }));
-      const anioLabel = selectedFilters.anio ? ` · ${selectedFilters.anio}` : ' · Todos los años';
       const dataLabel = isVictimasBase ? 'Víctimas' : 'Delitos';
+      const isRate = metricType === 'rate';
       setDrillModal({
         title: `${municipioName}, Sonora`,
-        subtitle: `Subtipo de delito${anioLabel}`,
+        subtitle: `Subtipo de delito · ${drillPeriod} · ${metricLabel(metricType)}`,
         data: mappedData,
         loading: false,
-        valueLabel: dataLabel,
+        valueLabel: isRate ? RATE_LABEL : dataLabel,
+        isRate,
+        exportFilename: `desglose_subtipos_${slug(municipioName)}.csv`,
+        exportFilters: { ...selectedFilters, metricType, entidad: 'Sonora', municipio: municipioName },
         showRank: true,
         showPct: true,
       });
@@ -447,7 +459,7 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
               {tooltipLabel}: <strong style={{ color: 'var(--text-primary)' }}>{formatValue(tooltipData.value)}</strong>
             </div>
             {tooltipData.name !== 'Desconocido' && (
-              <div className="chart-tip-hint" style={{ fontSize: `${0.6875 * fsScale}rem` }}>{drillHint}</div>
+              <div className="chart-tip-hint" style={{ fontSize: `${0.75 * fsScale}rem` }}>{drillHint}</div>
             )}
           </div>
         )}
@@ -576,6 +588,10 @@ const MapMexico = ({ selectedFilters, metricType: requestedMetric, onInitialLoad
           valueLabel={drillModal.valueLabel || tooltipLabel}
           showRank={drillModal.showRank || false}
           showPct={drillModal.showPct || false}
+          showTotal={drillModal.showTotal !== false}
+          isRate={drillModal.isRate || false}
+          exportFilename={drillModal.exportFilename}
+          exportFilters={drillModal.exportFilters}
         />
       )}
     </div>

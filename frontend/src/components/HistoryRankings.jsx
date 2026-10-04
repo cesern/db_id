@@ -9,6 +9,40 @@ import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
 import { PREFERS_REDUCED_MOTION } from '../utils/motion';
 import { useExitAnimation } from '../utils/useExitAnimation';
 import { csvValueLabel } from '../utils/labels';
+import { useDialogFocus } from '../utils/useDialogFocus';
+
+// Ayuda "Cómo leer el ranking": diálogo con foco atrapado, Escape y foco de vuelta al botón
+const RankingHelp = ({ onClose }) => {
+  const titleId = useId();
+  const panelRef = useRef(null);
+  const closeRef = useRef(null);
+  useDialogFocus(true, { containerRef: panelRef, initialFocusRef: closeRef, onEscape: onClose });
+  const p = { fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: '0 0 0.75rem' };
+  return (
+    <div
+      className="modal-backdrop"
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(8, 28, 58, 0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+      onClick={onClose}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="modal-panel"
+        style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '12px', maxWidth: '520px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <h2 id={titleId} style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 0.75rem', color: 'var(--text-primary)' }}>Cómo leer el ranking</h2>
+        <p style={p}>La línea muestra el lugar que ocupa la entidad entre las 32 en cada periodo. El <strong>1</strong> es la entidad con más delitos o víctimas (o mayor tasa); el <strong>32</strong>, la que tiene menos. Por eso la línea sube cuando la incidencia empeora frente al resto del país.</p>
+        <p style={p}>Las dos líneas punteadas separan los tercios: lugares 1–10, 11–20 y 21–32.</p>
+        <p style={p}><strong>Anual</strong> compara años completos; <strong>Acumulado</strong>, de enero al mes de corte de cada año; <strong>Mensual</strong>, mes por mes. Un año marcado como parcial (por ejemplo "Ene–Ago") aún no tiene todos sus meses publicados.</p>
+        <p style={{ ...p, marginBottom: '1.25rem' }}>Los filtros de esta vista son independientes de los del tablero.</p>
+        <button ref={closeRef} type="button" className="btn btn-primary" onClick={onClose} style={{ width: '100%', display: 'flex', justifyContent: 'center', fontWeight: 600 }}>Entendido</button>
+      </div>
+    </div>
+  );
+};
 
 const MultiSelectDropdown = ({ label, options, selected, onChange, maxSelection }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -199,7 +233,7 @@ const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, da
     const highlighted = [...payload].sort((a, b) => a.value - b.value);
     const toShow = highlighted.filter(p => p.name === selectedEntidad);
 
-    const metricLabel = dataset === 'victimas' ? 'Víctimas' : 'Delitos';
+    const metricLabel = dataset === 'victimas' ? 'víctimas' : 'delitos';
     const formatVal = (val) => {
       if (val === null || val === undefined) return '';
       const numStr = Number(val).toLocaleString('es-MX');
@@ -245,7 +279,7 @@ const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, da
 
         {top3.length > 0 && (
           <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '8px' }}>
-            <p style={{ fontSize: `${11 * fs}px`, fontWeight: '700', color: '#475569', margin: '0 0 6px 0', textTransform: 'uppercase' }}>Top 3 Nacional</p>
+            <p style={{ fontSize: `${12 * fs}px`, fontWeight: '700', color: '#475569', margin: '0 0 6px 0', textTransform: 'uppercase' }}>Top 3 Nacional</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {top3.map((t, idx) => (
                 <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: `${12 * fs}px` }}>
@@ -534,7 +568,7 @@ const HistoryRankings = ({ tempColor }) => {
     return str;
   };
 
-  const metricLabel = applied.dataset === 'victimas' ? 'Víctimas' : 'Delitos';
+  const metricLabel = applied.dataset === 'victimas' ? 'víctimas' : 'delitos';
 
   const formatCardValue = (val) => {
     if (val === null || val === undefined) return '';
@@ -592,7 +626,7 @@ const HistoryRankings = ({ tempColor }) => {
 
   // Badge conectado al último punto: ●── SONORA #21. Recharts dibuja el label al terminar
   // el trazo, así que el badge aparece después (fundido de 150ms en .rank-badge).
-  const BADGE_FS = F(11);
+  const BADGE_FS = F(12);
   const BADGE_H = BADGE_FS + 10;
   const DOT_R = 4;
   const CONNECTOR = 12;
@@ -620,7 +654,7 @@ const HistoryRankings = ({ tempColor }) => {
 
   // Sentido del eje Y (reversed: 1 arriba): rótulos verticales discretos en el canal del eje
   const AXIS_W = 30;
-  const AXIS_GUTTER = F(14);
+  const AXIS_GUTTER = F(16);
 
   return (
     <div
@@ -813,7 +847,7 @@ const HistoryRankings = ({ tempColor }) => {
                         {tickFormatter ? tickFormatter(payload.value, index) : payload.value}
                       </text>
                       {partialYears[payload.value] && (
-                        <text dy={Math.round(F(12) * 0.71) + 10 + F(14)} textAnchor="middle" fill="var(--color-accent)" fontSize={F(11)} fontWeight={600}>
+                        <text dy={Math.round(F(12) * 0.71) + 10 + F(14)} textAnchor="middle" fill="var(--color-accent)" fontSize={F(12)} fontWeight={600}>
                           {partialYears[payload.value]}
                         </text>
                       )}
@@ -842,7 +876,7 @@ const HistoryRankings = ({ tempColor }) => {
                   reversed={true}
                   domain={[1, 32]}
                   ticks={[1, 10, 20, 32]}
-                  tick={{ fill: 'var(--text-secondary)', fontSize: F(11), fontWeight: 500 }}
+                  tick={{ fill: 'var(--text-secondary)', fontSize: F(12), fontWeight: 500 }}
                   axisLine={false}
                   tickLine={false}
                   dx={-5}
@@ -853,7 +887,7 @@ const HistoryRankings = ({ tempColor }) => {
                     en el corte real (10.5 y 20.5): visibles pero discretas. */}
                 <ReferenceLine y={10.5} stroke="#94a3b8" strokeWidth={1} strokeDasharray="6 4" strokeOpacity={0.85} />
                 <ReferenceLine y={20.5} stroke="#94a3b8" strokeWidth={1} strokeDasharray="6 4" strokeOpacity={0.85} />
-                <Customized component={<AxisDirection axisWidth={AXIS_W} gutter={AXIS_GUTTER} fontSize={F(11)} />} />
+                <Customized component={<AxisDirection axisWidth={AXIS_W} gutter={AXIS_GUTTER} fontSize={F(12)} />} />
 
                 {/* Solo la entidad elegida: las 31 líneas de fondo formaban una trama de cruces
                     (en un ranking siempre ocupan todas las posiciones) y se retiraron. */}
@@ -890,18 +924,7 @@ const HistoryRankings = ({ tempColor }) => {
         </div>
       </div>
 
-      {/* Info Modal */}
-      {isModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setIsModalOpen(false)}>
-          <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '12px', maxWidth: '500px', width: '90%' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--text-primary)' }}>Evolución del Ranking</h3>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '1.5rem' }}>
-              Visualización dinámica de la evolución del ranking por entidad, permitiendo comparar el comportamiento histórico de delitos y víctimas. Los elementos correspondientes a la entidad seleccionada se resaltan automáticamente para facilitar su seguimiento frente al contexto nacional.
-            </p>
-            <button className="btn btn-primary" onClick={() => setIsModalOpen(false)} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>Entendido</button>
-          </div>
-        </div>
-      )}
+      {isModalOpen && <RankingHelp onClose={() => setIsModalOpen(false)} />}
     </div>
   );
 };

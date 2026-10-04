@@ -28,7 +28,7 @@ const LoadingSpinner = ({ size = 'md', overlay = true }) => {
         cx="12"
         cy="12"
         r="10"
-        stroke="var(--color-accent, #2563eb)"
+        stroke="var(--color-accent)"
         strokeWidth="3"
         strokeLinecap="round"
         strokeDasharray="31.4 31.4"

@@ -14,8 +14,11 @@ export const metricNoun = (dataset) => {
 const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** "Incidencia" | "Tasa de incidencia" (y equivalentes por dataset). */
-export const metricPhrase = (dataset, metricType) =>
-  metricType === 'rate' ? `Tasa de ${metricNoun(dataset)}` : capitalize(metricNoun(dataset));
+export const metricPhrase = (dataset, metricType) => {
+  if (metricType !== 'rate') return capitalize(metricNoun(dataset));
+  // "Tasa de alto impacto" no dice de qué es la tasa
+  return dataset === 'alto_impacto' ? 'Tasa de delitos de alto impacto' : `Tasa de ${metricNoun(dataset)}`;
+};
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -82,9 +85,16 @@ export const periodoSinPublicar = (meses, mesFinal) => {
   return (idx.length ? idx : [0]).every(i => i + 1 > mesFinal);
 };
 
-/** true si la lista trae filas y todas valen 0 numérico (null o "N/D" = sin dato evaluable, no cero). */
-export const todoEnCero = (list) =>
-  Array.isArray(list) && list.length > 0 && list.every(r => typeof r?.value === 'number' && r.value === 0);
+/**
+ * true si hay al menos una fila con valor numérico y todas las numéricas valen 0. Las filas sin dato
+ * evaluable (null o "N/D", p. ej. "No especificado" en tasa, que no tiene población) no cuentan:
+ * sin esto un periodo sin publicar en tasa mostraba 72 municipios empatados en el lugar 1 con 0.00.
+ */
+export const todoEnCero = (list) => {
+  if (!Array.isArray(list)) return false;
+  const numericas = list.filter(r => typeof r?.value === 'number');
+  return numericas.length > 0 && numericas.every(r => r.value === 0);
+};
 
 /**
  * Texto del estado vacío cuando todo vale 0: "Sin datos publicados para Dic 2026" si el periodo

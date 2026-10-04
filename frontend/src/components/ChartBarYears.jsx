@@ -3,7 +3,7 @@ import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
-import { chartTitle as buildTitle, monthsLabel, csvValueLabel } from '../utils/labels';
+import { chartTitle as buildTitle, monthsLabel, csvValueLabel, RATE_LABEL, metricLabel } from '../utils/labels';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList, useActiveTooltipLabel } from 'recharts';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
@@ -305,14 +305,21 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
         rank: d.id,
       }));
       const dataLabel = isVictimasBase ? 'Víctimas' : 'Delitos';
-      const locationLabel = selectedFilters.entidad && selectedFilters.entidad !== 'All'
-        ? selectedFilters.entidad : 'Nacional';
+      const municipioSel = !isVictimas && selectedFilters.municipio && selectedFilters.municipio !== 'All' ? selectedFilters.municipio : null;
+      const locationLabel = municipioSel || (selectedFilters.entidad && selectedFilters.entidad !== 'All'
+        ? selectedFilters.entidad : 'Nacional');
+      const mesesDrill = monthName ? [monthName] : (selectedFilters.meses || []);
+      const mesesTxt = !monthName && monthsLabel(mesesDrill) ? `Solo ${monthsLabel(mesesDrill)}` : null;
       setDrillModal({
         title: `Subtipo de delito · ${periodDisplay}`,
-        subtitle: `${dataLabel} · ${locationLabel}`,
+        // Ámbito, meses y métrica a la vista: una captura del desglose se entiende sola
+        subtitle: [locationLabel, mesesTxt, metricLabel(metricType)].filter(Boolean).join(' · '),
         data: mappedData,
         loading: false,
-        valueLabel: dataLabel,
+        valueLabel: metricType === 'rate' ? RATE_LABEL : dataLabel,
+        isRate: metricType === 'rate',
+        exportFilename: `desglose_subtipos_${String(periodDisplay).replace(/\s+/g, '-')}.csv`,
+        exportFilters: { ...selectedFilters, metricType, anio: rawYear, meses: mesesDrill },
         showRank: true,
         showPct: true,
       });
@@ -474,7 +481,7 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
                         : payload.value}
                     </text>
                     {entry?.partial && (
-                      <text dy={FF(24)} textAnchor="middle" fontSize={FF(11)} fontWeight="600" fill="var(--color-accent)">{entry.periodo}</text>
+                      <text dy={FF(25)} textAnchor="middle" fontSize={FF(12)} fontWeight="600" fill="var(--color-accent)">{entry.periodo}</text>
                     )}
                   </g>
                 );
@@ -558,6 +565,9 @@ const ChartBarYears = ({ selectedFilters, metricType: requestedMetric, onInitial
           valueLabel={drillModal.valueLabel || tooltipLabel}
           showRank={drillModal.showRank || false}
           showPct={drillModal.showPct || false}
+          isRate={drillModal.isRate || false}
+          exportFilename={drillModal.exportFilename}
+          exportFilters={drillModal.exportFilters}
         />
       )}
     </div>

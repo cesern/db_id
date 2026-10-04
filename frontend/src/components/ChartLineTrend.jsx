@@ -3,7 +3,7 @@ import axios from 'axios';
 import { API_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
-import { metricPhrase, csvValueLabel } from '../utils/labels';
+import { metricPhrase, csvValueLabel, monthsLabel } from '../utils/labels';
 import { ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot, Line } from 'recharts';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
@@ -232,11 +232,11 @@ const RangeSlider = ({ count, start, end, names, pending, onDraft, onCommit, lab
   return (
     <div style={{ padding: '0.35rem 0.6rem 0.15rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.25rem', gap: '0.5rem' }}>
-        <span style={{ fontSize: `${0.72 * labelScale}rem`, fontWeight: 700, color: 'var(--color-primary)', whiteSpace: 'nowrap' }}>{names[start]}</span>
-        <span style={{ fontSize: `${0.7 * labelScale}rem`, color: pending ? 'var(--color-accent)' : 'var(--text-secondary)', fontWeight: pending ? 700 : 400, whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: `${0.75 * labelScale}rem`, fontWeight: 700, color: 'var(--color-primary)', whiteSpace: 'nowrap' }}>{names[start]}</span>
+        <span style={{ fontSize: `${0.75 * labelScale}rem`, color: pending ? 'var(--color-accent)' : 'var(--text-secondary)', fontWeight: pending ? 700 : 400, whiteSpace: 'nowrap' }}>
           {`${end - start + 1} meses${pending ? ' · suelta para aplicar' : ''}`}
         </span>
-        <span style={{ fontSize: `${0.72 * labelScale}rem`, fontWeight: 700, color: 'var(--color-primary)', whiteSpace: 'nowrap' }}>{names[end]}</span>
+        <span style={{ fontSize: `${0.75 * labelScale}rem`, fontWeight: 700, color: 'var(--color-primary)', whiteSpace: 'nowrap' }}>{names[end]}</span>
       </div>
       <div
         ref={trackRef}
@@ -726,9 +726,15 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.5rem' }}>
           {/* Fila 1: Título y Acciones */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '0.2rem' }}>
-            <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0 }}>
-              {chartTitle}
-            </h2>
+            <div style={{ minWidth: 0 }}>
+              <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-primary)', margin: 0 }}>
+                {chartTitle}
+              </h2>
+              {/* La serie siempre trae todos los meses: se dice cuando hay meses filtrados en el resto del tablero */}
+              {monthsLabel(selectedFilters?.meses) && (
+                <div className="card-period">Serie completa: no aplica el filtro de meses</div>
+              )}
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <ExportMenu
                 elementRef={cardRef}
@@ -795,7 +801,7 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
             <XAxis
               dataKey="name"
-              tick={{ fontSize: F(11), fill: 'var(--text-secondary)' }}
+              tick={{ fontSize: F(12), fill: 'var(--text-secondary)' }}
               axisLine={false}
               tickLine={false}
               tickMargin={F(10)}
@@ -809,7 +815,7 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
               }}
             />
             <YAxis
-              tick={{ fontSize: F(11), fill: 'var(--text-secondary)' }}
+              tick={{ fontSize: F(12), fill: 'var(--text-secondary)' }}
               axisLine={false}
               tickLine={false}
               tickMargin={F(6)}
@@ -875,7 +881,7 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
                   value: `Promedio: ${formatValue(averageValue)}`,
                   position: 'top',
                   fill: 'var(--text-secondary)',
-                  fontSize: F(10),
+                  fontSize: F(12),
                   fontWeight: 600
                 }}
               />
@@ -901,7 +907,7 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
                     value: `Máx: ${formatValue(maxItem.numericVal)} (${maxItem.name})`,
                     position: 'top',
                     fill: '#ef4444',
-                    fontSize: F(9),
+                    fontSize: F(12),
                     fontWeight: 700
                   }}
                 />
@@ -928,7 +934,7 @@ const ChartLineTrend = ({ selectedFilters, metricType: requestedMetric, onInitia
                     value: `Mín: ${formatValue(minItem.numericVal)} (${minItem.name})`,
                     position: 'bottom',
                     fill: '#22c55e',
-                    fontSize: F(9),
+                    fontSize: F(12),
                     fontWeight: 700
                   }}
                 />

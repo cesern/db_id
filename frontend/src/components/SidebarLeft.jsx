@@ -243,7 +243,9 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
         const row = (Array.isArray(res.data) ? res.data : []).find(e => e.name === entityName);
         const idx = meses.map(m => MESES.indexOf(m)).filter(i => i >= 0).sort((a, b) => a - b);
         const periodo = idx.length > 0 && idx.length < 12 ? `${MESES_CORTOS[idx[0]]}–${MESES_CORTOS[idx[idx.length - 1]]}` : null;
-        setPrevRank(row ? { anio: anio - 1, rank: row.id, periodo, value: row.value, metric: requestedMetric } : null);
+        // Se guarda con los filtros de su consulta: al pintar solo vale si siguen siendo los aplicados
+        // (si no, se vería el ▲/▼ de un conjunto junto al lugar de otro mientras llega el nuevo)
+        setPrevRank(row ? { anio: anio - 1, rank: row.id, periodo, value: row.value, metric: requestedMetric, filters: selectedFilters } : null);
       } catch (err) {
         if (axios.isCancel(err)) return;
         setPrevRank(null);
@@ -290,12 +292,17 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
 
   // Periodo explícito del KPI: meses seleccionados (o todos) + año
   const periodLabel = formatPeriod(selectedFilters?.anio ?? '', selectedFilters?.meses, curMesFinal);
-  const totalIsND = totalIncidencia === 'N/D';
   const entidadFiltrada = !!(selectedFilters?.entidad && selectedFilters.entidad !== 'All');
   const selectedMunicipio = (!isVictimas && selectedFilters?.municipio && selectedFilters.municipio !== 'All') ? selectedFilters.municipio : null;
-  const activeIncidenceLabel = (selectedFilters?.municipio && selectedFilters.municipio !== 'All')
-    ? selectedFilters.municipio
-    : (isVictimasBase ? 'Víctimas' : isAltoImpacto ? 'Alto impacto' : 'Incidencia');
+  // A nivel Nacional las dos tarjetas hablan de la entidad de referencia (Sonora): antes el lugar era
+  // de Sonora y la cifra era la nacional, sin decirlo. El total nacional va en un renglón aparte, rotulado.
+  const kpiValue = entidadFiltrada ? totalIncidencia : (activeEntityData ? activeEntityData.value : null);
+  const totalIsND = kpiValue === 'N/D';
+  const baseKpiLabel = isVictimasBase ? 'Víctimas' : isAltoImpacto ? 'Alto impacto' : 'Incidencia';
+  const kpiAmbito = selectedMunicipio || (entidadFiltrada ? null : activeEntityName);
+  const kpiLabel = metricType === 'rate'
+    ? (kpiAmbito ? `${kpiAmbito} · ${RATE_LABEL}` : RATE_LABEL)
+    : (selectedMunicipio || (kpiAmbito ? `${kpiAmbito} · ${baseKpiLabel}` : baseKpiLabel));
 
   const isEntidades = tableView === 'entidades' || isVictimas;
   const rows = isEntidades ? entidades : municipios;
@@ -400,7 +407,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
                           borderRadius: '8px',
                           cursor: 'pointer',
                           transition: 'background 0.22s ease, color 0.22s ease',
-                          background: active ? 'var(--color-accent, #2563eb)' : 'transparent',
+                          background: active ? 'var(--color-accent)' : 'transparent',
                           color: active ? '#fff' : 'var(--text-secondary, #64748b)',
                           letterSpacing: '0.01em',
                         }}
@@ -511,7 +518,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
             <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {activeEntityName}
             </span>
-              {!error && rankShown !== null && prevRank && prevRank.metric === metricType && (() => {
+              {!error && !loading && rankShown !== null && prevRank && prevRank.metric === metricType && prevRank.filters === selectedFilters && (() => {
                 const diff = prevRank.rank - activeEntityRank; // > 0: subió hacia el 1
                 const up = diff > 0, down = diff < 0;
                 const cmpPrev = `${prevRank.periodo ? prevRank.periodo + ' ' : ''}${prevRank.anio}`;
@@ -565,21 +572,26 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
         {/* El total lleva la cifra larga: tarjeta más ancha que la del lugar (siempre corta) */}
         <div className="card kpi-card" style={{ flex: 1.6, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.2rem', padding: '0.85rem 1rem', position: 'relative', minWidth: 0 }}>
           {loading && <LoadingSpinner size="sm" />}
-          <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {metricType === 'rate'
-              ? (selectedMunicipio ? `${selectedMunicipio} · ${RATE_LABEL}` : RATE_LABEL)
-              : activeIncidenceLabel}
+          {/* Puede ocupar dos renglones ("Sonora · Tasa por 100 mil hab."): el ámbito nunca se trunca */}
+          <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', fontWeight: 600, lineHeight: 1.25, textWrap: 'balance' }}>
+            {kpiLabel}
           </span>
           <span
             title={totalIsND ? 'Sin población CONAPO para calcular la tasa en este periodo' : undefined}
             className="tabular kpi-value"
-            style={{ '--chars': String(error || totalIncidencia === null || sinPublicar ? '—' : formatNumber(totalIncidencia)).length, fontWeight: 700, color: 'var(--color-primary)', lineHeight: 1.1, letterSpacing: '-0.02em' }}
+            style={{ '--chars': String(error || kpiValue === null || sinPublicar ? '—' : formatNumber(kpiValue)).length, fontWeight: 700, color: 'var(--color-primary)', lineHeight: 1.1, letterSpacing: '-0.02em' }}
           >
-            {error || totalIncidencia === null || sinPublicar ? '—' : formatNumber(totalIncidencia)}
+            {error || kpiValue === null || sinPublicar ? '—' : formatNumber(kpiValue)}
           </span>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
             {totalIsND && !error ? 'Sin población CONAPO para la tasa' : sinPublicar ? 'Sin datos publicados' : periodLabel}
           </span>
+          {/* Total nacional, siempre rotulado: es otro ámbito que la cifra principal */}
+          {!entidadFiltrada && !error && !sinPublicar && totalIncidencia !== null && (
+            <span className="tabular" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Nacional: <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{formatNumber(totalIncidencia)}</strong>
+            </span>
+          )}
         </div>
       </div>
 
@@ -616,11 +628,11 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
                       cursor: 'pointer',
                       transition: 'background 0.22s ease, color 0.22s ease, box-shadow 0.22s ease',
                       background: active
-                        ? 'var(--color-accent, #2563eb)'
+                        ? 'var(--color-accent)'
                         : 'transparent',
                       color: active ? '#fff' : 'var(--text-secondary, #64748b)',
                       boxShadow: active
-                        ? '0 2px 8px rgba(37,99,235,0.18)'
+                        ? '0 2px 8px rgba(69,89,147,0.25)'
                         : 'none',
                       letterSpacing: '0.01em',
                     }}
@@ -632,7 +644,7 @@ const SidebarLeft = ({ selectedFilters, metricType: requestedMetric, onInitialLo
             </div>
           ) : (
             <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-primary)' }}>
-              Víctimas por Entidad
+              Víctimas por entidad
             </span>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

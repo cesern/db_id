@@ -1,15 +1,10 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { useDialogFocus } from '../utils/useDialogFocus';
 import { PREFERS_REDUCED_MOTION } from '../utils/motion';
+import ExportMenu from './ExportMenu';
+import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 
 const EXIT_MS = 150; // fundido de salida (.modal-backdrop.is-closing)
-
-const RANK_STYLES = {
-  1: { bg: '#fef9c3', color: '#a16207' },
-  2: { bg: '#f1f5f9', color: '#475569' },
-  3: { bg: '#fce7f3', color: '#9d174d' },
-};
-const getRankStyle = (rank) => RANK_STYLES[rank] || { bg: '#f8fafc', color: '#64748b' };
 
 const DrillDownModal = ({
   title,
@@ -20,6 +15,13 @@ const DrillDownModal = ({
   valueLabel = 'Incidencia',
   showPct = false,
   showRank = false,
+  // Tasa: dos decimales fijos en todas las filas
+  isRate = false,
+  // false cuando sumar las filas no tiene sentido (tasas de municipios distintos)
+  showTotal = true,
+  // Exportar/copiar el desglose: nombre de archivo y filtros de la consulta (bloque de filtros del CSV)
+  exportFilename,
+  exportFilters,
 }) => {
   // El padre desmonta el modal en onClose: primero se desvanece (150ms) y luego se avisa
   const [closing, setClosing] = useState(false);
@@ -43,9 +45,17 @@ const DrillDownModal = ({
     0
   );
 
+  const fmt = (v) => (typeof v !== 'number' ? v
+    : isRate ? v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : v.toLocaleString('es-MX'));
+
+  const exportHeaders = showRank ? ['Lugar', 'Nombre', valueLabel] : ['Nombre', valueLabel];
+  const exportRows = () => (data || []).map(r => (showRank ? [r.rank ?? r.id, r.name, r.value] : [r.name, r.value]));
+  const hasRows = !loading && Array.isArray(data) && data.length > 0;
+
   const th = (extra = {}) => ({
     padding: '0.6rem 1rem',
-    fontSize: '0.68rem',
+    fontSize: '0.75rem',
     fontWeight: 700,
     color: 'var(--text-secondary)',
     textTransform: 'uppercase',
@@ -117,6 +127,14 @@ const DrillDownModal = ({
                   </p>
                 )}
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+              {hasRows && exportFilename && (
+                <ExportMenu
+                  isTable
+                  onDownloadCSV={() => downloadCSV(exportFilename, exportRows(), exportHeaders, exportFilters)}
+                  onCopyTable={() => copyTableToClipboard(exportRows(), exportHeaders)}
+                />
+              )}
               <button
                 ref={closeRef}
                 type="button"
@@ -136,6 +154,7 @@ const DrillDownModal = ({
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
+              </div>
             </div>
           </div>
 
@@ -158,7 +177,7 @@ const DrillDownModal = ({
                 <thead>
                   <tr>
                     <th style={th({ textAlign: 'left', paddingLeft: '1.5rem' })}>Nombre</th>
-                    {showRank && <th style={th({ textAlign: 'center', width: '72px' })}>Rank</th>}
+                    {showRank && <th style={th({ textAlign: 'center', width: '72px' })}>Lugar</th>}
                     <th style={th({ textAlign: 'right' })}>{valueLabel}</th>
                     {showPct && <th style={th({ textAlign: 'right', paddingRight: '1.5rem', width: '100px' })}>% del total</th>}
                   </tr>
@@ -166,7 +185,6 @@ const DrillDownModal = ({
                 <tbody>
                   {data.map((row, i) => {
                     const rank = row.rank ?? row.id;
-                    const rs = getRankStyle(rank);
                     return (
                       <tr
                         key={i}
@@ -176,20 +194,12 @@ const DrillDownModal = ({
                       >
                         <td style={tdStyle({ paddingLeft: '1.5rem', fontWeight: 500 })}>{row.name}</td>
                         {showRank && (
-                          <td style={tdStyle({ textAlign: 'center' })}>
-                            <span style={{
-                              display: 'inline-block',
-                              backgroundColor: rs.bg,
-                              color: rs.color,
-                              fontSize: '0.72rem', fontWeight: 700,
-                              padding: '2px 9px', borderRadius: '999px',
-                            }}>
-                              #{rank}
-                            </span>
+                          <td style={tdStyle({ textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' })}>
+                            {rank}
                           </td>
                         )}
                         <td style={tdStyle({ textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' })}>
-                          {typeof row.value === 'number' ? row.value.toLocaleString('es-MX') : row.value}
+                          {fmt(row.value)}
                         </td>
                         {showPct && (
                           <td style={tdStyle({ textAlign: 'right', paddingRight: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.8rem', fontVariantNumeric: 'tabular-nums' })}>
@@ -220,9 +230,9 @@ const DrillDownModal = ({
               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                 {data.length} {data.length === 1 ? 'registro' : 'registros'}
               </span>
-              {total > 0 && (
+              {showTotal && total > 0 && (
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  Total: <strong style={{ color: 'var(--text-primary)' }}>{total.toLocaleString('es-MX')}</strong>
+                  Total: <strong style={{ color: 'var(--text-primary)' }}>{fmt(total)}</strong>
                 </span>
               )}
             </div>

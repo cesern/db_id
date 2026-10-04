@@ -250,14 +250,13 @@ const MonthStrip = ({ meses, mesesAplicados, onChange, mesFinalAplica }) => {
           );
         })}
       </div>
-      {n === 0 && (
-        // Pista de gesto bajo la tira: solo sin meses elegidos; texto según el tipo de puntero
-        // Enlazada a la tira con aria-describedby (el lector la anuncia al enfocarla)
-        <p className="month-strip-hint" id={`${uid}-hint`}>
-          <span className="month-strip-hint-fine">Arrastra para elegir un rango · Ctrl+clic para sumar meses</span>
-          <span className="month-strip-hint-coarse">Toca para elegir meses · desliza para un rango</span>
-        </p>
-      )}
+      {/* Pista de gesto bajo la tira: visible solo sin meses elegidos, pero siempre montada para que
+          conserve su renglón y el tablero no salte al elegir el primer mes. Texto según el puntero;
+          enlazada a la tira con aria-describedby (el lector la anuncia al enfocarla) */}
+      <p className={`month-strip-hint${n === 0 ? '' : ' is-hidden'}`} id={`${uid}-hint`} aria-hidden={n === 0 ? undefined : true}>
+        <span className="month-strip-hint-fine">Arrastra para elegir un rango · Ctrl+clic para sumar meses</span>
+        <span className="month-strip-hint-coarse">Toca para elegir meses · desliza para un rango</span>
+      </p>
       {/* Anuncio para lector de pantalla: al soltar un arrastre, con teclado o con un toque */}
       <span className="sr-only" aria-live="polite">{anuncio}</span>
     </div>

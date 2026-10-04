@@ -128,7 +128,7 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = 'var(--bg-main, #f8fafc)';
-              e.currentTarget.style.color = 'var(--color-accent, #2563eb)';
+              e.currentTarget.style.color = 'var(--color-accent)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'transparent';
@@ -176,7 +176,7 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = 'var(--bg-main, #f8fafc)';
-                e.currentTarget.style.color = 'var(--color-accent, #2563eb)';
+                e.currentTarget.style.color = 'var(--color-accent)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'transparent';
@@ -197,7 +197,7 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
               </svg>
-              {isTable ? "Copiar Tabla" : "Copiar Datos"}
+              {isTable ? "Copiar tabla" : "Copiar datos"}
             </button>
           )}
 
@@ -222,7 +222,7 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = 'var(--bg-main, #f8fafc)';
-                e.currentTarget.style.color = 'var(--color-accent, #2563eb)';
+                e.currentTarget.style.color = 'var(--color-accent)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'transparent';

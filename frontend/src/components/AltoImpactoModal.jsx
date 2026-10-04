@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId, useRef } from 'react';
 import axios from 'axios';
 import { API_URL } from '../api';
 import { findDuplicateCapsule, parseCapsule } from '../utils/altoImpacto';
+import { useDialogFocus } from '../utils/useDialogFocus';
 
 const selectStyle = {
   width: '100%',
@@ -13,7 +14,7 @@ const selectStyle = {
   outline: 'none'
 };
 
-// Modal para crear una cápsula personalizada de alto impacto.
+// Modal para crear un delito personalizado de alto impacto (internamente, una "cápsula" CUSTOM:).
 // Cascada Bien -> Tipo -> Subtipo -> Modalidad vía /api/filtros (dataset=delitos).
 const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTokens }) => {
   const [bien, setBien] = useState('');
@@ -28,13 +29,11 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
     modalidades: []
   });
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && onClose) onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  // Foco: primer campo al abrir, Tab atrapado, Escape cierra y el foco vuelve a "+ Agregar delito"
+  const titleId = useId();
+  const panelRef = useRef(null);
+  const firstFieldRef = useRef(null);
+  useDialogFocus(true, { containerRef: panelRef, initialFocusRef: firstFieldRef, onEscape: onClose });
 
   // Cascada: al cambiar un nivel se recargan los dependientes y se purgan inválidos
   useEffect(() => {
@@ -139,24 +138,30 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+      className="modal-backdrop"
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(8, 28, 58, 0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
       onClick={onClose}
     >
       <div
-        style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '12px', maxWidth: '560px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="modal-panel"
+        style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '12px', maxWidth: '560px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)' }}
         onClick={e => e.stopPropagation()}
       >
-        <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.25rem', color: 'var(--text-primary)' }}>
+        <h2 id={titleId} style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.25rem', color: 'var(--text-primary)' }}>
           Agregar delito personalizado
-        </h3>
-        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-          Elige los niveles en cascada. Solo se envían los niveles que definas.
+        </h2>
+        <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+          Elige de lo general a lo específico. El delito abarca hasta el último nivel que elijas.
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div>
             <label className="label-sm">Bien jurídico afectado</label>
-            <select className="input-select" style={selectStyle} value={bien} onChange={e => { setBien(e.target.value); setTipo(''); setSubtipo(''); setModalidad(''); }}>
+            <select ref={firstFieldRef} className="input-select" style={selectStyle} value={bien} onChange={e => { setBien(e.target.value); setTipo(''); setSubtipo(''); setModalidad(''); }}>
               <option value="">Todos</option>
               {opciones.bienesJuridicos.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
@@ -183,12 +188,12 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
             </select>
           </div>
           <div>
-            <label className="label-sm">Nombre de la cápsula</label>
+            <label className="label-sm">Nombre del delito</label>
             <input
               type="text"
               value={nombre}
               onChange={e => setNombre(e.target.value)}
-              placeholder="Ej. Mi delito grave"
+              placeholder="Ej. Robo a negocio con violencia"
               maxLength={60}
               style={{ ...selectStyle }}
             />
@@ -201,13 +206,13 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
 
           {duplicate && (
             <p style={{ fontSize: '0.8rem', color: '#b45309', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
-              Ya existe la cápsula "{duplicate}" con esta configuración.
+              Ya existe "{duplicate}" con la misma selección.
             </p>
           )}
 
           {overlap.checking && (
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
-              Comprobando solapamiento con las cápsulas activas…
+              Comprobando si se traslapa con los delitos activos…
             </p>
           )}
           {!overlap.checking && overlap.contained.length > 0 && (
@@ -217,7 +222,7 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
           )}
           {!overlap.checking && overlap.redundant && (
             <p style={{ fontSize: '0.8rem', color: '#b45309', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
-              Con los filtros actuales esta cápsula no aporta registros nuevos respecto a las activas.
+              Con los filtros actuales este delito no suma registros nuevos a los que ya están activos.
             </p>
           )}
         </div>
@@ -230,10 +235,10 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
             className="btn btn-primary"
             onClick={handleConfirm}
             disabled={!canConfirm}
-            title={!hasLevels ? 'Define al menos un nivel' : badName ? 'Escribe un nombre válido sin "|"' : duplicate ? 'Configuración duplicada' : 'Agregar cápsula'}
+            title={!hasLevels ? 'Elige al menos un nivel' : badName ? 'Escribe un nombre sin "|"' : duplicate ? 'Ya existe un delito con esta selección' : 'Agregar delito'}
             style={{ padding: '0.45rem 1.1rem', fontSize: '0.875rem', fontWeight: 600, opacity: canConfirm ? 1 : 0.5, cursor: canConfirm ? 'pointer' : 'not-allowed' }}
           >
-            Agregar cápsula
+            Agregar delito
           </button>
         </div>
       </div>

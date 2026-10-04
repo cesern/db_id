@@ -878,10 +878,12 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
       <div className="filters-collapse" data-open={isOpen} data-clip={recortar} onTransitionEnd={alTerminarTransicion}>
       <div className="filters-collapse-inner" inert={!isOpen}>
       <div id="filters-body" className="filters-body">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--filters-select-gap, 1.5rem)', flexWrap: 'wrap' }}>
+      {/* Fila principal (estilos en index.css): en celular se disuelve (display: contents) para que
+          la tira de meses quede antes de Limpiar/Aplicar, que cierran el panel */}
+      <div className="filters-main-row">
         
         {/* Contenedor principal de Filtros */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--filters-row-gap, 1.25rem)', flex: '1 1 auto', minWidth: '0' }}>
+        <div className="filters-fields" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--filters-row-gap, 1.25rem)', flex: '1 1 auto', minWidth: '0' }}>
           
           {/* Fila 1: Filtros Principales (Territoriales y Temporales) */}
           <div style={{ display: 'flex', gap: 'var(--filters-select-gap, 1rem)', flexWrap: 'wrap' }}>
@@ -977,7 +979,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
                                 if (onRemoveCustomCapsule) onRemoveCustomCapsule(token);
                               }
                             }}
-                            title="Eliminar cápsula"
+                            title="Quitar delito"
                             style={{ fontWeight: 700, marginLeft: '0.15rem', lineHeight: 1 }}
                           >
                             ×
@@ -1121,7 +1123,7 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
                 padding: '0.45rem 1.1rem', fontSize: '0.875rem', fontWeight: 600,
                 borderRadius: '8px', border: 'none', cursor: 'pointer',
                 transition: 'background 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease',
-                background: pendingCount > 0 ? 'var(--color-accent, #2563eb)' : 'var(--bg-main, #f1f5f9)',
+                background: pendingCount > 0 ? 'var(--color-accent)' : 'var(--bg-main, #f1f5f9)',
                 color: pendingCount > 0 ? '#fff' : 'var(--text-secondary, #64748b)',
                 boxShadow: pendingCount > 0 ? '0 4px 12px rgba(69,89,147,0.30)' : 'none'
               }}

@@ -377,7 +377,7 @@ body {
     --filters-row-gap: 0.4rem;
     --filters-select-gap: 0.5rem;
     --filters-label-margin: 0.1rem;
-    --filters-label-size: 0.72rem;
+    --filters-label-size: 0.75rem;
 
     --input-padding: 0.3rem 1.5rem 0.3rem 0.5rem;
     --input-min-height: 30px;
@@ -1040,7 +1040,7 @@ select:focus:not(:focus-visible) {
   background: var(--color-accent);
   border-radius: 999px;
   padding: 1px 8px;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
 }
 
 @media (max-width: 767px) {
@@ -1175,7 +1175,7 @@ select:focus:not(:focus-visible) {
   .fs-title { font-size: 1.1rem !important; }
   .fs-badges { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; margin-top: 0.2rem !important; }
   .fs-badges::-webkit-scrollbar { display: none; }
-  .fs-badges > span { font-size: 0.72rem !important; white-space: nowrap; flex-shrink: 0; }
+  .fs-badges > span { font-size: 0.75rem !important; white-space: nowrap; flex-shrink: 0; }
   .fs-header > div:first-child { min-width: 0; flex: 1; }
   .fs-header > div:last-child { gap: 0.5rem !important; flex-shrink: 0; }
   /* Compacto pero reconocible: rojo sobre fondo claro (6.1:1), sin borde gris y 40px de alto táctil */
@@ -1214,7 +1214,7 @@ select:focus:not(:focus-visible) {
 .chart-tip-label { font-weight: 600; margin-bottom: 2px; }
 .chart-tip-hint {
   margin-top: 4px;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
 }
 
@@ -1477,4 +1477,42 @@ select:focus:not(:focus-visible) {
   .adm-sk { animation: none; }
   .adm-flash, .adm-dialog-backdrop { animation: none; }
   .adm-progress-bar { transition: none; }
+}
+
+/* ───────────────── Ronda 15: ámbito, móvil y pulido ───────────────── */
+/* Fila principal del panel de filtros (campos a la izquierda, métrica y acciones a la derecha) */
+.filters-main-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--filters-select-gap, 1.5rem);
+  flex-wrap: wrap;
+}
+@media (max-width: 767px) {
+  /* Celular: la fila se disuelve para que la tira de meses quede antes de la métrica y de
+     Limpiar/Aplicar (aplicar cierra el panel: va al final de lo que se edita) */
+  .filters-main-row { display: contents; }
+  .filters-body > .month-strip-wrap { order: 2; }
+  .filters-controls-right { order: 3; }
+}
+
+/* La pista de la tira de meses conserva su renglón al elegir un mes (el tablero no salta) */
+.month-strip-hint.is-hidden { visibility: hidden; }
+
+/* Selector de entidad del título de Rankings: nunca más ancho que su tarjeta */
+.inline-title-select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }
+
+/* Objetivos táctiles: listas desplegables de 40px en pantallas angostas (antes 30px) */
+@media (max-width: 1023px) {
+  :root { --input-min-height: 40px; }
+  .input-select { min-height: 40px; height: 40px; }
+  .inline-title-select { min-height: 40px; }
+}
+@media (max-width: 767px) {
+  .inline-title-select { font-size: 1.2rem; }
+}
+
+/* Monitores anchos: la columna del KPI y la tabla deja de truncar nombres de municipio */
+@media (min-width: 1600px) {
+  .dashboard-grid { grid-template-columns: 360px 1.4fr 0.8fr; }
 }
