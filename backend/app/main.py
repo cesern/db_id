@@ -65,11 +65,17 @@ CACHE_MUN_POB_DF = None
 CACHE_ANIO_RECIENTE = None
 # Último mes con datos por conjunto y año, SIN filtros: {dataset: {año: mes 1-12}}
 CACHE_MES_FINAL = {}
+# Catálogo de lugares por conjunto y año: {dataset: {"entidades": df[Año, Entidad], "municipios": df[Año, Entidad, Municipio]}}.
+# Algunos conjuntos (victimas_mun) no traen filas en cero: con él se completan los lugares que faltan.
+CACHE_CATALOGO = {}
+MES_NUM = {m: i for i, m in enumerate(
+    ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto',
+     'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'], start=1)}
 
 def reload_duckdb_views(strict: bool = False):
     """Recrea las vistas y caches. Con `strict`, un error en los caches se relanza
     (lo usa el admin para revertir una publicación que deja el tablero roto)."""
-    global CACHE_POB_DF, CACHE_ENT_MAP, CACHE_MERGED_POP, CACHE_MUN_MAP, CACHE_MUN_POB_DF, CACHE_ANIO_RECIENTE, CACHE_MES_FINAL
+    global CACHE_POB_DF, CACHE_ENT_MAP, CACHE_MERGED_POP, CACHE_MUN_MAP, CACHE_MUN_POB_DF, CACHE_ANIO_RECIENTE, CACHE_MES_FINAL, CACHE_CATALOGO
     # Drop existing views to recreate them
     views_to_drop = ["delitos", "victimas", "victimas_mun", "poblacion"]
     for v in views_to_drop:
@@ -126,6 +132,21 @@ def reload_duckdb_views(strict: bool = False):
             mes_final[ds] = {int(a): int(n) for a, n in rows if a is not None and n is not None}
         CACHE_MES_FINAL = mes_final
 
+        # Catálogo de lugares de cada conjunto (una consulta al cargar; después todo es en memoria)
+        catalogo = {}
+        for ds in ("delitos", "victimas", "victimas_mun"):
+            if not (PARQUET_DIR / f"{ds}.parquet").exists():
+                continue
+            cols = [r[1] for r in db.cursor().execute(f"PRAGMA table_info({ds})").fetchall()]
+            entrada = {"entidades": db.cursor().execute(
+                f'SELECT DISTINCT "Año", Entidad FROM {ds} WHERE Entidad IS NOT NULL AND "Año" IS NOT NULL').df()}
+            if "Municipio" in cols:
+                entrada["municipios"] = db.cursor().execute(
+                    f'SELECT DISTINCT "Año", Entidad, Municipio FROM {ds} '
+                    f'WHERE Municipio IS NOT NULL AND Entidad IS NOT NULL AND "Año" IS NOT NULL').df()
+            catalogo[ds] = entrada
+        CACHE_CATALOGO = catalogo
+
         if CACHE_ENT_MAP is not None and CACHE_POB_DF is not None:
             CACHE_MERGED_POP = pd.merge(CACHE_ENT_MAP, CACHE_POB_DF, left_on='Clave_Ent', right_on='CLAVE_ENT')
     except Exception as e:
@@ -162,6 +183,79 @@ def _orden_es(texto: str) -> tuple:
     de Morelos); el texto original desempata. DuckDB ordena por código y dejaba las tildes al final."""
     base = "".join(c for c in unicodedata.normalize("NFD", texto) if not unicodedata.combining(c))
     return (base.casefold(), texto)
+
+# ── Ausencia de fila = cero (solo en periodos ya publicados) ──────────────────
+# victimas_mun no trae filas en cero: un municipio sin víctimas de un delito no aparece para ese
+# delito. Se completa con el catálogo del propio conjunto. Nunca se inventan ceros en meses que
+# la fuente aún no publica (CACHE_MES_FINAL), ni cuando el filtro de alto impacto dejó la consulta vacía.
+def _meses_pedidos(meses: Optional[str]) -> Optional[set]:
+    if not meses:
+        return None
+    return {MES_NUM[m.strip()] for m in meses.split(',') if m.strip() in MES_NUM}
+
+def _periodo_publicado(dataset: DatasetEnum, anio, meses: Optional[str]) -> bool:
+    """True si al menos uno de los meses pedidos de ese año ya está publicado."""
+    mes_final = CACHE_MES_FINAL.get(dataset.value, {}).get(int(anio))
+    if not mes_final:
+        return False
+    pedidos = _meses_pedidos(meses)
+    return True if pedidos is None else any(m <= mes_final for m in pedidos)
+
+def _sin_relleno(df_res, altoImpacto) -> bool:
+    # Alto impacto sin delitos válidos devuelve vacío a propósito (vacío = vacío)
+    return altoImpacto is not None and df_res.empty
+
+def _completar_lugares(dataset: DatasetEnum, df_res, nivel: str, anio, entidad, meses, altoImpacto):
+    """Añade con total 0 las entidades o municipios del catálogo que no vinieron en la consulta."""
+    cat = CACHE_CATALOGO.get(dataset.value, {}).get(nivel)
+    if cat is None or _sin_relleno(df_res, altoImpacto):
+        return df_res
+    claves = ['Entidad'] if nivel == 'entidades' else ['Municipio', 'Entidad']
+    if anio is not None:
+        if not _periodo_publicado(dataset, anio, meses):
+            return df_res
+        base = cat[cat['Año'] == int(anio)]
+    else:
+        base = cat
+    if nivel == 'municipios' and entidad is not None and entidad != 'All':
+        base = base[base['Entidad'] == entidad]
+    base = base[claves].drop_duplicates()
+    if len(base) <= len(df_res):
+        return df_res  # ya viene completo (p. ej. delitos): sin trabajo extra
+    out = base.merge(df_res, on=claves, how='left')
+    out['total'] = out['total'].fillna(0)
+    return out
+
+def _completar_anios(dataset: DatasetEnum, df_res, meses, altoImpacto):
+    """Añade con total 0 los años publicados que no vinieron en la consulta."""
+    publicados = CACHE_MES_FINAL.get(dataset.value, {})
+    if not publicados or _sin_relleno(df_res, altoImpacto):
+        return df_res
+    presentes = set(int(a) for a in df_res['Año'])
+    faltan = [a for a in sorted(publicados) if a not in presentes and _periodo_publicado(dataset, a, meses)]
+    if not faltan:
+        return df_res
+    extra = pd.DataFrame({'Año': faltan, 'total': [0] * len(faltan)})
+    return pd.concat([df_res, extra], ignore_index=True).sort_values('Año')
+
+def _completar_meses(dataset: DatasetEnum, df_res, meses, altoImpacto):
+    """Serie mensual sobre los meses publicados: los que no vinieron valen 0 y los futuros no existen.
+    Devuelve (df, completo); con completo=False se aplica el recorte anterior."""
+    publicados = CACHE_MES_FINAL.get(dataset.value, {})
+    if not publicados or _sin_relleno(df_res, altoImpacto):
+        return df_res, False
+    pedidos = _meses_pedidos(meses)
+    nombre = {n: m for m, n in MES_NUM.items()}
+    rejilla = pd.DataFrame(
+        [(a, nombre[n]) for a in sorted(publicados) for n in range(1, publicados[a] + 1)
+         if pedidos is None or n in pedidos],
+        columns=['Año', 'Mes'])
+    if rejilla.empty:
+        return df_res, False
+    df_res = df_res.assign(Mes=df_res['Mes'].astype(str))
+    out = rejilla.merge(df_res, on=['Año', 'Mes'], how='left')
+    out['total'] = out['total'].fillna(0)
+    return out, True
 
 def get_columns(dataset_name: str) -> list[str]:
     try:
@@ -466,6 +560,7 @@ async def obtener_incidencia_por_entidad(
     
     query = f'SELECT Entidad, SUM("{val_col}") as total FROM {dataset.value} {w_sql} GROUP BY Entidad'
     df_res = db.cursor().execute(query, params).df()
+    df_res = _completar_lugares(dataset, df_res, 'entidades', anio, None, meses, altoImpacto)
     
     if df_res.empty: return []
     
@@ -531,6 +626,7 @@ async def obtener_incidencia_por_municipio(
     val_col = 'Víctimas' if 'victimas' in dataset.value else 'Incidencia'
     query = f'SELECT Municipio, Entidad, SUM("{val_col}") as total FROM {dataset.value} {w_sql} GROUP BY Municipio, Entidad'
     df_res = db.cursor().execute(query, params).df()
+    df_res = _completar_lugares(dataset, df_res, 'municipios', anio, entidad, meses, altoImpacto)
     
     if df_res.empty: return []
     
@@ -603,6 +699,7 @@ async def obtener_incidencia_por_anio(
     
     query = f'SELECT "Año", SUM("{val_col}") as total FROM {dataset.value} {w_sql} GROUP BY "Año" ORDER BY "Año"'
     df_res = db.cursor().execute(query, params).df()
+    df_res = _completar_anios(dataset, df_res, meses, altoImpacto)
     
     if df_res.empty: return []
 
@@ -643,6 +740,7 @@ async def obtener_incidencia_por_mes_historico(
     
     query = f'SELECT "Año", Mes, SUM("{val_col}") as total FROM {dataset.value} {w_sql} GROUP BY "Año", Mes'
     df_res = db.cursor().execute(query, params).df()
+    df_res, serie_completa = _completar_meses(dataset, df_res, meses, altoImpacto)
     
     if df_res.empty: return []
     
@@ -658,11 +756,13 @@ async def obtener_incidencia_por_mes_historico(
     max_year = int(df_res[df_res['total'] > 0]['Año'].max()) if not df_res[df_res['total'] > 0].empty else 9999
     max_month = int(df_res[(df_res['total'] > 0) & (df_res['Año'] == max_year)]['Mes_Num'].max()) if max_year != 9999 else 12
     
-    mask = ~(
-        (df_res['Año'] > max_year) |
-        ((df_res['Año'] == max_year) & (df_res['Mes_Num'] > max_month))
-    )
-    df_res = df_res[mask]
+    if not serie_completa:
+        # Sin catálogo de meses publicados: recorte anterior (hasta el último mes con total > 0)
+        mask = ~(
+            (df_res['Año'] > max_year) |
+            ((df_res['Año'] == max_year) & (df_res['Mes_Num'] > max_month))
+        )
+        df_res = df_res[mask]
     
     if metric_type == "rate":
         years = df_res['Año'].unique()
