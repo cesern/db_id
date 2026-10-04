@@ -1628,6 +1628,9 @@ select:focus:not(:focus-visible) {
 @media (hover: hover) and (pointer: fine) {
   .title-select:hover { background: #dfe4f1; border-color: rgba(69, 89, 147, 0.35); }
 }
+/* Sin opciones que elegir (Víctimas no tiene municipios): gris, sin hover ni puntero */
+.title-select.is-disabled { background: #eef0f4; color: var(--text-secondary); border-color: transparent; }
+.title-select.is-disabled .title-select-native { cursor: not-allowed; }
 @media (max-width: 1023px) {
   .title-select { min-height: 40px; }
 }

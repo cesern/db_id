@@ -10,6 +10,8 @@ import { PREFERS_REDUCED_MOTION } from '../utils/motion';
 import { useExitAnimation } from '../utils/useExitAnimation';
 import { csvValueLabel } from '../utils/labels';
 import { useDialogFocus } from '../utils/useDialogFocus';
+import { toast } from 'sonner';
+import { ejeRanking, resumenPosiciones, notaEmpate } from '../utils/rankings';
 import MultiSelectDropdown from './MultiSelectDropdown';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
@@ -47,7 +49,7 @@ const RankingHelp = ({ onClose }) => {
   );
 };
 
-const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, dataset, fs = 1, partialYears = {} }) => {
+const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, dataset, fs = 1, partialYears = {}, nivel = 'entidad' }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const top3 = data._top3 || [];
@@ -55,7 +57,7 @@ const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, da
     const highlighted = [...payload].sort((a, b) => a.value - b.value);
     const toShow = highlighted.filter(p => p.name === selectedEntidad);
 
-    const metricLabel = dataset === 'victimas' ? 'víctimas' : 'delitos';
+    const metricLabel = dataset === 'delitos' ? 'delitos' : 'víctimas';
     const formatVal = (val) => {
       if (val === null || val === undefined) return '';
       const numStr = Number(val).toLocaleString('es-MX');
@@ -89,7 +91,13 @@ const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, da
                   <span style={{ color: '#0f172a', fontWeight: '700' }}>
                     {entry.name}
                   </span>
-                  <span style={{ fontWeight: '700', color: '#3b82f6', marginLeft: 'auto' }}>#{entry.value}</span>
+                  <span className="tabular" style={{ fontWeight: '700', color: 'var(--color-accent)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+                    #{entry.value}
+                    {/* Municipios: el lugar siempre con su total ("#12 de 2,476") */}
+                    {nivel === 'municipio' && typeof data[entry.name + '_n'] === 'number' && (
+                      <span style={{ fontWeight: 600, color: '#64748b' }}> de {data[entry.name + '_n'].toLocaleString('es-MX')}</span>
+                    )}
+                  </span>
                 </div>
                 <div style={{ fontSize: `${12 * fs}px`, color: '#64748b', marginLeft: '14px' }}>
                   Incidencia: <span style={{ fontWeight: '600' }}>{formatVal(total)}</span>
@@ -105,9 +113,10 @@ const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, da
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {top3.map((t, idx) => (
                 <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: `${12 * fs}px` }}>
-                  <span style={{ color: '#475569', display: 'flex', gap: '4px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', maxWidth: '120px' }}>
+                  <span style={{ color: '#475569', display: 'flex', gap: '4px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', maxWidth: nivel === 'municipio' ? '190px' : '120px' }}>
                     <span style={{ fontWeight: '700' }}>#{t.rank}</span>
-                    <span title={t.name.split(',')[0]}>{t.name.split(',')[0]}</span>
+                    {/* Municipios: con su entidad (hay nombres repetidos entre estados) */}
+                    <span title={t.name} style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{nivel === 'municipio' ? t.name : t.name.split(',')[0]}</span>
                   </span>
                   <span style={{ color: '#64748b', fontWeight: '600' }}>{formatVal(t.total)}</span>
                 </div>
@@ -179,6 +188,9 @@ const MorePeriods = ({ items, formatPeriodLabel, formatCardValue }) => {
   );
 };
 
+const NOMBRE_CONJUNTO = { delitos: 'Delitos', victimas: 'Víctimas', victimas_mun: 'Víctimas Municipios' };
+const NO_MUNICIPIO = /^(no especificado|otros municipios)$/i;
+
 const HistoryRankings = ({ tempColor }) => {
   const [selectedEntidad, setSelectedEntidad] = useState('Sonora');
   const [dataset, setDataset] = useState('delitos');
@@ -213,6 +225,20 @@ const HistoryRankings = ({ tempColor }) => {
     dataset: 'delitos', temporalidad: 'anual', metricType: 'absolute', mesAcumulado: 'Agosto',
     filters: { bienJuridico: [], tipoDelito: [], subtipoDelito: [], modalidad: [], sexo: [], rangoEdad: [] }
   });
+
+  // Municipio de Sonora cuyo lugar NACIONAL se sigue ('' = todo el estado: ranking de entidades).
+  // Solo existe con entidad Sonora y en conjuntos con municipios (Víctimas no los tiene).
+  const [selectedMunicipio, setSelectedMunicipio] = useState('');
+  const [municipiosSonora, setMunicipiosSonora] = useState([]);
+  const conMunicipios = applied.dataset !== 'victimas';
+  const nivel = selectedEntidad === 'Sonora' && selectedMunicipio && conMunicipios ? 'municipio' : 'entidad';
+  // Clave de la serie en los datos ("Cajeme, Sonora" | "Sonora") y nombre para rótulos
+  const serieName = nivel === 'municipio' ? `${selectedMunicipio}, Sonora` : selectedEntidad;
+  const serieLabel = nivel === 'municipio' ? selectedMunicipio : selectedEntidad;
+  // A qué consulta corresponden los datos cargados: mientras no coincida con lo elegido, está cargando
+  const reqKey = `${nivel}|${nivel === 'municipio' ? selectedMunicipio : ''}`;
+  const [dataKey, setDataKey] = useState('entidad|');
+  const cargandoSerie = dataKey !== reqKey;
 
   const [options, setOptions] = useState({
     entidades: ['Sonora'],
@@ -249,16 +275,36 @@ const HistoryRankings = ({ tempColor }) => {
   }, [applied]);
 
   useEffect(() => {
+    if (applied.dataset === 'victimas') return undefined; // sin municipios: el selector queda deshabilitado
+    const controller = new AbortController();
+    axios.get(`${API_URL}/api/filtros`, { params: { dataset: applied.dataset, entidad: 'Sonora' }, signal: controller.signal })
+      .then(res => {
+        const lista = (res.data?.municipios || []).filter(m => !NO_MUNICIPIO.test(String(m).trim()));
+        setMunicipiosSonora(lista);
+        // El municipio elegido no existe en este conjunto: se vuelve a todo el estado y se dice
+        setSelectedMunicipio(prev => {
+          if (!prev || lista.includes(prev)) return prev;
+          toast(`Se volvió a Todo el estado: ${NOMBRE_CONJUNTO[applied.dataset]} no tiene datos de ${prev}`, { id: 'rankings-municipio' });
+          return '';
+        });
+      })
+      .catch(err => { if (!axios.isCancel(err)) console.error('Error fetching municipios de Sonora', err); });
+    return () => controller.abort();
+  }, [applied.dataset]);
+
+  useEffect(() => {
     const controller = new AbortController();
     const fetchRanking = async () => {
       setIsFading(true);
       try {
         const params = {
           dataset: applied.dataset,
-          nivel: 'entidad',
+          nivel,
           temporalidad: applied.temporalidad === 'acumulado' ? 'anual' : applied.temporalidad,
           metric_type: applied.metricType
         };
+        // Municipio: lugar entre todos los municipios del país; el backend devuelve su serie y el top 3
+        if (nivel === 'municipio') params.municipios_sonora = selectedMunicipio;
         if (applied.temporalidad === 'acumulado') {
           const mesesList = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
           const mIndex = mesesList.indexOf(applied.mesAcumulado);
@@ -274,6 +320,7 @@ const HistoryRankings = ({ tempColor }) => {
 
         const res = await axios.get(`${API_URL}/api/ranking_historico`, { params, signal: controller.signal });
         setRankingData(Array.isArray(res.data) ? res.data : []);
+        setDataKey(reqKey);
         setError(false);
       } catch (err) {
         if (axios.isCancel(err)) return; // reemplazada por una consulta más nueva
@@ -289,7 +336,7 @@ const HistoryRankings = ({ tempColor }) => {
     };
     fetchRanking();
     return () => controller.abort();
-  }, [applied, retryKey]);
+  }, [applied, retryKey, nivel, selectedMunicipio, reqKey]);
 
   // Último mes publicado por año del conjunto aplicado (mes_final sale del conjunto completo, sin filtros)
   const [mesFinalPorAnio, setMesFinalPorAnio] = useState({});
@@ -302,6 +349,16 @@ const HistoryRankings = ({ tempColor }) => {
           if (typeof d.mes_final === 'number') map[String(d.year)] = d.mes_final;
         });
         setMesFinalPorAnio(map);
+        // Un solo año (Víctimas Municipios hoy): "Anual" sería un punto; se pasa a Mensual y se dice
+        const anios = Object.keys(map);
+        if (anios.length === 1) {
+          setTemporalidad(prev => (prev === 'anual' ? 'mensual' : prev));
+          setApplied(prev => {
+            if (prev.temporalidad !== 'anual') return prev;
+            toast(`${NOMBRE_CONJUNTO[prev.dataset]} solo tiene ${anios[0]}: se muestra por mes`, { id: 'rankings-un-anio' });
+            return { ...prev, temporalidad: 'mensual' };
+          });
+        }
       })
       .catch(err => { if (!axios.isCancel(err)) setMesFinalPorAnio({}); });
     return () => controller.abort();
@@ -334,9 +391,12 @@ const HistoryRankings = ({ tempColor }) => {
       dataForPeriod.forEach(d => {
         obj[d.name] = d.rank;
         obj[d.name + '_total'] = d.total;
+        obj[d.name + '_n'] = d.n;
+        obj[d.name + '_emp'] = d.empatados;
       });
 
-      const top3 = dataForPeriod.filter(d => d.rank <= 3).sort((a, b) => a.rank - b.rank);
+      // Con empate en los primeros lugares llegan más de tres filas: se muestran tres
+      const top3 = dataForPeriod.filter(d => d.rank <= 3).sort((a, b) => a.rank - b.rank).slice(0, 3);
       obj._top3 = top3;
 
       return obj;
@@ -370,13 +430,21 @@ const HistoryRankings = ({ tempColor }) => {
   const corteTxt = (mes) => (mes === 'Enero' ? 'Ene' : `Ene–${mes.slice(0, 3)}`);
   const nFiltros = Object.values(applied.filters).filter(v => Array.isArray(v) && v.length > 0).length;
   const aplicadoTxt = [
-    applied.dataset === 'victimas' ? 'Víctimas' : 'Delitos',
+    NOMBRE_CONJUNTO[applied.dataset] || 'Delitos',
+    nivel === 'municipio' ? 'Municipios del país' : 'Entidades',
     applied.temporalidad === 'anual' ? 'Anual' : applied.temporalidad === 'mensual' ? 'Mensual' : `Acumulado ${corteTxt(applied.mesAcumulado)}`,
     applied.metricType === 'rate' ? 'Tasa por 100 mil hab.' : 'Cifras absolutas',
     nFiltros > 0 ? `${nFiltros} ${nFiltros === 1 ? 'filtro' : 'filtros'} de delito` : null,
   ].filter(Boolean).join(' · ');
 
+  const unAnio = aniosPub.length === 1;
+
   const handleApply = () => {
+    // Víctimas no tiene municipios: se vuelve a todo el estado y se dice
+    if (dataset === 'victimas' && selectedMunicipio) {
+      setSelectedMunicipio('');
+      toast('Se volvió a Todo el estado: Víctimas no tiene datos por municipio', { id: 'rankings-municipio' });
+    }
     setApplied({
       dataset, temporalidad, metricType, mesAcumulado, filters: { ...filters }
     });
@@ -390,26 +458,17 @@ const HistoryRankings = ({ tempColor }) => {
     });
   };
 
-  const summaryEntidad = useMemo(() => {
-    if (!chartData || chartData.length === 0) return null;
-
-    const entidadPoints = chartData.filter(d => d[selectedEntidad] !== undefined && d[selectedEntidad] !== null);
-    if (entidadPoints.length === 0) return null;
-
-    const entidadRanks = entidadPoints.map(d => d[selectedEntidad]);
-    const mejor = Math.max(...entidadRanks);
-    const peor = Math.min(...entidadRanks);
-
-    const mejorPoints = entidadPoints.filter(d => d[selectedEntidad] === mejor);
-    const peorPoints = entidadPoints.filter(d => d[selectedEntidad] === peor);
-
-    return {
-      mejor,
-      mejorItems: mejorPoints.map(p => ({ period: p.period, total: p[selectedEntidad + '_total'] })),
-      peor,
-      peorItems: peorPoints.map(p => ({ period: p.period, total: p[selectedEntidad + '_total'] }))
-    };
-  }, [chartData, selectedEntidad]);
+  // Puntos de la serie elegida: lugar, cifra, total clasificado y empate por periodo
+  const seriePuntos = useMemo(() => chartData
+    .filter(d => d[serieName] !== undefined && d[serieName] !== null)
+    .map(d => ({ period: d.period, rank: d[serieName], total: d[serieName + '_total'], n: d[serieName + '_n'], empatados: d[serieName + '_emp'] })),
+  [chartData, serieName]);
+  const summaryEntidad = useMemo(() => resumenPosiciones(seriePuntos), [seriePuntos]);
+  const ultimoPunto = seriePuntos.length > 0 ? seriePuntos[seriePuntos.length - 1] : null;
+  // Eje: 1–32 fijo para entidades; para un municipio, ajustado al lugar más bajo que alcanza
+  const eje = nivel === 'municipio'
+    ? ejeRanking(seriePuntos.reduce((mx, pt) => Math.max(mx, pt.rank), 1))
+    : { max: 32, ticks: [1, 10, 20, 32] };
 
   const formatPeriodLabel = (periodStr) => {
     if (!periodStr) return '';
@@ -425,7 +484,8 @@ const HistoryRankings = ({ tempColor }) => {
     return str;
   };
 
-  const metricLabel = applied.dataset === 'victimas' ? 'víctimas' : 'delitos';
+  const metricLabel = applied.dataset === 'delitos' ? 'delitos' : 'víctimas';
+  const empate = nivel === 'municipio' ? notaEmpate(ultimoPunto, metricLabel) : null;
 
   const formatCardValue = (val) => {
     if (val === null || val === undefined) return '';
@@ -446,7 +506,13 @@ const HistoryRankings = ({ tempColor }) => {
     return (
       <div style={{ flex: 1, backgroundColor: 'var(--bg-main)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '150px', gap: '0.15rem' }}>
         <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'center' }}>{label}</span>
-        <span className="tabular" style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-primary)' }}>#{rank}</span>
+        <span className="tabular" style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-primary)' }}>
+          #{rank}
+          {/* Municipios: "de N" = municipios clasificados en ese periodo (cambia entre años) */}
+          {nivel === 'municipio' && latest && typeof latest.n === 'number' && (
+            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}> de {latest.n.toLocaleString('es-MX')}</span>
+          )}
+        </span>
         {latest && (
           <span className="tabular" style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
             <strong style={{ color: 'var(--text-primary)' }}>{formatPeriodLabel(latest.period)}</strong>: {formatCardValue(latest.total)}
@@ -457,26 +523,28 @@ const HistoryRankings = ({ tempColor }) => {
     );
   };
 
-  const dataForExport = useMemo(() => {
-    if (!chartData || chartData.length === 0) return [];
-    return chartData.filter(d => d[selectedEntidad] !== undefined).map(d => ({
-      Periodo: d.period,
-      Entidad: selectedEntidad,
-      Ranking: d[selectedEntidad],
-      Total: d[selectedEntidad + '_total']
-    }));
-  }, [chartData, selectedEntidad]);
+  const dataForExport = useMemo(() => seriePuntos.map(pt => (nivel === 'municipio'
+    ? { Periodo: pt.period, Municipio: selectedMunicipio, Lugar: pt.rank, De: pt.n, Total: pt.total }
+    : { Periodo: pt.period, Entidad: selectedEntidad, Ranking: pt.rank, Total: pt.total })),
+  [seriePuntos, nivel, selectedMunicipio, selectedEntidad]);
+
+  const exportHeaders = () => {
+    const csvValLabel = csvValueLabel('Incidencia', metricType);
+    return nivel === 'municipio'
+      ? ["Periodo", "Municipio", "Lugar", "De", csvValLabel]
+      : ["Periodo", "Entidad", "Ranking", csvValLabel];
+  };
 
   const handleDownloadCSV = () => {
-    const csvValLabel = csvValueLabel('Incidencia', metricType);
-    const headers = ["Periodo", "Entidad", "Ranking", csvValLabel];
-    downloadCSV(`evolucion_ranking_${selectedEntidad.toLowerCase()}.csv`, dataForExport, headers, { ...applied, metricType });
+    downloadCSV(`evolucion_ranking_${serieLabel.toLowerCase().replace(/\s+/g, '_')}.csv`, dataForExport, exportHeaders(), {
+      ...applied, metricType,
+      entidad: selectedEntidad,
+      municipio: nivel === 'municipio' ? selectedMunicipio : 'All',
+    });
   };
 
   const handleCopyTable = () => {
-    const csvValLabel = csvValueLabel('Incidencia', metricType);
-    const headers = ["Periodo", "Entidad", "Ranking", csvValLabel];
-    copyTableToClipboard(dataForExport, headers);
+    copyTableToClipboard(dataForExport, exportHeaders());
   };
 
   const primaryColor = 'var(--color-accent)';
@@ -489,16 +557,16 @@ const HistoryRankings = ({ tempColor }) => {
   const CONNECTOR = 12;
   const badgeWidth = (text) => Math.ceil(String(text).length * BADGE_FS * 0.68) + 16;
   // Margen derecho según el nombre más largo posible de la entidad (con "#32")
-  const rightMargin = Math.max(90, DOT_R + CONNECTOR + badgeWidth(`${selectedEntidad.toUpperCase()} #32`) + 12);
+  const rightMargin = Math.max(90, DOT_R + CONNECTOR + badgeWidth(`${serieLabel.toUpperCase()} #${eje.max}`) + 12);
 
   const renderCustomLabel = (props) => {
     const { x, y, value, index } = props;
     if (index !== chartData.length - 1 || value === undefined || value === null) return null;
-    const text = `${selectedEntidad.toUpperCase()} #${value}`;
+    const text = `${serieLabel.toUpperCase()} #${value}`;
     const w = badgeWidth(text);
     const bx = x + DOT_R + CONNECTOR;
     return (
-      <g className="rank-badge" aria-label={`${selectedEntidad}, posición ${value} en el último periodo`}>
+      <g className="rank-badge" aria-label={`${serieLabel}, posición ${value} en el último periodo`}>
         <line x1={x} y1={y} x2={bx} y2={y} stroke={primaryColor} strokeWidth={1.5} />
         <circle cx={x} cy={y} r={DOT_R} fill={primaryColor} stroke="#ffffff" strokeWidth={1.5} />
         <rect x={bx} y={y - BADGE_H / 2} width={w} height={BADGE_H} rx={4} fill={primaryColor} />
@@ -521,9 +589,10 @@ const HistoryRankings = ({ tempColor }) => {
     >
       {isFullScreen ? (
         <FullScreenHeader
-          title={`Evolución del ranking nacional — ${selectedEntidad}`}
+          title={`Evolución del ranking nacional — ${nivel === 'municipio' ? serieName : selectedEntidad}`}
           selectedFilters={{
             entidad: selectedEntidad,
+            municipio: nivel === 'municipio' ? selectedMunicipio : undefined,
             dataset: applied.dataset,
             temporalidad: applied.temporalidad,
             mesAcumulado: applied.mesAcumulado,
@@ -533,7 +602,7 @@ const HistoryRankings = ({ tempColor }) => {
           onClose={() => setFsOpen(false)}
           returnFocusRef={fsTriggerRef}
           extraActions={
-            <ExportMenu subject={`Evolución del ranking de ${selectedEntidad}`}
+            <ExportMenu subject={`Evolución del ranking de ${serieLabel}`}
               imageFilename="evolucion_ranking"
               onDownloadCSV={handleDownloadCSV}
               onCopyTable={handleCopyTable}
@@ -545,7 +614,7 @@ const HistoryRankings = ({ tempColor }) => {
         <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border-color)', backgroundColor: 'white' }}>
           <div style={{ fontSize: 'clamp(1.05rem, 2.5vw, 1.25rem)', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem 0.5rem', flexWrap: 'wrap' }}>
-              <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>Evolución del ranking nacional de <span className="sr-only">{selectedEntidad}</span></h2>{' '}
+              <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>Evolución del ranking nacional de <span className="sr-only">{nivel === 'municipio' ? serieName : selectedEntidad}</span></h2>{' '}
               {/* Selector de entidad a la medida del nombre elegido: el texto visible es una etiqueta y el
                   <select> nativo va encima, invisible (antes medía lo que el nombre más largo de la
                   lista y dejaba la flecha lejos de "Sonora") */}
@@ -558,7 +627,7 @@ const HistoryRankings = ({ tempColor }) => {
                 </span>
               <select
                 value={selectedEntidad}
-                onChange={e => setSelectedEntidad(e.target.value)}
+                onChange={e => { setSelectedEntidad(e.target.value); if (e.target.value !== 'Sonora') setSelectedMunicipio(''); }}
                 aria-label="Entidad"
                 className="title-select-native"
               >
@@ -569,6 +638,33 @@ const HistoryRankings = ({ tempColor }) => {
                 ))}
               </select>
               </span>
+              {/* Municipio: solo con Sonora. Su lugar es entre todos los municipios del país. */}
+              {selectedEntidad === 'Sonora' && (
+                <>
+                  <span className={`title-select${conMunicipios ? '' : ' is-disabled'}`}>
+                    <span className="title-select-value" aria-hidden="true">
+                      <span className="title-select-text">{conMunicipios && selectedMunicipio ? selectedMunicipio : 'Todo el estado'}</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </span>
+                    <select
+                      value={conMunicipios ? selectedMunicipio : ''}
+                      onChange={e => setSelectedMunicipio(e.target.value)}
+                      aria-label="Municipio"
+                      aria-describedby={conMunicipios ? undefined : 'rk-mun-nota'}
+                      disabled={!conMunicipios}
+                      className="title-select-native"
+                    >
+                      <option value="">Todo el estado</option>
+                      {municipiosSonora.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </span>
+                  {!conMunicipios && (
+                    <span id="rk-mun-nota" style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-secondary)' }}>Víctimas no tiene datos por municipio</span>
+                  )}
+                </>
+              )}
               <button type="button" className="icon-btn" onClick={() => setIsModalOpen(true)} title="Cómo leer el ranking" aria-label="Cómo leer el ranking">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
               </button>
@@ -609,14 +705,15 @@ const HistoryRankings = ({ tempColor }) => {
             <select id="rk-dataset" className="input-select" value={dataset} onChange={e => setDataset(e.target.value)}>
               <option value="delitos">Delitos</option>
               <option value="victimas">Víctimas</option>
+              <option value="victimas_mun">Víctimas Municipios</option>
             </select>
           </div>
           <div style={{ flex: '1 1 min(100%, 180px)' }}>
             <label className="label-sm" htmlFor="rk-periodo">Periodo</label>
             <select id="rk-periodo" className="input-select" value={temporalidad} onChange={e => setTemporalidad(e.target.value)}>
-              <option value="anual">Anual</option>
+              <option value="anual">Anual{unAnio ? ' (un solo año)' : ''}</option>
               <option value="mensual">Mensual</option>
-              <option value="acumulado">Acumulado</option>
+              <option value="acumulado">Acumulado{unAnio ? ' (un solo año)' : ''}</option>
             </select>
           </div>
           {temporalidad === 'acumulado' && (
@@ -646,8 +743,8 @@ const HistoryRankings = ({ tempColor }) => {
           <div style={{ display: 'flex', gap: '0.5rem 1rem', flex: '1 1 300px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
             {summaryEntidad && (
               <>
-                {renderPositionCard('Mejor posición', summaryEntidad.mejor, summaryEntidad.mejorItems)}
-                {renderPositionCard('Peor posición', summaryEntidad.peor, summaryEntidad.peorItems)}
+                {renderPositionCard('Mejor posición', summaryEntidad.mejor.rank, summaryEntidad.mejor.items)}
+                {renderPositionCard('Peor posición', summaryEntidad.peor.rank, summaryEntidad.peor.items)}
               </>
             )}
             {/* Estado aplicado: lo que la gráfica muestra ahora, aunque el formulario ya diga otra cosa */}
@@ -657,7 +754,13 @@ const HistoryRankings = ({ tempColor }) => {
             </p>
             {summaryEntidad && (
               <p style={{ flexBasis: '100%', margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Escala 1–32: 1 = entidad con {applied.metricType === 'rate' ? 'mayor tasa' : 'más ' + (applied.dataset === 'delitos' ? 'delitos' : 'víctimas')} en el periodo.
+                Escala 1–{nivel === 'municipio' && ultimoPunto?.n ? ultimoPunto.n.toLocaleString('es-MX') : 32}: 1 = {nivel === 'municipio' ? 'municipio' : 'entidad'} con {applied.metricType === 'rate' ? 'mayor tasa' : 'más ' + metricLabel} en el periodo.
+              </p>
+            )}
+            {/* Empate grande: el lugar de un municipio chico se mueve por empates en cero, no por cambios reales */}
+            {empate && !cargandoSerie && (
+              <p style={{ flexBasis: '100%', margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{formatPeriodLabel(ultimoPunto.period)}:</strong> {empate}.
               </p>
             )}
           </div>
@@ -685,7 +788,7 @@ const HistoryRankings = ({ tempColor }) => {
       <div className={isFullScreen ? undefined : 'rankings-chart-area'} style={{ flex: 1, minHeight: 0, backgroundColor: '#ffffff', position: 'relative' }}>
         {!isFullScreen && (
           <div style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', zIndex: 110, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ExportMenu subject={`Evolución del ranking de ${selectedEntidad}`}
+            <ExportMenu subject={`Evolución del ranking de ${serieLabel}`}
               imageFilename="evolucion_ranking"
               onDownloadCSV={handleDownloadCSV}
               onCopyTable={handleCopyTable}
@@ -695,7 +798,7 @@ const HistoryRankings = ({ tempColor }) => {
               type="button"
               className="card-icon-btn"
               title="Ver en pantalla completa"
-              aria-label={`Ver en pantalla completa: evolución del ranking de ${selectedEntidad}`}
+              aria-label={`Ver en pantalla completa: evolución del ranking de ${serieLabel}`}
               ref={fsTriggerRef}
               onClick={() => setFsOpen(true)}
             >
@@ -714,9 +817,13 @@ const HistoryRankings = ({ tempColor }) => {
         }}>
           {error ? (
             <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />
+          ) : cargandoSerie ? (
+            <LoadingSpinner size="md" />
+          ) : (chartData.length > 0 && seriePuntos.length === 0) ? (
+            <EmptyState title={`Sin datos para ${serieLabel} con estos filtros`} detail="Prueba con otro delito o quita algún filtro." />
           ) : chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart title={`Evolución del ranking nacional de ${selectedEntidad}: ${aplicadoTxt}`} data={chartData} margin={{ top: 20, right: rightMargin, left: AXIS_GUTTER, bottom: 0 }}>
+              <LineChart title={`Evolución del ranking nacional de ${nivel === 'municipio' ? serieName : selectedEntidad}: ${aplicadoTxt}`} data={chartData} margin={{ top: 20, right: rightMargin, left: AXIS_GUTTER, bottom: 0 }}>
                 {/* Sin cuadrícula: solo las divisorias entre niveles (abajo) para no competir con ellas */}
                 <XAxis
                   dataKey="period"
@@ -754,34 +861,35 @@ const HistoryRankings = ({ tempColor }) => {
                 <YAxis
                   width={AXIS_W}
                   reversed={true}
-                  domain={[1, 32]}
-                  ticks={[1, 10, 20, 32]}
+                  domain={[1, eje.max]}
+                  ticks={eje.ticks}
                   tick={{ fill: 'var(--text-secondary)', fontSize: F(12), fontWeight: 500 }}
                   axisLine={false}
                   tickLine={false}
                   dx={-5}
                 />
-                <Tooltip isAnimationActive={false} content={<CustomTooltip metricType={applied.metricType} selectedEntidad={selectedEntidad} dataset={applied.dataset} fs={fsScale} partialYears={partialYears} />} wrapperStyle={{ zIndex: 1000 }} />
+                <Tooltip isAnimationActive={false} content={<CustomTooltip metricType={applied.metricType} selectedEntidad={serieName} nivel={nivel} dataset={applied.dataset} fs={fsScale} partialYears={partialYears} />} wrapperStyle={{ zIndex: 1000 }} />
 
                 {/* Fondo de un solo color. Divisorias entre los tres niveles (1–10, 11–20, 21–32)
                     en el corte real (10.5 y 20.5): visibles pero discretas. */}
-                <ReferenceLine y={10.5} stroke="#94a3b8" strokeWidth={1} strokeDasharray="6 4" strokeOpacity={0.85} />
-                <ReferenceLine y={20.5} stroke="#94a3b8" strokeWidth={1} strokeDasharray="6 4" strokeOpacity={0.85} />
+                {nivel === 'entidad' && <ReferenceLine y={10.5} stroke="#94a3b8" strokeWidth={1} strokeDasharray="6 4" strokeOpacity={0.85} />}
+                {nivel === 'entidad' && <ReferenceLine y={20.5} stroke="#94a3b8" strokeWidth={1} strokeDasharray="6 4" strokeOpacity={0.85} />}
                 <Customized component={<AxisDirection axisWidth={AXIS_W} gutter={AXIS_GUTTER} fontSize={F(12)} />} />
 
                 {/* Solo la entidad elegida: las 31 líneas de fondo formaban una trama de cruces
                     (en un ranking siempre ocupan todas las posiciones) y se retiraron. */}
                 {/* Render active line always on top */}
-                {lineNames.includes(selectedEntidad) && (
+                {lineNames.includes(serieName) && (
                   <Line
-                    key={selectedEntidad}
+                    key={serieName}
                     type="monotone"
-                    dataKey={selectedEntidad}
-                    name={selectedEntidad}
+                    dataKey={serieName}
+                    name={serieName}
                     stroke={primaryColor}
                     strokeWidth={isFullScreen ? 4.5 : 3}
                     strokeOpacity={1}
-                    dot={false}
+                    // Un solo periodo (conjunto de un año en Anual): el punto, porque no hay línea que trazar
+                    dot={seriePuntos.length === 1 ? { r: 5, fill: primaryColor, stroke: '#ffffff', strokeWidth: 1.5 } : false}
                     activeDot={{ r: 6, fill: primaryColor }}
                     // Trazo de izquierda a derecha: comunica la evolución en el tiempo.
                     // Se omite con "reducir movimiento"; el rótulo final aparece al terminar.
