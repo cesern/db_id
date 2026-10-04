@@ -237,6 +237,50 @@ def imprimir_resumen(r: ResultadoAnalisis, tam_parquet_mb: float, nombre: str) -
     print(f"  {'═'*60}")
 
 
+# ── Nombres de municipio: un solo nombre por clave ───────────────────────────
+def unificar_nombres_municipio(df: pd.DataFrame, col_clave: str = "Cve. Municipio",
+                               col_nombre: str = "Municipio", col_anio: str = "Año") -> tuple[pd.DataFrame, list]:
+    """Deja cada clave de municipio con el nombre de su año más reciente.
+
+    La fuente cambia de catálogo entre años ("Alamos" -> "Álamos", "Cintalapa" -> "Cintalapa de
+    Figueroa") sin cambiar la clave; como el tablero filtra por nombre, la serie quedaba partida.
+    La clave es la identidad y el nombre vigente es el del último año.
+
+    No se tocan las claves terminadas en 999 ("Otros Municipios" / "No especificado": pueden ser
+    categorías distintas) ni las que tienen más de un nombre en su último año (ambiguas).
+    Devuelve (df, cambios); cada cambio es {clave, antes, ahora, anio_min, anio_max}.
+    """
+    if not {col_clave, col_nombre, col_anio}.issubset(df.columns):
+        return df, []
+
+    pares = df[[col_clave, col_nombre, col_anio]].dropna().drop_duplicates()
+    claves_num = pd.to_numeric(pares[col_clave], errors="coerce")
+    pares = pares[claves_num.notna() & (claves_num % 1000 != 999)]
+
+    # Nombre vigente: el del año más reciente de cada clave, solo si ahí es único
+    ultimo = pares[pares[col_anio] == pares.groupby(col_clave)[col_anio].transform("max")]
+    unicos = ultimo.groupby(col_clave)[col_nombre].nunique()
+    vigente = (ultimo[ultimo[col_clave].isin(unicos[unicos == 1].index)]
+               .drop_duplicates(col_clave).set_index(col_clave)[col_nombre].astype(str))
+
+    viejos = pares[pares[col_clave].isin(vigente.index)]
+    viejos = viejos[viejos[col_nombre].astype(str) != viejos[col_clave].map(vigente)]
+    if viejos.empty:
+        return df, []
+
+    cambios = [
+        {"clave": int(clave), "antes": str(antes), "ahora": vigente[clave],
+         "anio_min": int(g[col_anio].min()), "anio_max": int(g[col_anio].max())}
+        for (clave, antes), g in viejos.groupby([col_clave, col_nombre], observed=True)
+    ]
+
+    out = df.copy()
+    mask = out[col_clave].isin(viejos[col_clave].unique())
+    out[col_nombre] = out[col_nombre].astype(object)
+    out.loc[mask, col_nombre] = out.loc[mask, col_clave].map(vigente)
+    return out, cambios
+
+
 # ── Función principal de conversión ──────────────────────────────────────────
 def convertir_csv(ruta_csv: Path, columnas_id: list, salida_parquet: Path, nombre: str) -> bool:
     """Lee un CSV con meses como columnas, aplica análisis de tipos y guarda como Parquet."""
@@ -326,6 +370,13 @@ def convertir_csv(ruta_csv: Path, columnas_id: list, salida_parquet: Path, nombr
 
     t_lectura = time.time() - inicio
     print(f"  Filas leídas      : {len(df):,}  ({t_lectura:.1f}s)")
+
+    # Un solo nombre por clave de municipio (el del año más reciente)
+    df, cambios = unificar_nombres_municipio(df)
+    if cambios:
+        print(f"  Nombres de municipio unificados: {len(cambios)}")
+        for c in sorted(cambios, key=lambda c: c["clave"]):
+            print(f"    {c['clave']}: {c['antes']} -> {c['ahora']} ({c['anio_min']}–{c['anio_max']})")
 
     val_col = "Víctimas" if "víct" in nombre.lower() or "vict" in nombre.lower() else "Incidencia"
 
