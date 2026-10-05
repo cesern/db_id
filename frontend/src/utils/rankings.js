@@ -18,16 +18,18 @@ export const ejeRanking = (maxLugar) => {
  * Mejor y peor posición de una serie [{ period, rank, total, n }].
  * "Mejor" = lugar numérico más alto (menos incidencia); "peor" = el más bajo (más incidencia).
  * Cada una lleva todos los periodos en que se alcanzó. Serie vacía = null.
+ * La peor sale solo de periodos con casos (si los hay): con cifra 0 el lugar es un empate, no un mal periodo.
  */
 export const resumenPosiciones = (serie) => {
   const puntos = (Array.isArray(serie) ? serie : []).filter(p => typeof p?.rank === 'number');
   if (puntos.length === 0) return null;
   const lugares = puntos.map(p => p.rank);
+  const conCasos = puntos.filter(p => p.total > 0).map(p => p.rank);
   const armar = (rank) => ({
     rank,
     items: puntos.filter(p => p.rank === rank).map(({ period, total, n }) => ({ period, total, n })),
   });
-  return { mejor: armar(Math.max(...lugares)), peor: armar(Math.min(...lugares)) };
+  return { mejor: armar(Math.max(...lugares)), peor: armar(Math.min(...(conCasos.length > 0 ? conCasos : lugares))) };
 };
 
 // Desde cuántos municipios en el mismo lugar se avisa (contando al propio)

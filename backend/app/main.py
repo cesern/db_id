@@ -72,12 +72,33 @@ MES_NUM = {m: i for i, m in enumerate(
     ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto',
      'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'], start=1)}
 # Filas de municipio que no son un municipio: no se clasifican en el ranking
-NO_MUNICIPIO = {"No especificado", "Otros Municipios"}
+# (se compara sin mayúsculas: el SESNSP escribe "No especificado" y "No Especificado")
+NO_MUNICIPIO = {"no especificado", "otros municipios"}
+# {dataset: df[Año, Entidad, Municipio]} sin población CONAPO; se calcula al primer uso
+CACHE_SIN_POB = {}
+
+def _no_municipio(serie):
+    """Máscara de las filas cuyo "municipio" es una categoría residual."""
+    return serie.astype(str).str.strip().str.casefold().isin(NO_MUNICIPIO)
+
+def _municipios_sin_poblacion(dataset):
+    """Municipios (por año) sin población: en tasa no se clasifican."""
+    if dataset.value not in CACHE_SIN_POB:
+        CACHE_SIN_POB[dataset.value] = db.cursor().execute(f"""
+            SELECT a.anio AS "Año", a.Entidad, a.Municipio
+            FROM (SELECT "Año" AS anio, Entidad, Municipio, MAX("Cve. Municipio") AS cve
+                  FROM {dataset.value} GROUP BY 1, 2, 3) a
+            LEFT JOIN (SELECT AÑO, CLAVE, MAX(POB_MIT_MUN) AS pop FROM poblacion GROUP BY AÑO, CLAVE) p
+              ON p.AÑO = a.anio AND p.CLAVE = a.cve
+            WHERE COALESCE(p.pop, 0) <= 0
+        """).df()
+    return CACHE_SIN_POB[dataset.value]
 
 def reload_duckdb_views(strict: bool = False):
     """Recrea las vistas y caches. Con `strict`, un error en los caches se relanza
     (lo usa el admin para revertir una publicación que deja el tablero roto)."""
     global CACHE_POB_DF, CACHE_ENT_MAP, CACHE_MERGED_POP, CACHE_MUN_MAP, CACHE_MUN_POB_DF, CACHE_ANIO_RECIENTE, CACHE_MES_FINAL, CACHE_CATALOGO
+    CACHE_SIN_POB.clear()
     # Drop existing views to recreate them
     views_to_drop = ["delitos", "victimas", "victimas_mun", "poblacion"]
     for v in views_to_drop:
@@ -272,14 +293,20 @@ def _periodos_publicados(dataset: DatasetEnum, temporalidad: str, meses: Optiona
             out[anio] = [str(anio)]
     return out
 
-def _completar_ranking_municipios(dataset: DatasetEnum, df, temporalidad: str, meses: Optional[str]):
+def _completar_ranking_municipios(dataset: DatasetEnum, df, temporalidad: str, meses: Optional[str], metric_type: str = "absolute"):
     """Ranking municipal: los municipios del catálogo sin fila entran con total 0 en cada periodo
     publicado (victimas_mun no trae ceros; sin esto "de N" contaría solo a los que tienen filas)."""
     cat = CACHE_CATALOGO.get(dataset.value, {}).get("municipios")
     periodos = _periodos_publicados(dataset, temporalidad, meses)
     if cat is None or not periodos:
         return df
-    cat = cat[~cat['Municipio'].isin(NO_MUNICIPIO)]
+    cat = cat[~_no_municipio(cat['Municipio'])]
+    if metric_type == "rate":
+        # Sin población no hay tasa: tampoco entran con 0 por el relleno
+        sin_pob = _municipios_sin_poblacion(dataset)
+        if not sin_pob.empty:
+            marca = cat.merge(sin_pob.astype({'Año': cat['Año'].dtype}), on=['Año', 'Entidad', 'Municipio'], how='left', indicator=True)
+            cat = marca[marca['_merge'] == 'left_only'].drop(columns='_merge')
     per = pd.DataFrame([(a, pp) for a, lista in periodos.items() for pp in lista], columns=['Año', 'period'])
     rejilla = cat.merge(per, on='Año')[['period', 'Año', 'Entidad', 'Municipio']]
     if len(rejilla) <= len(df):
@@ -972,15 +999,15 @@ async def obtener_ranking_historico(
 
     if nivel == "municipio":
         # "No especificado" y "Otros Municipios" no son municipios
-        df_res = df_res[~df_res['Municipio'].isin(NO_MUNICIPIO)]
+        df_res = df_res[~_no_municipio(df_res['Municipio'])]
         if metric_type == "rate":
             # Sin población CONAPO no hay tasa: el municipio queda fuera del ranking (no entra con 0)
             df_res = df_res[df_res['population'] > 0]
 
     if metric_type == "rate":
-        df_res['total'] = df_res.apply(
-            lambda r: (r['total'] / r['population']) * 100000 if r['population'] > 0 else 0.0, axis=1
-        )
+        # Vectorizado: fila por fila tardaba ~5 s en el ranking mensual de municipios
+        con_pob = df_res['population'] > 0
+        df_res['total'] = (df_res['total'] / df_res['population'].where(con_pob) * 100000).fillna(0.0)
 
     df_nonzero = df_res[df_res['total'] > 0]
     if df_nonzero.empty:
@@ -991,7 +1018,9 @@ async def obtener_ranking_historico(
         validos = {pp for lista in _periodos_publicados(dataset, temporalidad, meses).values() for pp in lista}
         if validos:
             df_res = df_res[df_res['period'].isin(validos)]
-            df_res = _completar_ranking_municipios(dataset, df_res, temporalidad, meses)
+            df_res = _completar_ranking_municipios(dataset, df_res, temporalidad, meses, metric_type)
+            # Periodo publicado sin un solo caso en el país: no hay ranking (todos empatarían en el lugar 1)
+            df_res = df_res[df_res.groupby('period')['total'].transform('max') > 0]
         else:
             df_res = df_res[df_res['period'] <= df_nonzero['period'].max()]
     else:
@@ -1007,7 +1036,8 @@ async def obtener_ranking_historico(
     
     if nivel == "municipio":
         is_sonora = df_res['name'].str.endswith(', Sonora')
-        is_top3 = df_res['rank'] <= 3
+        # Los primeros lugares solo con casos: con pocos municipios con cifra, el resto empata en cero
+        is_top3 = (df_res['rank'] <= 3) & (df_res['total'] > 0)
         df_res_sonora = df_res[is_sonora]
         
         if municipios_sonora:

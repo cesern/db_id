@@ -30,3 +30,15 @@ test('notaEmpate solo desde 10 empatados', () => {
   assert.equal(notaEmpate({ empatados: 1200, total: 3 }, 'delitos'), '1,200 municipios comparten este lugar');
   assert.equal(notaEmpate(null, 'delitos'), null);
 });
+
+test('resumenPosiciones: la peor posición no sale de un periodo en cero si hubo periodos con casos', () => {
+  const serie = [
+    { period: '2026-01', rank: 2, total: 0, n: 2478 },      // casi nadie tuvo casos: empate en el lugar 2
+    { period: '2026-02', rank: 40, total: 3, n: 2478 },
+    { period: '2026-03', rank: 900, total: 0, n: 2478 },
+  ];
+  const r = resumenPosiciones(serie);
+  assert.equal(r.peor.rank, 40);
+  assert.equal(r.mejor.rank, 900);
+  assert.equal(resumenPosiciones([{ period: '2026-01', rank: 5, total: 0, n: 10 }]).peor.rank, 5);
+});

@@ -13,7 +13,7 @@ def test_lugar_coincide_con_la_tabla_nacional(make_client):
     c = make_client({})
     punto = next(f for f in _serie(c, "Cajeme, Sonora") if f["period"] == "2025")
     tabla = c.get("/api/incidencia_por_municipio", params={"dataset": "delitos", "anio": 2025}).json()
-    reales = [m for m in tabla if m["municipio"] not in ("No especificado", "Otros Municipios")]
+    reales = [m for m in tabla if m["municipio"].casefold() not in ("no especificado", "otros municipios")]
     cajeme = next(m for m in reales if m["name"] == "Cajeme, Sonora")
     assert punto["total"] == cajeme["value"]
     assert punto["rank"] == 1 + sum(1 for m in reales if m["value"] > cajeme["value"])
@@ -72,3 +72,25 @@ def test_entidad_conserva_rank_y_total(make_client):
     ref = next(e for e in tabla if e["name"] == "Sonora")
     assert (sonora["rank"], sonora["total"]) == (ref["id"], ref["value"])
     assert sonora["n"] == 32
+
+
+def test_tasa_deja_fuera_a_los_municipios_sin_poblacion(make_client):
+    c = make_client({})
+    abs_ = next(f for f in _serie(c, "Cajeme, Sonora") if f["period"] == "2025")
+    tasa = next(f for f in _serie(c, "Cajeme, Sonora", metric_type="rate") if f["period"] == "2025")
+    assert tasa["n"] < abs_["n"]                 # 2025 tiene municipios sin población CONAPO
+
+
+def test_no_especificado_con_cualquier_grafia_queda_fuera(make_client):
+    c = make_client({})
+    nombres = {f["name"].split(",")[0].casefold() for f in c.get(RK, params=BASE).json()}
+    assert "no especificado" not in nombres
+
+
+def test_mes_sin_casos_en_el_pais_no_pone_a_todos_en_primer_lugar(make_client):
+    c = make_client({})
+    filas = c.get(RK, params={"dataset": "victimas_mun", "nivel": "municipio", "temporalidad": "mensual",
+                              "subtipoDelito": "Incesto", "municipios_sonora": "Cajeme"}).json()
+    assert len(filas) < 500
+    assert not [f for f in filas if f["rank"] == 1 and f["total"] == 0]
+    assert all(f["total"] > 0 for f in filas if f["name"] != "Cajeme, Sonora")   # el top 3 solo con casos

@@ -238,7 +238,10 @@ const HistoryRankings = ({ tempColor }) => {
   // A qué consulta corresponden los datos cargados: mientras no coincida con lo elegido, está cargando
   const reqKey = `${nivel}|${nivel === 'municipio' ? selectedMunicipio : ''}`;
   const [dataKey, setDataKey] = useState('entidad|');
-  const cargandoSerie = dataKey !== reqKey;
+  // Lo aplicado con que se pidieron los datos en pantalla: rótulos, unidades y CSV salen de aquí,
+  // no de `applied` (que cambia antes de que llegue la respuesta)
+  const [shown, setShown] = useState(applied);
+  const cargandoSerie = dataKey !== reqKey || shown !== applied;
 
   const [options, setOptions] = useState({
     entidades: ['Sonora'],
@@ -321,6 +324,7 @@ const HistoryRankings = ({ tempColor }) => {
         const res = await axios.get(`${API_URL}/api/ranking_historico`, { params, signal: controller.signal });
         setRankingData(Array.isArray(res.data) ? res.data : []);
         setDataKey(reqKey);
+        setShown(applied);
         setError(false);
       } catch (err) {
         if (axios.isCancel(err)) return; // reemplazada por una consulta más nueva
@@ -428,12 +432,12 @@ const HistoryRankings = ({ tempColor }) => {
   // Lo que la gráfica muestra AHORA (lo aplicado), aunque el formulario ya diga otra cosa
   const MESES_LISTA = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   const corteTxt = (mes) => (mes === 'Enero' ? 'Ene' : `Ene–${mes.slice(0, 3)}`);
-  const nFiltros = Object.values(applied.filters).filter(v => Array.isArray(v) && v.length > 0).length;
+  const nFiltros = Object.values(shown.filters).filter(v => Array.isArray(v) && v.length > 0).length;
   const aplicadoTxt = [
-    NOMBRE_CONJUNTO[applied.dataset] || 'Delitos',
+    NOMBRE_CONJUNTO[shown.dataset] || 'Delitos',
     nivel === 'municipio' ? 'Municipios del país' : 'Entidades',
-    applied.temporalidad === 'anual' ? 'Anual' : applied.temporalidad === 'mensual' ? 'Mensual' : `Acumulado ${corteTxt(applied.mesAcumulado)}`,
-    applied.metricType === 'rate' ? 'Tasa por 100 mil hab.' : 'Cifras absolutas',
+    shown.temporalidad === 'anual' ? 'Anual' : shown.temporalidad === 'mensual' ? 'Mensual' : `Acumulado ${corteTxt(shown.mesAcumulado)}`,
+    shown.metricType === 'rate' ? 'Tasa por 100 mil hab.' : 'Cifras absolutas',
     nFiltros > 0 ? `${nFiltros} ${nFiltros === 1 ? 'filtro' : 'filtros'} de delito` : null,
   ].filter(Boolean).join(' · ');
 
@@ -484,12 +488,12 @@ const HistoryRankings = ({ tempColor }) => {
     return str;
   };
 
-  const metricLabel = applied.dataset === 'delitos' ? 'delitos' : 'víctimas';
+  const metricLabel = shown.dataset === 'delitos' ? 'delitos' : 'víctimas';
   const empate = nivel === 'municipio' ? notaEmpate(ultimoPunto, metricLabel) : null;
 
   const formatCardValue = (val) => {
     if (val === null || val === undefined) return '';
-    if (applied.metricType === 'rate') {
+    if (shown.metricType === 'rate') {
       const num = Number(val);
       const formatted = num % 1 === 0 ? num.toLocaleString('es-MX') : num.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       return `${formatted} por 100 mil hab.`;
@@ -529,7 +533,7 @@ const HistoryRankings = ({ tempColor }) => {
   [seriePuntos, nivel, selectedMunicipio, selectedEntidad]);
 
   const exportHeaders = () => {
-    const csvValLabel = csvValueLabel('Incidencia', metricType);
+    const csvValLabel = csvValueLabel('Incidencia', shown.metricType);
     return nivel === 'municipio'
       ? ["Periodo", "Municipio", "Lugar", "De", csvValLabel]
       : ["Periodo", "Entidad", "Ranking", csvValLabel];
@@ -537,7 +541,9 @@ const HistoryRankings = ({ tempColor }) => {
 
   const handleDownloadCSV = () => {
     downloadCSV(`evolucion_ranking_${serieLabel.toLowerCase().replace(/\s+/g, '_')}.csv`, dataForExport, exportHeaders(), {
-      ...applied, metricType,
+      ...shown, ...shown.filters,
+      periodoRanking: shown.temporalidad === 'anual' ? 'Anual' : shown.temporalidad === 'mensual' ? 'Mensual' : `Acumulado ${corteTxt(shown.mesAcumulado)}`,
+      comparacion: nivel === 'municipio' ? 'Municipios del país' : 'Entidades del país',
       entidad: selectedEntidad,
       municipio: nivel === 'municipio' ? selectedMunicipio : 'All',
     });
@@ -593,10 +599,10 @@ const HistoryRankings = ({ tempColor }) => {
           selectedFilters={{
             entidad: selectedEntidad,
             municipio: nivel === 'municipio' ? selectedMunicipio : undefined,
-            dataset: applied.dataset,
-            temporalidad: applied.temporalidad,
-            mesAcumulado: applied.mesAcumulado,
-            filters: applied.filters
+            dataset: shown.dataset,
+            temporalidad: shown.temporalidad,
+            mesAcumulado: shown.mesAcumulado,
+            filters: shown.filters
           }}
           metricType={metricType}
           onClose={() => setFsOpen(false)}
@@ -754,7 +760,7 @@ const HistoryRankings = ({ tempColor }) => {
             </p>
             {summaryEntidad && (
               <p style={{ flexBasis: '100%', margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Escala 1–{nivel === 'municipio' && ultimoPunto?.n ? ultimoPunto.n.toLocaleString('es-MX') : 32}: 1 = {nivel === 'municipio' ? 'municipio' : 'entidad'} con {applied.metricType === 'rate' ? 'mayor tasa' : 'más ' + metricLabel} en el periodo.
+                Escala 1–{nivel === 'municipio' && ultimoPunto?.n ? ultimoPunto.n.toLocaleString('es-MX') : 32}: 1 = {nivel === 'municipio' ? 'municipio' : 'entidad'} con {shown.metricType === 'rate' ? 'mayor tasa' : 'más ' + metricLabel} en el periodo.
               </p>
             )}
             {/* Empate grande: el lugar de un municipio chico se mueve por empates en cero, no por cambios reales */}
@@ -868,7 +874,7 @@ const HistoryRankings = ({ tempColor }) => {
                   tickLine={false}
                   dx={-5}
                 />
-                <Tooltip isAnimationActive={false} content={<CustomTooltip metricType={applied.metricType} selectedEntidad={serieName} nivel={nivel} dataset={applied.dataset} fs={fsScale} partialYears={partialYears} />} wrapperStyle={{ zIndex: 1000 }} />
+                <Tooltip isAnimationActive={false} content={<CustomTooltip metricType={shown.metricType} selectedEntidad={serieName} nivel={nivel} dataset={shown.dataset} fs={fsScale} partialYears={partialYears} />} wrapperStyle={{ zIndex: 1000 }} />
 
                 {/* Fondo de un solo color. Divisorias entre los tres niveles (1–10, 11–20, 21–32)
                     en el corte real (10.5 y 20.5): visibles pero discretas. */}

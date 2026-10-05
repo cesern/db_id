@@ -22,7 +22,10 @@ export const downloadCSV = (filename, data, headers, filters) => {
       const names = filters.altoImpacto.map(t => parseCapsule(t).name);
       csvContent += `Delitos de alto impacto,${names.join(' | ')}\n`;
     }
-    csvContent += `Año,${filters.anio || 'Todos'}\n`;
+    // Rankings no filtra por año ni meses: declara su periodo y contra quién se compara
+    if (filters.periodoRanking) csvContent += `Periodo,${filters.periodoRanking}\n`;
+    else csvContent += `Año,${filters.anio || 'Todos'}\n`;
+    if (filters.comparacion) csvContent += `Comparación,${filters.comparacion}\n`;
     csvContent += `Métrica,${metricLabel(filters.metricType)}\n`;
     csvContent += `Entidad,${filters.entidad === 'All' ? 'Nacional' : filters.entidad}\n`;
     if (dataset !== 'victimas') {
@@ -38,7 +41,7 @@ export const downloadCSV = (filename, data, headers, filters) => {
       csvContent += `Rango de edad,${(filters.rangoEdad && filters.rangoEdad.length > 0) ? filters.rangoEdad.join(' | ') : 'Todos'}\n`;
     }
     
-    csvContent += `Meses,${(filters.meses && filters.meses.length > 0) ? filters.meses.join(' | ') : 'Todos'}\n`;
+    if (!filters.periodoRanking) csvContent += `Meses,${(filters.meses && filters.meses.length > 0) ? filters.meses.join(' | ') : 'Todos'}\n`;
     // Búsqueda de la tabla: el archivo trae solo las filas que coinciden, y lo dice
     if (filters.busquedaTabla) {
       csvContent += `Búsqueda en la tabla,"${String(filters.busquedaTabla).replace(/"/g, '""')}"\n`;
