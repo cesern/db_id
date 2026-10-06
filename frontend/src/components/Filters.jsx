@@ -10,6 +10,7 @@ import { PREFERS_REDUCED_MOTION } from '../utils/motion';
 import { useExitAnimation } from '../utils/useExitAnimation';
 import MonthStrip from './MonthStrip';
 import MultiSelectDropdown from './MultiSelectDropdown';
+import SearchableSelect from './SearchableSelect';
 
 
 // ── Utilidad: contar diferencias entre selectedFilters y appliedFilters ─────────
@@ -709,34 +710,27 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
             </div>
             
             <div style={{ flex: '1 1 200px', maxWidth: '300px' }}>
-              <label className="label-sm" htmlFor="f-entidad">Entidad</label>
-              <select id="f-entidad" className="input-select" value={selectedFilters.entidad} onChange={e => handleChange('entidad', e.target.value)}>
-                <option value="All">Nacional</option>
-                {filtrosOpciones.entidades.map(e_name => <option key={e_name} value={e_name}>{e_name}</option>)}
-              </select>
+              <label className="label-sm" id="f-entidad-label" htmlFor="f-entidad">Entidad</label>
+              <SearchableSelect
+                id="f-entidad" labelId="f-entidad-label" ariaLabel="Entidad"
+                value={selectedFilters.entidad}
+                options={[{ value: 'All', label: 'Nacional' }, ...filtrosOpciones.entidades.map(n => ({ value: n, label: n }))]}
+                onChange={v => handleChange('entidad', v)}
+              />
             </div>
             
             {dataset !== 'victimas' && (
               <div style={{ flex: '1 1 200px', maxWidth: '300px' }}>
-                <label className="label-sm" htmlFor="f-municipio">Municipio</label>
-                <select 
-                  className="input-select" 
-                  id="f-municipio"
-                  value={selectedFilters.municipio || "All"} 
-                  onChange={e => handleChange('municipio', e.target.value)}
+                <label className="label-sm" id="f-municipio-label" htmlFor="f-municipio">Municipio</label>
+                <SearchableSelect
+                  id="f-municipio" labelId="f-municipio-label" ariaLabel="Municipio"
+                  value={selectedFilters.municipio || 'All'}
                   disabled={selectedFilters.entidad === 'All'}
-                >
-                  {selectedFilters.entidad === 'All' ? (
-                    <option value="All">Selecciona una entidad</option>
-                  ) : (
-                    <>
-                      <option value="All">Todos los municipios</option>
-                      {(filtrosOpciones.municipios || []).map(m_name => (
-                        <option key={m_name} value={m_name}>{m_name}</option>
-                      ))}
-                    </>
-                  )}
-                </select>
+                  options={selectedFilters.entidad === 'All'
+                    ? [{ value: 'All', label: 'Selecciona una entidad' }]
+                    : [{ value: 'All', label: 'Todos los municipios' }, ...(filtrosOpciones.municipios || []).map(n => ({ value: n, label: n }))]}
+                  onChange={v => handleChange('municipio', v)}
+                />
               </div>
             )}
           </div>

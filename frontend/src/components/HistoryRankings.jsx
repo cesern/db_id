@@ -13,6 +13,7 @@ import { useDialogFocus } from '../utils/useDialogFocus';
 import { toast } from 'sonner';
 import { ejeRanking, resumenPosiciones, notaEmpate } from '../utils/rankings';
 import MultiSelectDropdown from './MultiSelectDropdown';
+import SearchableSelect from './SearchableSelect';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
 
@@ -624,48 +625,22 @@ const HistoryRankings = ({ tempColor }) => {
               {/* Selector de entidad a la medida del nombre elegido: el texto visible es una etiqueta y el
                   <select> nativo va encima, invisible (antes medía lo que el nombre más largo de la
                   lista y dejaba la flecha lejos de "Sonora") */}
-              <span className="title-select">
-                <span className="title-select-value" aria-hidden="true">
-                  <span className="title-select-text">{selectedEntidad}</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </span>
-              <select
-                value={selectedEntidad}
-                onChange={e => { setSelectedEntidad(e.target.value); if (e.target.value !== 'Sonora') setSelectedMunicipio(''); }}
-                aria-label="Entidad"
-                className="title-select-native"
-              >
-                {(options.entidades || []).map(ent => (
-                  <option key={ent} value={ent} style={{ fontSize: '0.875rem', fontWeight: 'normal', color: 'var(--text-primary)', background: 'white' }}>
-                    {ent}
-                  </option>
-                ))}
-              </select>
-              </span>
+              <SearchableSelect
+                variant="pill" ariaLabel="Entidad" value={selectedEntidad}
+                options={(options.entidades || []).map(ent => ({ value: ent, label: ent }))}
+                onChange={v => { setSelectedEntidad(v); if (v !== 'Sonora') setSelectedMunicipio(''); }}
+              />
               {/* Municipio: solo con Sonora. Su lugar es entre todos los municipios del país. */}
               {selectedEntidad === 'Sonora' && (
                 <>
-                  <span className={`title-select${conMunicipios ? '' : ' is-disabled'}`}>
-                    <span className="title-select-value" aria-hidden="true">
-                      <span className="title-select-text">{conMunicipios && selectedMunicipio ? selectedMunicipio : 'Todo el estado'}</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M6 9l6 6 6-6" />
-                      </svg>
-                    </span>
-                    <select
-                      value={conMunicipios ? selectedMunicipio : ''}
-                      onChange={e => setSelectedMunicipio(e.target.value)}
-                      aria-label="Municipio"
-                      aria-describedby={conMunicipios ? undefined : 'rk-mun-nota'}
-                      disabled={!conMunicipios}
-                      className="title-select-native"
-                    >
-                      <option value="">Todo el estado</option>
-                      {municipiosSonora.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </span>
+                  <SearchableSelect
+                    variant="pill" ariaLabel="Municipio"
+                    value={conMunicipios ? selectedMunicipio : ''}
+                    disabled={!conMunicipios}
+                    describedBy={conMunicipios ? undefined : 'rk-mun-nota'}
+                    options={[{ value: '', label: 'Todo el estado' }, ...(conMunicipios ? municipiosSonora : []).map(m => ({ value: m, label: m }))]}
+                    onChange={setSelectedMunicipio}
+                  />
                   {!conMunicipios && (
                     <span id="rk-mun-nota" style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-secondary)' }}>Víctimas no tiene datos por municipio</span>
                   )}

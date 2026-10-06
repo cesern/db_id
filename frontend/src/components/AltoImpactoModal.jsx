@@ -1,3 +1,4 @@
+import SearchableSelect from './SearchableSelect';
 import React, { useState, useEffect, useId, useRef } from 'react';
 import axios from 'axios';
 import { API_URL } from '../api';
@@ -160,32 +161,40 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div>
-            <label className="label-sm" htmlFor="ai-bien">Bien jurídico afectado</label>
-            <select ref={firstFieldRef} className="input-select" style={selectStyle} id="ai-bien" value={bien} onChange={e => { setBien(e.target.value); setTipo(''); setSubtipo(''); setModalidad(''); }}>
-              <option value="">Todos</option>
-              {opciones.bienesJuridicos.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
+            <label className="label-sm" id="ai-bien-label" htmlFor="ai-bien">Bien jurídico afectado</label>
+            <SearchableSelect
+              id="ai-bien" labelId="ai-bien-label" ariaLabel="Bien jurídico afectado" style={selectStyle} selectRef={firstFieldRef}
+              value={bien}
+              options={[{ value: '', label: 'Todos' }, ...opciones.bienesJuridicos.map(o => ({ value: o, label: o }))]}
+              onChange={v => { setBien(v); setTipo(''); setSubtipo(''); setModalidad(''); }}
+            />
           </div>
           <div>
-            <label className="label-sm" htmlFor="ai-tipo">Tipo de delito</label>
-            <select className="input-select" style={selectStyle} id="ai-tipo" value={tipo} onChange={e => { setTipo(e.target.value); setSubtipo(''); setModalidad(''); }} disabled={!bien}>
-              <option value="">{bien ? 'Todos' : 'Elige primero un bien jurídico'}</option>
-              {opciones.tiposDelito.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
+            <label className="label-sm" id="ai-tipo-label" htmlFor="ai-tipo">Tipo de delito</label>
+            <SearchableSelect
+              id="ai-tipo" labelId="ai-tipo-label" ariaLabel="Tipo de delito" style={selectStyle}
+              value={tipo} disabled={!bien}
+              options={[{ value: '', label: bien ? 'Todos' : 'Elige primero un bien jurídico' }, ...opciones.tiposDelito.map(o => ({ value: o, label: o }))]}
+              onChange={v => { setTipo(v); setSubtipo(''); setModalidad(''); }}
+            />
           </div>
           <div>
-            <label className="label-sm" htmlFor="ai-subtipo">Subtipo de delito</label>
-            <select className="input-select" style={selectStyle} id="ai-subtipo" value={subtipo} onChange={e => { setSubtipo(e.target.value); setModalidad(''); }} disabled={!tipo}>
-              <option value="">{tipo ? 'Todos' : 'Elige primero un tipo'}</option>
-              {opciones.subtiposDelito.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
+            <label className="label-sm" id="ai-subtipo-label" htmlFor="ai-subtipo">Subtipo de delito</label>
+            <SearchableSelect
+              id="ai-subtipo" labelId="ai-subtipo-label" ariaLabel="Subtipo de delito" style={selectStyle}
+              value={subtipo} disabled={!tipo}
+              options={[{ value: '', label: tipo ? 'Todos' : 'Elige primero un tipo' }, ...opciones.subtiposDelito.map(o => ({ value: o, label: o }))]}
+              onChange={v => { setSubtipo(v); setModalidad(''); }}
+            />
           </div>
           <div>
-            <label className="label-sm" htmlFor="ai-modalidad">Modalidad</label>
-            <select className="input-select" style={selectStyle} id="ai-modalidad" value={modalidad} onChange={e => setModalidad(e.target.value)} disabled={!subtipo}>
-              <option value="">{subtipo ? 'Todas' : 'Elige primero un subtipo'}</option>
-              {opciones.modalidades.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
+            <label className="label-sm" id="ai-modalidad-label" htmlFor="ai-modalidad">Modalidad</label>
+            <SearchableSelect
+              id="ai-modalidad" labelId="ai-modalidad-label" ariaLabel="Modalidad" style={selectStyle}
+              value={modalidad} disabled={!subtipo}
+              options={[{ value: '', label: subtipo ? 'Todas' : 'Elige primero un subtipo' }, ...opciones.modalidades.map(o => ({ value: o, label: o }))]}
+              onChange={setModalidad}
+            />
           </div>
           <div>
             <label className="label-sm" htmlFor="ai-nombre">Nombre del delito</label>
