@@ -245,6 +245,9 @@ const HistoryRankings = ({ tempColor }) => {
   const cargandoSerie = dataKey !== reqKey || shown !== applied;
   // Marcas del lugar peor y mejor sobre la línea: apagadas al entrar
   const [marcas, setMarcas] = useState({ peor: false, mejor: false });
+  // Ancho de la gráfica: con poco espacio por periodo se muestra una marca de cada k (siempre el último)
+  const chartBoxRef = useRef(null);
+  const [anchoGrafica, setAnchoGrafica] = useState(0);
 
   const [options, setOptions] = useState({
     entidades: ['Sonora'],
@@ -279,6 +282,14 @@ const HistoryRankings = ({ tempColor }) => {
     };
     fetchOptions();
   }, [applied]);
+
+  useEffect(() => {
+    const el = chartBoxRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(([e]) => setAnchoGrafica(Math.round(e.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     if (applied.dataset === 'victimas') return undefined; // sin municipios: el selector queda deshabilitado
@@ -474,8 +485,11 @@ const HistoryRankings = ({ tempColor }) => {
   const ultimoPunto = seriePuntos.length > 0 ? seriePuntos[seriePuntos.length - 1] : null;
   // Eje: 1–32 fijo para entidades; para un municipio, ajustado al lugar más bajo que alcanza
   const eje = nivel === 'municipio'
-    ? ejeRanking(seriePuntos.reduce((mx, pt) => Math.max(mx, pt.rank), 1))
-    : { max: 32, ticks: [1, 10, 20, 32] };
+    ? ejeRanking(
+        seriePuntos.reduce((mn, pt) => Math.min(mn, pt.rank), Infinity),
+        seriePuntos.reduce((mx, pt) => Math.max(mx, pt.rank), 1),
+        seriePuntos.reduce((mx, pt) => Math.max(mx, pt.n || 0), 0) || Infinity)
+    : { min: 1, max: 32, ticks: [1, 10, 20, 32] };
 
   const formatPeriodLabel = (periodStr) => {
     if (!periodStr) return '';
@@ -507,12 +521,15 @@ const HistoryRankings = ({ tempColor }) => {
 
   // Tarjeta de posición (menor/mayor incidencia): la posición en navy, sin verde/rojo que juzgue;
   // el periodo más reciente a la vista y el resto desplegable.
-  const renderPositionCard = (label, rank, items) => {
+  const renderPositionCard = (label, sub, rank, items) => {
     const sorted = [...items].sort((x, y) => String(y.period).localeCompare(String(x.period)));
     const [latest, ...rest] = sorted;
     return (
       <div style={{ flex: 1, backgroundColor: 'var(--bg-main)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '150px', gap: '0.15rem' }}>
-        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'center' }}>{label}</span>
+        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'center' }}>
+          {label}
+          <span style={{ display: 'block', fontWeight: 500 }}>{sub}</span>
+        </span>
         <span className="tabular" style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-primary)' }}>
           #{rank}
           {/* Municipios: "de N" = municipios clasificados en ese periodo (cambia entre años) */}
@@ -596,7 +613,7 @@ const HistoryRankings = ({ tempColor }) => {
   // La etiqueta va del lado libre de la línea: el peor lugar es la cima de la curva (libre arriba) y
   // el mejor su valle (libre abajo); cerca de los bordes del eje cambia de lado para no salirse
   const posEtiqueta = (clave, rank) => {
-    const f = eje.max > 1 ? (rank - 1) / (eje.max - 1) : 0;
+    const f = eje.max > eje.min ? (rank - eje.min) / (eje.max - eje.min) : 0;
     if (clave === 'peor') return f < 0.08 ? 'bottom' : 'top';
     return f > 0.92 ? 'top' : 'bottom';
   };
@@ -604,8 +621,8 @@ const HistoryRankings = ({ tempColor }) => {
     ? []
     : MARCAS.filter(m => marcas[m.clave]).map(m => ({ ...m, datos: summaryEntidad[m.clave] }));
   const marcasControl = summaryEntidad && (
-    <div role="group" aria-label="Marcar en la gráfica" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Marcar en la gráfica:</span>
+    <div role="group" aria-label="Marcar en la gráfica" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: isFullScreen ? 'nowrap' : 'wrap' }}>
+      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Marcar en la gráfica:</span>
       {MARCAS.map(m => {
         const activo = marcas[m.clave] && !unSoloPeriodo;
         return (
@@ -617,7 +634,7 @@ const HistoryRankings = ({ tempColor }) => {
             title={unSoloPeriodo ? 'Con un solo periodo, peor y mejor coinciden' : `Marcar el ${m.texto.toLowerCase()} lugar en la línea`}
             onClick={() => setMarcas(prev => ({ ...prev, [m.clave]: !prev[m.clave] }))}
             style={{
-              padding: '0.25rem 0.65rem', fontSize: '0.75rem', fontWeight: 600, borderRadius: '6px',
+              padding: '0.25rem 0.65rem', fontSize: '0.75rem', fontWeight: 600, borderRadius: '6px', whiteSpace: 'nowrap',
               cursor: unSoloPeriodo ? 'not-allowed' : 'pointer', opacity: unSoloPeriodo ? 0.55 : 1,
               transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease',
               border: activo ? `1px solid ${m.color}` : '1px solid transparent',
@@ -635,6 +652,19 @@ const HistoryRankings = ({ tempColor }) => {
   // Sentido del eje Y (reversed: 1 arriba): rótulos verticales discretos en el canal del eje
   const AXIS_W = 30;
   const AXIS_GUTTER = F(16);
+
+  // Marcas del eje X. Ancho estimado de la etiqueta ("2025" ~ 4 caracteres; "Ene 26" ~ 6) frente al
+  // espacio por periodo: si no caben, cada k periodos contados desde el último. El mensual de más de
+  // 24 periodos ya rotula solo enero y se deja como está.
+  const periodos = chartData.map(d => d.period);
+  const esMensual = /^\d{4}-\d{2}$/.test(String(periodos[0]));
+  let ticksX;
+  if (anchoGrafica > 0 && periodos.length > 1 && !(esMensual && periodos.length > 24)) {
+    const anchoEtiqueta = (esMensual ? 6 : 4) * F(12) * 0.62 + 8;
+    const anchoPlot = Math.max(1, anchoGrafica - AXIS_GUTTER - AXIS_W - rightMargin);
+    const cada = Math.max(1, Math.ceil(anchoEtiqueta / (anchoPlot / periodos.length)));
+    if (cada > 1) ticksX = periodos.filter((_, i) => (periodos.length - 1 - i) % cada === 0);
+  }
 
   return (
     <div
@@ -775,8 +805,8 @@ const HistoryRankings = ({ tempColor }) => {
           <div style={{ display: 'flex', gap: '0.5rem 1rem', flex: '1 1 300px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
             {summaryEntidad && (
               <>
-                {renderPositionCard('Mejor posición', summaryEntidad.mejor.rank, summaryEntidad.mejor.items)}
-                {renderPositionCard('Peor posición', summaryEntidad.peor.rank, summaryEntidad.peor.items)}
+                {renderPositionCard('Peor posición', 'mayor incidencia', summaryEntidad.peor.rank, summaryEntidad.peor.items)}
+                {renderPositionCard('Mejor posición', 'menor incidencia', summaryEntidad.mejor.rank, summaryEntidad.mejor.items)}
               </>
             )}
             {/* Estado aplicado: lo que la gráfica muestra ahora, aunque el formulario ya diga otra cosa */}
@@ -786,7 +816,7 @@ const HistoryRankings = ({ tempColor }) => {
             </p>
             {summaryEntidad && (
               <p style={{ flexBasis: '100%', margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Escala 1–{nivel === 'municipio' && ultimoPunto?.n ? ultimoPunto.n.toLocaleString('es-MX') : 32}: 1 = {nivel === 'municipio' ? 'municipio' : 'entidad'} con {shown.metricType === 'rate' ? 'mayor tasa' : 'más ' + metricLabel} en el periodo.
+                Escala 1–{nivel === 'municipio' && ultimoPunto?.n ? ultimoPunto.n.toLocaleString('es-MX') : 32}{nivel === 'municipio' ? ` (el eje muestra solo los lugares ${eje.min.toLocaleString('es-MX')} a ${eje.max.toLocaleString('es-MX')})` : ''}: 1 = {nivel === 'municipio' ? 'municipio' : 'entidad'} con {shown.metricType === 'rate' ? 'mayor tasa' : 'más ' + metricLabel} en el periodo.
               </p>
             )}
             {marcasControl && <div style={{ flexBasis: '100%' }}>{marcasControl}</div>}
@@ -841,7 +871,7 @@ const HistoryRankings = ({ tempColor }) => {
             </button>
           </div>
         )}
-        <div style={{
+        <div ref={chartBoxRef} style={{
           position: 'absolute',
           top: '1rem', left: '1rem', right: '1rem', bottom: '0.2rem',
           // Feedback de carga breve y sutil (no un efecto): atenuar rápido, volver rápido
@@ -860,6 +890,7 @@ const HistoryRankings = ({ tempColor }) => {
                 {/* Sin cuadrícula: solo las divisorias entre niveles (abajo) para no competir con ellas */}
                 <XAxis
                   dataKey="period"
+                  ticks={ticksX}
                   // Año parcial: segundo renglón "Ene–Ago" en acento (igual que en las barras por año)
                   tick={({ x, y, payload, index, tickFormatter }) => (
                     <g transform={`translate(${x},${y})`}>
@@ -894,7 +925,7 @@ const HistoryRankings = ({ tempColor }) => {
                 <YAxis
                   width={AXIS_W}
                   reversed={true}
-                  domain={[1, eje.max]}
+                  domain={[eje.min, eje.max]}
                   ticks={eje.ticks}
                   tick={{ fill: 'var(--text-secondary)', fontSize: F(12), fontWeight: 500 }}
                   axisLine={false}

@@ -3,15 +3,27 @@
  * empate. Pruebas: `node --test tests/rankings.test.js` desde frontend/.
  */
 
-// Tope del eje Y según el lugar más bajo que alcanza la serie: un municipio que se mueve entre los
-// lugares 5 y 40 se lee en una escala de 1 a 50, no de 1 a 2,500
-const ESCALONES = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000];
+// Cifras redondas del eje según cuánto abarca la serie (un paso de 1 en un rango de 80 lugares sería ruido)
+const pasoDelEje = (span) => (span <= 20 ? 1 : span <= 60 ? 5 : span <= 200 ? 10 : span <= 600 ? 50 : span <= 2000 ? 100 : 500);
 
-/** Eje del ranking: { max, ticks } con tres marcas (1, la mitad y el tope). */
-export const ejeRanking = (maxLugar) => {
-  const lugar = Math.max(1, Math.ceil(Number(maxLugar) || 1));
-  const max = ESCALONES.find(e => e >= lugar) ?? lugar;
-  return { max, ticks: [1, Math.round(max / 2), max] };
+/**
+ * Eje Y de un municipio: se ajusta al rango de lugares que recorre la serie (con margen y cifras
+ * redondas) para que la variación llene la gráfica en vez de ocupar una franja de 1…2,500.
+ * El 1 solo aparece si la serie está cerca. `tope` = municipios clasificados (el eje no lo pasa).
+ * Devuelve { min, max, ticks } con tres marcas (mínimo, mitad y máximo).
+ */
+export const ejeRanking = (minLugar, maxLugar, tope = Infinity) => {
+  const min = Math.max(1, Math.floor(Number(minLugar) || 1));
+  const max = Math.max(min, Math.ceil(Number(maxLugar) || min));
+  const margen = Math.max(2, Math.ceil((max - min) * 0.2), Math.ceil(max * 0.05));
+  const crudoMin = Math.max(1, min - margen);
+  const crudoMax = max + margen;
+  const paso = pasoDelEje(crudoMax - crudoMin);
+  const lo = Math.max(1, Math.floor(crudoMin / paso) * paso);
+  let hi = Math.ceil(crudoMax / paso) * paso;
+  if (hi > tope) hi = Math.max(tope, max);
+  if (hi <= lo) hi = lo + 1;
+  return { min: lo, max: hi, ticks: [lo, Math.round((lo + hi) / 2), hi] };
 };
 
 /**

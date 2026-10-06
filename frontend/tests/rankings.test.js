@@ -2,12 +2,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ejeRanking, resumenPosiciones, notaEmpate } from '../src/utils/rankings.js';
 
-test('ejeRanking sube al siguiente escalón', () => {
-  assert.deepEqual(ejeRanking(12), { max: 25, ticks: [1, 13, 25] });
-  assert.deepEqual(ejeRanking(46), { max: 50, ticks: [1, 25, 50] });
-  assert.deepEqual(ejeRanking(2476), { max: 2500, ticks: [1, 1250, 2500] });
-  assert.deepEqual(ejeRanking(1), { max: 10, ticks: [1, 5, 10] });
-  assert.equal(ejeRanking(9000).max, 9000);   // por encima del último escalón: el propio valor
+test('ejeRanking ajusta el dominio al rango de la serie, con margen y cifras redondas', () => {
+  // Cajeme: lugares 67 a 113 de 2,478
+  assert.deepEqual(ejeRanking(67, 113, 2478), { min: 50, max: 130, ticks: [50, 90, 130] });
+  // cerca del 1 el eje arranca en 1
+  assert.deepEqual(ejeRanking(2, 12, 2478), { min: 1, max: 14, ticks: [1, 8, 14] });
+  // lugar constante: un margen mínimo alrededor
+  assert.deepEqual(ejeRanking(85, 85, 2478), { min: 80, max: 90, ticks: [80, 85, 90] });
+});
+
+test('ejeRanking no pasa del total de municipios clasificados', () => {
+  assert.deepEqual(ejeRanking(2470, 2478, 2478), { min: 2300, max: 2478, ticks: [2300, 2389, 2478] });
 });
 
 test('resumenPosiciones: mejor = lugar más alto, peor = más bajo, con todos los periodos empatados', () => {
