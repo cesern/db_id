@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ejeRanking, resumenPosiciones, notaEmpate, columnasBalanceadas } from '../src/utils/rankings.js';
+import { ejeRanking, resumenPosiciones, notaEmpate, columnasBalanceadas, accionesEnLaMismaFila } from '../src/utils/rankings.js';
 
 test('ejeRanking ajusta el dominio al rango de la serie, con margen y cifras redondas', () => {
   // Cajeme: lugares 67 a 113 de 2,478
@@ -56,4 +56,16 @@ test('columnasBalanceadas reparte los selectores en filas parejas, sin uno huér
   assert.equal(columnasBalanceadas(8, 290, 160, 16), 1);    // celular: una columna
   assert.equal(columnasBalanceadas(3, 5000, 160, 16), 3);   // nunca más columnas que selectores
   assert.equal(columnasBalanceadas(8, 0, 160, 16), 1);      // sin medida: una columna
+});
+
+test('accionesEnLaMismaFila: los botones suben a la fila de Sexo y Rango de edad solo si caben', () => {
+  // 6 columnas en 1480 px: tras 2 selectores quedan 4 columnas (~980 px) de sobra para ~360 px de botones
+  assert.equal(accionesEnLaMismaFila(6, 2, 1480, 16, 360), true);
+  // 3 columnas en 1000 px: queda una de ~320 px, no alcanza: bajan a su propia fila
+  assert.equal(accionesEnLaMismaFila(3, 2, 1000, 16, 360), false);
+  // sin columnas libres (o una sola columna) nunca caben
+  assert.equal(accionesEnLaMismaFila(2, 2, 1000, 16, 360), false);
+  assert.equal(accionesEnLaMismaFila(1, 2, 300, 16, 360), false);
+  // sin medida del bloque: no se arriesga
+  assert.equal(accionesEnLaMismaFila(6, 2, 0, 16, 360), false);
 });

@@ -65,3 +65,14 @@ export const columnasBalanceadas = (n, ancho, minCol, gap) => {
   const filas = Math.ceil(n / max);
   return Math.max(1, Math.ceil(n / filas));
 };
+
+/**
+ * ¿Caben los botones (Limpiar / Aplicar, `necesario` px) en la misma fila que `ocupadas` selectores
+ * de una cuadrícula de `cols` columnas y `ancho` px? Se miden las columnas que quedan libres.
+ */
+export const accionesEnLaMismaFila = (cols, ocupadas, ancho, gap, necesario) => {
+  const libres = cols - ocupadas;
+  if (libres < 1 || !(ancho > 0)) return false;
+  const anchoColumna = (ancho - (cols - 1) * gap) / cols;
+  return libres * anchoColumna + (libres - 1) * gap >= necesario;
+};

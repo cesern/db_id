@@ -11,7 +11,7 @@ import { useExitAnimation } from '../utils/useExitAnimation';
 import { csvValueLabel } from '../utils/labels';
 import { useDialogFocus } from '../utils/useDialogFocus';
 import { toast } from 'sonner';
-import { ejeRanking, resumenPosiciones, notaEmpate, columnasBalanceadas } from '../utils/rankings';
+import { ejeRanking, resumenPosiciones, notaEmpate, columnasBalanceadas, accionesEnLaMismaFila } from '../utils/rankings';
 import MultiSelectDropdown from './MultiSelectDropdown';
 import SearchableSelect from './SearchableSelect';
 import LoadingSpinner from './LoadingSpinner';
@@ -476,6 +476,10 @@ const HistoryRankings = ({ tempColor }) => {
   // Selectores de la primera fila del bloque de filtros: Conjunto, Periodo, (Mes de corte) y los 4 de delito.
   // Sexo y Rango de edad (filtros de la víctima) van aparte, en una segunda fila.
   const nSelectores = 2 + (temporalidad === 'acumulado' ? 1 : 0) + 4;
+  const conFiltrosVictima = dataset === 'victimas' || dataset === 'victimas_mun';
+  const colsFiltros = anchoFiltros > 0 ? columnasBalanceadas(nSelectores, anchoFiltros, 160, 16) : null;
+  // Con Sexo y Rango de edad en la segunda fila, "Limpiar / Aplicar" suben a esa misma fila si caben
+  const accionesArriba = conFiltrosVictima && colsFiltros !== null && accionesEnLaMismaFila(colsFiltros, 2, anchoFiltros, 16, 360);
   const hasPending = JSON.stringify({ dataset, temporalidad, metricType, mesAcumulado, filters })
     !== JSON.stringify({ dataset: applied.dataset, temporalidad: applied.temporalidad, metricType: applied.metricType, mesAcumulado: applied.mesAcumulado, filters: applied.filters });
 
@@ -823,7 +827,7 @@ const HistoryRankings = ({ tempColor }) => {
 
         {/* Filters and Selectors Container */}
         {/* Cuadrícula de columnas iguales: con flex, el último selector que caía solo en una fila (p. ej. "Rango de edad") se estiraba a todo el ancho */}
-        <div ref={filtrosRef} style={{ display: 'grid', gridTemplateColumns: anchoFiltros > 0 ? `repeat(${columnasBalanceadas(nSelectores, anchoFiltros, 160, 16)}, minmax(0, 1fr))` : 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '1rem', alignItems: 'end', padding: '1rem', backgroundColor: 'var(--bg-main)', borderRadius: '8px', marginTop: '1rem' }}>
+        <div ref={filtrosRef} style={{ display: 'grid', gridTemplateColumns: colsFiltros !== null ? `repeat(${colsFiltros}, minmax(0, 1fr))` : 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '1rem', alignItems: 'end', padding: '1rem', backgroundColor: 'var(--bg-main)', borderRadius: '8px', marginTop: '1rem' }}>
           <div style={{ flex: '1 1 min(100%, 180px)' }}>
             <label className="label-sm" htmlFor="rk-dataset">Conjunto de datos</label>
             <select id="rk-dataset" className="input-select" value={dataset} onChange={e => setDataset(e.target.value)}>
@@ -855,7 +859,7 @@ const HistoryRankings = ({ tempColor }) => {
           <MultiSelectDropdown label="Subtipo de delito" options={options.subtiposDelito} selected={filters.subtipoDelito} onChange={v => handleFilterChange('subtipoDelito', v)} />
           <MultiSelectDropdown label="Modalidad" options={options.modalidades} selected={filters.modalidad} onChange={v => handleFilterChange('modalidad', v)} />
 
-          {(dataset === 'victimas' || dataset === 'victimas_mun') && (
+          {conFiltrosVictima && (
             <>
               {/* Segunda fila: filtros de la víctima, en las primeras columnas (mismo ancho que la fila de arriba) */}
               <div style={{ gridColumnStart: 1 }}>
@@ -867,7 +871,7 @@ const HistoryRankings = ({ tempColor }) => {
             </>
           )}
           {/* Aplicar junto a los selectores que gobierna (antes quedaba debajo de las tarjetas de resultado) */}
-          <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div style={{ gridColumn: accionesArriba ? '3 / -1' : '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button type="button" className="btn" onClick={handleClear} style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0.45rem 1rem', height: 'fit-content', color: 'var(--text-secondary)' }}>
               Limpiar filtros
             </button>
