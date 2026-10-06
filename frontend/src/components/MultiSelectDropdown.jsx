@@ -80,6 +80,7 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
         className="input-select"
         aria-haspopup="dialog"
         aria-expanded={isOpen}
+        data-activo={displayText !== 'Todos' ? 'true' : undefined}
         aria-labelledby={`${uid}-label ${uid}-trigger`}
         style={{ cursor: 'pointer', userSelect: 'none', minHeight: 'var(--input-min-height, 30px)', display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}
         onClick={() => setIsOpen(!isOpen)}

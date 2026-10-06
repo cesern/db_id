@@ -598,12 +598,28 @@ const SidebarLeft = ({ selectedFilters: requestedFilters, metricType: requestedM
           style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.2rem', padding: '0.85rem 1rem', position: 'relative', minWidth: 0 }}
         >
           {loading && <LoadingSpinner size="sm" />}
-          {/* Fila superior: entidad a la izquierda, indicador de cambio a la derecha
-              (así "21 de 32" conserva todo el ancho de la tarjeta angosta) */}
+          {/* Fila superior: solo la entidad, con todo el ancho (el indicador de cambio va abajo, junto al periodo) */}
           <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', minWidth: 0 }}>
             <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {kpiRankName}
             </span>
+          </span>
+          <span className="tabular" style={{ lineHeight: 1.1, display: 'flex', alignItems: 'baseline', gap: '0.3rem' }}>
+            {/* Cifra principal: mismo color oscuro que el total (el azul se reserva a lo interactivo) */}
+            <span style={{ fontSize: 'clamp(1.5rem, 2.4vw, 1.9rem)', fontWeight: 700, color: 'var(--color-primary)', letterSpacing: '-0.02em' }}>
+              {error || kpiRank === null ? '—' : kpiRank}
+            </span>
+            {!error && kpiRank !== null && kpiRankTotal > 0 && (
+              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>de {kpiRankTotal}</span>
+            )}
+          </span>
+          {/* Con municipio: de qué lista es el lugar */}
+          {!error && kpiRank !== null && selectedMunicipio && (
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>en {activeEntityName}</span>
+          )}
+          {!error && kpiRank !== null && (
+            <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.1rem 0.4rem', minWidth: 0 }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{periodLabel}</span>
               {!error && !loading && !selectedMunicipio && rankShown !== null && prevRank && prevRank.metric === metricType && prevRank.filters === selectedFilters && (() => {
                 const diff = prevRank.rank - activeEntityRank; // > 0: subió hacia el 1
                 const up = diff > 0, down = diff < 0;
@@ -639,22 +655,7 @@ const SidebarLeft = ({ selectedFilters: requestedFilters, metricType: requestedM
                   </span>
                 );
               })()}
-          </span>
-          <span className="tabular" style={{ lineHeight: 1.1, display: 'flex', alignItems: 'baseline', gap: '0.3rem' }}>
-            {/* Cifra principal: mismo color oscuro que el total (el azul se reserva a lo interactivo) */}
-            <span style={{ fontSize: 'clamp(1.5rem, 2.4vw, 1.9rem)', fontWeight: 700, color: 'var(--color-primary)', letterSpacing: '-0.02em' }}>
-              {error || kpiRank === null ? '—' : kpiRank}
             </span>
-            {!error && kpiRank !== null && kpiRankTotal > 0 && (
-              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>de {kpiRankTotal}</span>
-            )}
-          </span>
-          {/* Con municipio: de qué lista es el lugar */}
-          {!error && kpiRank !== null && selectedMunicipio && (
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>en {activeEntityName}</span>
-          )}
-          {!error && kpiRank !== null && (
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{periodLabel}</span>
           )}
           {/* Sin lugar: solo el periodo (la tarjeta es angosta; el aviso "Sin datos publicados" va en la del total) */}
           {entidadesEnCero && !loading && (

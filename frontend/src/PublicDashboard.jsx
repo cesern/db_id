@@ -63,15 +63,6 @@ function PublicDashboard() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [fadeLoading, setFadeLoading] = useState(false);
 
-  // Rastrear qué componentes ya completaron su carga inicial
-  const [componentsLoading, setComponentsLoading] = useState({
-    filters: true,
-    sidebar: true,
-    barChart: true,
-    lineChart: true,
-    map: true
-  });
-
   // selectedFilters: lo que el usuario ve/modifica en tiempo real en la barra de filtros
   const [selectedFilters, setSelectedFilters] = useState(INITIAL_FILTERS);
 
@@ -109,15 +100,10 @@ function PublicDashboard() {
     }, 400); // Duración del fadeout
   }, []);
 
+  // El splash sale en cuanto el panel de filtros (y con él el año) está listo: cada tarjeta muestra su
+  // propio velo de carga, así que no hace falta esperar a las cinco (antes bloqueaba 5–6 s en cada carga)
   const handleComponentLoaded = useCallback((key) => {
-    setComponentsLoading(prev => {
-      const next = { ...prev, [key]: false };
-      const allLoaded = Object.values(next).every(v => v === false);
-      if (allLoaded) {
-        handleInitialLoadComplete();
-      }
-      return next;
-    });
+    if (key === 'filters') handleInitialLoadComplete();
   }, [handleInitialLoadComplete]);
 
   // Callbacks estables por componente: con props estables, React.memo evita que las gráficas se

@@ -68,4 +68,7 @@ test('accionesEnLaMismaFila: los botones suben a la fila de Sexo y Rango de edad
   assert.equal(accionesEnLaMismaFila(1, 2, 300, 16, 360), false);
   // sin medida del bloque: no se arriesga
   assert.equal(accionesEnLaMismaFila(6, 2, 0, 16, 360), false);
+  // con los botones reales (~300 px: Limpiar 127 + Aplicar 160 + espacio) caben en una columna de ~323 px
+  assert.equal(accionesEnLaMismaFila(3, 2, 1000, 16, 320), true);
+  assert.equal(accionesEnLaMismaFila(3, 2, 960, 16, 320), false);
 });

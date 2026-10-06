@@ -662,9 +662,10 @@ const ChartLineTrend = ({ selectedFilters: requestedFilters, metricType: request
     { key: 'tendencia', label: 'Tendencia' }
   ];
 
-  const btnStyle = (active) => ({
-    padding: '0.25rem 0.55rem',
-    fontSize: '0.75rem',
+  // `grande`: en pantalla completa los controles pasan de 12 a 14 px (el lienzo es mucho mayor)
+  const btnStyle = (active, grande = false) => ({
+    padding: grande ? '0.35rem 0.85rem' : '0.25rem 0.55rem',
+    fontSize: grande ? '0.875rem' : '0.75rem',
     fontWeight: 600,
     borderRadius: '6px',
     cursor: 'pointer',
@@ -705,7 +706,7 @@ const ChartLineTrend = ({ selectedFilters: requestedFilters, metricType: request
                     type="button"
                     aria-pressed={activeToggles[btn.key]}
                     onClick={() => handleToggle(btn.key)}
-                    style={btnStyle(activeToggles[btn.key])}
+                    style={btnStyle(activeToggles[btn.key], true)}
                   >
                     {btn.label}
                   </button>
@@ -716,7 +717,7 @@ const ChartLineTrend = ({ selectedFilters: requestedFilters, metricType: request
               <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
 
               {/* Menú de suavizado */}
-              <SmoothingMenu maWindow={maWindow} onSelect={(win) => setMAWindow(win)} btnStyle={btnStyle} />
+              <SmoothingMenu maWindow={maWindow} onSelect={(win) => setMAWindow(win)} btnStyle={(a) => btnStyle(a, true)} />
 
               {/* Separador visual */}
               <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />

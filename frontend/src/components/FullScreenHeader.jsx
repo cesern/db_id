@@ -154,7 +154,7 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
               backgroundColor: 'var(--bg-main, #f8fafc)',
               border: '1px solid var(--border-color, #e2e8f0)',
               borderRadius: '6px',
-              fontSize: '0.83rem',
+              fontSize: '0.875rem',
               fontWeight: '600',
               color: 'var(--text-secondary, #475569)',
               lineHeight: 1.2,

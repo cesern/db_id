@@ -479,7 +479,10 @@ const HistoryRankings = ({ tempColor }) => {
   const conFiltrosVictima = dataset === 'victimas' || dataset === 'victimas_mun';
   const colsFiltros = anchoFiltros > 0 ? columnasBalanceadas(nSelectores, anchoFiltros, 160, 16) : null;
   // Con Sexo y Rango de edad en la segunda fila, "Limpiar / Aplicar" suben a esa misma fila si caben
-  const accionesArriba = conFiltrosVictima && colsFiltros !== null && accionesEnLaMismaFila(colsFiltros, 2, anchoFiltros, 16, 360);
+  const accionesArriba = conFiltrosVictima && colsFiltros !== null && accionesEnLaMismaFila(colsFiltros, 2, anchoFiltros, 16, 320);
+  // Si sobra una columna pero no caben lado a lado, se apilan en ella (en vez de una fila entera casi vacía)
+  const accionesApiladas = conFiltrosVictima && !accionesArriba && colsFiltros !== null && colsFiltros > 2
+    && (anchoFiltros - (colsFiltros - 1) * 16) / colsFiltros >= 150;
   const hasPending = JSON.stringify({ dataset, temporalidad, metricType, mesAcumulado, filters })
     !== JSON.stringify({ dataset: applied.dataset, temporalidad: applied.temporalidad, metricType: applied.metricType, mesAcumulado: applied.mesAcumulado, filters: applied.filters });
 
@@ -592,6 +595,7 @@ const HistoryRankings = ({ tempColor }) => {
         >
           <span className="rank-card-label"><span className="rank-card-dot" aria-hidden="true" />{label}</span>
           <span className="rank-card-sub">{sub}</span>
+          <span className="rank-card-hint" aria-hidden="true">{unSoloPeriodo ? '' : activo ? 'Marcado en la gráfica' : 'Toca para marcar'}</span>
         </button>
         <span className="rank-card-value" id={valorId}>
           <span className="tabular rank-card-rank">
@@ -685,7 +689,7 @@ const HistoryRankings = ({ tempColor }) => {
     : MARCAS.filter(m => marcas[m.clave]).map(m => ({ ...m, datos: summaryEntidad[m.clave] }));
   const marcasControl = summaryEntidad && (
     <div role="group" aria-label="Marcar en la gráfica" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: isFullScreen ? 'nowrap' : 'wrap' }}>
-      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Marcar en la gráfica:</span>
+      <span style={{ fontSize: isFullScreen ? '0.875rem' : '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Marcar en la gráfica:</span>
       {MARCAS.map(m => {
         const activo = marcas[m.clave] && !unSoloPeriodo;
         return (
@@ -697,7 +701,7 @@ const HistoryRankings = ({ tempColor }) => {
             title={unSoloPeriodo ? 'Con un solo periodo, peor y mejor coinciden' : `Marcar el ${m.texto.toLowerCase()} lugar en la línea`}
             onClick={() => setMarcas(prev => ({ ...prev, [m.clave]: !prev[m.clave] }))}
             style={{
-              padding: '0.25rem 0.65rem', fontSize: '0.75rem', fontWeight: 600, borderRadius: '6px', whiteSpace: 'nowrap',
+              padding: isFullScreen ? '0.35rem 0.85rem' : '0.25rem 0.65rem', fontSize: isFullScreen ? '0.875rem' : '0.75rem', fontWeight: 600, borderRadius: '6px', whiteSpace: 'nowrap',
               cursor: unSoloPeriodo ? 'not-allowed' : 'pointer', opacity: unSoloPeriodo ? 0.55 : 1,
               transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease',
               border: activo ? `1px solid ${m.color}` : '1px solid transparent',
@@ -827,7 +831,7 @@ const HistoryRankings = ({ tempColor }) => {
 
         {/* Filters and Selectors Container */}
         {/* Cuadrícula de columnas iguales: con flex, el último selector que caía solo en una fila (p. ej. "Rango de edad") se estiraba a todo el ancho */}
-        <div ref={filtrosRef} style={{ display: 'grid', gridTemplateColumns: colsFiltros !== null ? `repeat(${colsFiltros}, minmax(0, 1fr))` : 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '1rem', alignItems: 'end', padding: '1rem', backgroundColor: 'var(--bg-main)', borderRadius: '8px', marginTop: '1rem' }}>
+        <div ref={filtrosRef} className="rankings-filtros" style={{ display: 'grid', gridTemplateColumns: colsFiltros !== null ? `repeat(${colsFiltros}, minmax(0, 1fr))` : 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '1rem', alignItems: 'end', padding: '1rem', backgroundColor: 'var(--bg-main)', borderRadius: '8px', marginTop: '1rem' }}>
           <div style={{ flex: '1 1 min(100%, 180px)' }}>
             <label className="label-sm" htmlFor="rk-dataset">Conjunto de datos</label>
             <select id="rk-dataset" className="input-select" value={dataset} onChange={e => setDataset(e.target.value)}>
@@ -871,7 +875,7 @@ const HistoryRankings = ({ tempColor }) => {
             </>
           )}
           {/* Aplicar junto a los selectores que gobierna (antes quedaba debajo de las tarjetas de resultado) */}
-          <div style={{ gridColumn: accionesArriba ? '3 / -1' : '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div style={{ gridColumn: accionesArriba || accionesApiladas ? '3 / -1' : '1 / -1', display: 'flex', flexDirection: accionesApiladas ? 'column' : 'row', justifyContent: 'flex-end', gap: accionesApiladas ? '0.5rem' : '0.75rem', flexWrap: accionesApiladas ? 'nowrap' : 'wrap' }}>
             <button type="button" className="btn" onClick={handleClear} style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0.45rem 1rem', height: 'fit-content', color: 'var(--text-secondary)' }}>
               Limpiar filtros
             </button>
@@ -902,7 +906,6 @@ const HistoryRankings = ({ tempColor }) => {
             {summaryEntidad && (
               <> · Escala 1–{nivel === 'municipio' && ultimoPunto?.n ? ultimoPunto.n.toLocaleString('es-MX') : 32}: 1 = {nivel === 'municipio' ? 'municipio' : 'entidad'} con {shown.metricType === 'rate' ? 'mayor tasa' : 'más ' + metricLabel} en el periodo.</>
             )}
-            {summaryEntidad && !unSoloPeriodo && ' Toca una tarjeta para marcar su lugar en la gráfica.'}
             {/* Empate grande: el lugar de un municipio chico se mueve por empates en cero, no por cambios reales */}
             {empate && !cargandoSerie && (
               <> <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{formatPeriodLabel(ultimoPunto.period)}:</strong> {empate}.</>
@@ -1049,10 +1052,10 @@ const HistoryRankings = ({ tempColor }) => {
                           className="rank-mark"
                           x={it.period}
                           y={m.datos.rank}
-                          r={5}
+                          r={7}
                           fill={m.color}
                           stroke="white"
-                          strokeWidth={1.5}
+                          strokeWidth={2}
                           label={it.period === ultimo.period
                             ? { value: `${m.texto} #${m.datos.rank} · ${formatPeriodLabel(ultimo.period)}`, position: posEtiqueta(m.clave, m.datos.rank), className: 'rank-mark', fill: m.color, fontSize: F(12), fontWeight: 700, stroke: '#ffffff', strokeWidth: 4, paintOrder: 'stroke' }
                             : undefined}
@@ -1072,6 +1075,31 @@ const HistoryRankings = ({ tempColor }) => {
           )}
         </div>
       </div>
+
+      {/* Equivalente textual de la gráfica: el lugar de cada periodo, para lector de pantalla */}
+      {seriePuntos.length > 0 && !cargandoSerie && (
+        <table className="sr-only">
+          <caption>{`Lugar de ${nivel === 'municipio' ? serieName : selectedEntidad} en el ranking nacional de ${nivel === 'municipio' ? 'municipios' : 'entidades'}: ${aplicadoTxt}`}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Periodo</th>
+              <th scope="col">Lugar</th>
+              {nivel === 'municipio' && <th scope="col">De</th>}
+              <th scope="col">{csvValueLabel('Incidencia', shown.metricType)}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {seriePuntos.map(pt => (
+              <tr key={pt.period}>
+                <th scope="row">{formatPeriodLabel(pt.period)}</th>
+                <td>{pt.rank}</td>
+                {nivel === 'municipio' && <td>{pt.n}</td>}
+                <td>{formatCardValue(pt.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
 
       {isModalOpen && <RankingHelp onClose={() => setIsModalOpen(false)} />}
     </div>

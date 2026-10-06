@@ -1654,3 +1654,11 @@ select:focus:not(:focus-visible) {
 
 /* Marcas Peor / Mejor sobre la línea: entran con un fundido cuando termina el trazo */
 .rank-mark { animation: rankBadgeIn 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+
+/* Filtros de Rankings: los selectores múltiples en "Todos" se atenúan y los que tienen valor se resaltan */
+.rankings-filtros button.input-select { color: var(--text-secondary); }
+.rankings-filtros button.input-select[data-activo="true"] {
+  color: var(--color-accent-dark); font-weight: 700; border-color: var(--color-accent); background-color: var(--color-accent-light);
+}
+.rank-card-hint { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); padding-left: calc(10px + 0.4rem); min-height: 1em; }
+.rank-card[data-active="true"] .rank-card-hint { color: var(--marca); }
