@@ -1594,3 +1594,22 @@ select:focus:not(:focus-visible) {
 @media (max-width: 1023px) {
   .title-select { min-height: 40px; }
 }
+
+/* SearchableSelect: opciones de la lista (hover, foco y primera coincidencia) */
+.ss-option {
+  display: flex; align-items: center; gap: 0.5rem; width: 100%; text-align: left;
+  padding: 0.55rem 0.75rem; border: none; border-bottom: 1px solid var(--border-color);
+  cursor: pointer; font-family: inherit; font-size: 0.8125rem; font-weight: 500;
+  color: var(--text-primary); background: #ffffff;
+  transition: background-color 120ms var(--ease-out);
+}
+.ss-option[aria-selected="true"] { font-weight: 700; color: var(--color-accent); background: var(--color-accent-light); }
+.ss-option.is-first:not([aria-selected="true"]) { background: var(--bg-main); }
+.ss-option:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.ss-option-hint { margin-left: auto; flex-shrink: 0; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); }
+@media (hover: hover) and (pointer: fine) {
+  .ss-option:hover { background: var(--bg-main); }
+  .ss-option[aria-selected="true"]:hover { background: #dfe4f1; }
+}
+@media (pointer: coarse) { .ss-option-hint { display: none; } }
+@media (max-width: 1023px) { .ss-option { min-height: 40px; } }

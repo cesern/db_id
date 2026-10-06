@@ -248,6 +248,8 @@ const HistoryRankings = ({ tempColor }) => {
   // Ancho de la gráfica: con poco espacio por periodo se muestra una marca de cada k (siempre el último)
   const chartBoxRef = useRef(null);
   const [anchoGrafica, setAnchoGrafica] = useState(0);
+  // Datos cuyo trazo ya se animó: alternar Peor/Mejor no vuelve a dibujar la línea (solo datos nuevos)
+  const [animado, setAnimado] = useState(null);
 
   const [options, setOptions] = useState({
     entidades: ['Sonora'],
@@ -957,7 +959,8 @@ const HistoryRankings = ({ tempColor }) => {
                     activeDot={{ r: 6, fill: primaryColor }}
                     // Trazo de izquierda a derecha: comunica la evolución en el tiempo.
                     // Se omite con "reducir movimiento"; el rótulo final aparece al terminar.
-                    isAnimationActive={!PREFERS_REDUCED_MOTION}
+                    isAnimationActive={!PREFERS_REDUCED_MOTION && animado !== rankingData}
+                    onAnimationEnd={() => setAnimado(rankingData)}
                     animationBegin={0}
                     animationDuration={600}
                     animationEasing="ease-out"
@@ -967,12 +970,11 @@ const HistoryRankings = ({ tempColor }) => {
                   />
                 )}
 
-                {/* Peor / mejor lugar: línea punteada y un punto por periodo; la etiqueta, en el más reciente */}
+                {/* Peor / mejor lugar: un punto por periodo donde se alcanzó (sin líneas, que competían con la serie y las divisorias); la etiqueta, en el más reciente */}
                 {marcasEnGrafica.map(m => {
                   const ultimo = [...m.datos.items].sort((a, b) => String(b.period).localeCompare(String(a.period)))[0];
                   return (
                     <React.Fragment key={m.clave}>
-                      <ReferenceLine y={m.datos.rank} stroke={m.color} strokeDasharray="3 3" strokeWidth={1} />
                       {m.datos.items.map(it => (
                         <ReferenceDot
                           key={it.period}

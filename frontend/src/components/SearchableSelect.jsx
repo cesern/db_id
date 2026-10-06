@@ -92,7 +92,13 @@ const SearchableSelect = ({
 
   const nombre = `${ariaLabel || ''}${ariaLabel ? ': ' : ''}${actual.label}`;
   return (
-    <span ref={wrapRef} style={{ position: 'relative', display: isPill ? 'inline-flex' : 'block', maxWidth: '100%', minWidth: 0 }}>
+    <span
+      ref={wrapRef}
+      style={{ position: 'relative', display: isPill ? 'inline-flex' : 'block', maxWidth: '100%', minWidth: 0 }}
+      // Tab hacia fuera del selector cierra la lista (con el foco en otro lado, no queda flotando).
+      // relatedTarget nulo (barra de desplazamiento, clic en vacío) no cuenta.
+      onBlur={(e) => { if (isOpen && e.relatedTarget && !wrapRef.current?.contains(e.relatedTarget)) cerrar(false); }}
+    >
       <button
         type="button"
         id={triggerId}
@@ -151,8 +157,10 @@ const SearchableSelect = ({
               <div style={{ padding: '1rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
                 Ninguna opción coincide con “{term}”
               </div>
-            ) : visibles.map(o => {
+            ) : visibles.map((o, idx) => {
               const sel = o.value === value;
+              // Con texto en el buscador, Enter elige la primera coincidencia: se resalta y lo dice
+              const primera = term !== '' && idx === 0;
               return (
                 <button
                   type="button"
@@ -160,17 +168,12 @@ const SearchableSelect = ({
                   aria-selected={sel}
                   key={o.value}
                   title={o.label}
+                  className={`ss-option${primera ? ' is-first' : ''}`}
                   onClick={() => elegir(o.value)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', textAlign: 'left',
-                    padding: '0.55rem 0.75rem', border: 'none', borderBottom: '1px solid var(--border-color)',
-                    cursor: 'pointer', fontSize: '0.8125rem', fontWeight: sel ? 700 : 500, fontFamily: 'inherit',
-                    color: sel ? 'var(--color-accent)' : 'var(--text-primary)',
-                    background: sel ? 'var(--color-accent-light)' : 'white',
-                  }}
                 >
                   <span aria-hidden="true" style={{ width: '1rem', fontWeight: 800, flexShrink: 0 }}>{sel ? '✓' : ''}</span>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.label}</span>
+                  {primera && <span className="ss-option-hint" aria-hidden="true">Enter</span>}
                 </button>
               );
             })}
