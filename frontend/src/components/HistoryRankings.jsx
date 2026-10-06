@@ -747,6 +747,7 @@ const HistoryRankings = ({ tempColor }) => {
                   lista y dejaba la flecha lejos de "Sonora") */}
               <SearchableSelect
                 variant="pill" ariaLabel="Entidad" value={selectedEntidad}
+                unidad="entidades"
                 options={(options.entidades || []).map(ent => ({ value: ent, label: ent }))}
                 onChange={v => { setSelectedEntidad(v); if (v !== 'Sonora') setSelectedMunicipio(''); }}
               />
@@ -758,7 +759,8 @@ const HistoryRankings = ({ tempColor }) => {
                     value={conMunicipios ? selectedMunicipio : ''}
                     disabled={!conMunicipios}
                     describedBy={conMunicipios ? undefined : 'rk-mun-nota'}
-                    options={[{ value: '', label: 'Todo el estado' }, ...(conMunicipios ? municipiosSonora : []).map(m => ({ value: m, label: m }))]}
+                    unidad="municipios"
+                    options={[{ value: '', label: 'Todo el estado', noCuenta: true }, ...(conMunicipios ? municipiosSonora : []).map(m => ({ value: m, label: m }))]}
                     onChange={setSelectedMunicipio}
                   />
                   {!conMunicipios && (

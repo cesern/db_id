@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizar, filtrarOpciones } from '../src/utils/buscar.js';
+import { normalizar, filtrarOpciones, conteoOpciones } from '../src/utils/buscar.js';
 
 const ops = [
   { value: 'All', label: 'Nacional' },
@@ -23,4 +23,23 @@ test('filtrarOpciones encuentra sin importar acentos ni mayúsculas', () => {
 test('filtrarOpciones: vacío devuelve todo y sin coincidencias devuelve []', () => {
   assert.equal(filtrarOpciones(ops, '   ').length, 4);
   assert.deepEqual(filtrarOpciones(ops, 'zzz'), []);
+});
+
+const munis = [
+  { value: 'All', label: 'Todos los municipios', noCuenta: true },
+  { value: 'Álamos', label: 'Álamos' },
+  { value: 'Cajeme', label: 'Cajeme' },
+  { value: 'Otros', label: 'Otros Municipios', noCuenta: true },
+  { value: 'Cintalapa', label: 'Cintalapa de Figueroa' },
+];
+
+test('conteoOpciones no cuenta "todos" ni las categorías residuales marcadas con noCuenta', () => {
+  assert.equal(conteoOpciones(munis, munis, '', 'municipios'), '3 municipios');
+  assert.equal(conteoOpciones(munis, filtrarOpciones(munis, 'ca'), 'ca', 'municipios'), '1 de 3 municipios');
+  assert.equal(conteoOpciones(munis, filtrarOpciones(munis, 'todos'), 'todos', 'municipios'), '0 de 3 municipios');
+});
+
+test('conteoOpciones sin unidad dice "opciones"', () => {
+  assert.equal(conteoOpciones(ops, ops, ''), '4 opciones');
+  assert.equal(conteoOpciones(ops, filtrarOpciones(ops, 'cin'), 'cin'), '1 de 4 opciones');
 });

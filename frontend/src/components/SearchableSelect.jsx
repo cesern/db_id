@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useId, useMemo } from 'react';
-import { filtrarOpciones } from '../utils/buscar';
+import { filtrarOpciones, conteoOpciones } from '../utils/buscar';
 
 const Chevron = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
@@ -13,10 +13,12 @@ const Chevron = () => (
  * de MultiSelectDropdown. options: [{ value, label }]; onChange recibe el valor (no el evento).
  * variant 'field' = caja de formulario (.input-select, rotulada por el llamador con htmlFor=id y
  * labelId); 'pill' = pastilla del título de Rankings (.title-select, rotulada con ariaLabel).
+ * `unidad` rotula el contador ("72 municipios"); las opciones con `noCuenta: true` ("Todos", categorías
+ * residuales) no entran en él.
  */
 const SearchableSelect = ({
   id, value, options, onChange, disabled = false, variant = 'field', ariaLabel, labelId,
-  describedBy, selectRef, threshold = 12, className = '', style,
+  describedBy, selectRef, threshold = 12, className = '', style, unidad,
 }) => {
   const uid = useId();
   const triggerId = id || `${uid}-trigger`;
@@ -150,7 +152,7 @@ const SearchableSelect = ({
               style={{ width: '100%', padding: '0.45rem 0.55rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontWeight: 400 }}
             />
             <div className="tabular" aria-live="polite" style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              {term ? `${visibles.length} de ${lista.length}` : `${lista.length} opciones`}
+              {conteoOpciones(lista, visibles, term, unidad)}
             </div>
           </div>
           <div role="listbox" aria-label={ariaLabel || 'Opciones'} ref={listRef} style={{ overflowY: 'auto', flex: 1 }}>

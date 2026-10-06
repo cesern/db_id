@@ -165,7 +165,8 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
             <SearchableSelect
               id="ai-bien" labelId="ai-bien-label" ariaLabel="Bien jurídico afectado" style={selectStyle} selectRef={firstFieldRef}
               value={bien}
-              options={[{ value: '', label: 'Todos' }, ...opciones.bienesJuridicos.map(o => ({ value: o, label: o }))]}
+              unidad="bienes jurídicos"
+              options={[{ value: '', label: 'Todos', noCuenta: true }, ...opciones.bienesJuridicos.map(o => ({ value: o, label: o }))]}
               onChange={v => { setBien(v); setTipo(''); setSubtipo(''); setModalidad(''); }}
             />
           </div>
@@ -174,7 +175,8 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
             <SearchableSelect
               id="ai-tipo" labelId="ai-tipo-label" ariaLabel="Tipo de delito" style={selectStyle}
               value={tipo} disabled={!bien}
-              options={[{ value: '', label: bien ? 'Todos' : 'Elige primero un bien jurídico' }, ...opciones.tiposDelito.map(o => ({ value: o, label: o }))]}
+              unidad="tipos de delito"
+              options={[{ value: '', label: bien ? 'Todos' : 'Elige primero un bien jurídico', noCuenta: true }, ...opciones.tiposDelito.map(o => ({ value: o, label: o }))]}
               onChange={v => { setTipo(v); setSubtipo(''); setModalidad(''); }}
             />
           </div>
@@ -183,7 +185,8 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
             <SearchableSelect
               id="ai-subtipo" labelId="ai-subtipo-label" ariaLabel="Subtipo de delito" style={selectStyle}
               value={subtipo} disabled={!tipo}
-              options={[{ value: '', label: tipo ? 'Todos' : 'Elige primero un tipo' }, ...opciones.subtiposDelito.map(o => ({ value: o, label: o }))]}
+              unidad="subtipos"
+              options={[{ value: '', label: tipo ? 'Todos' : 'Elige primero un tipo', noCuenta: true }, ...opciones.subtiposDelito.map(o => ({ value: o, label: o }))]}
               onChange={v => { setSubtipo(v); setModalidad(''); }}
             />
           </div>
@@ -192,7 +195,8 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
             <SearchableSelect
               id="ai-modalidad" labelId="ai-modalidad-label" ariaLabel="Modalidad" style={selectStyle}
               value={modalidad} disabled={!subtipo}
-              options={[{ value: '', label: subtipo ? 'Todas' : 'Elige primero un subtipo' }, ...opciones.modalidades.map(o => ({ value: o, label: o }))]}
+              unidad="modalidades"
+              options={[{ value: '', label: subtipo ? 'Todas' : 'Elige primero un subtipo', noCuenta: true }, ...opciones.modalidades.map(o => ({ value: o, label: o }))]}
               onChange={setModalidad}
             />
           </div>

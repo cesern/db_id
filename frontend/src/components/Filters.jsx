@@ -13,6 +13,9 @@ import MultiSelectDropdown from './MultiSelectDropdown';
 import SearchableSelect from './SearchableSelect';
 
 
+// "No especificado" y "Otros Municipios" no son municipios: se pueden elegir, pero no cuentan
+const esResidual = (n) => /^(no especificado|otros municipios)$/i.test(String(n).trim());
+
 // ── Utilidad: contar diferencias entre selectedFilters y appliedFilters ─────────
 function countPendingChanges(selected, applied) {
   if (!applied) return 0;
@@ -714,7 +717,8 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
               <SearchableSelect
                 id="f-entidad" labelId="f-entidad-label" ariaLabel="Entidad"
                 value={selectedFilters.entidad}
-                options={[{ value: 'All', label: 'Nacional' }, ...filtrosOpciones.entidades.map(n => ({ value: n, label: n }))]}
+                unidad="entidades"
+                options={[{ value: 'All', label: 'Nacional', noCuenta: true }, ...filtrosOpciones.entidades.map(n => ({ value: n, label: n }))]}
                 onChange={v => handleChange('entidad', v)}
               />
             </div>
@@ -726,9 +730,10 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
                   id="f-municipio" labelId="f-municipio-label" ariaLabel="Municipio"
                   value={selectedFilters.municipio || 'All'}
                   disabled={selectedFilters.entidad === 'All'}
+                  unidad="municipios"
                   options={selectedFilters.entidad === 'All'
-                    ? [{ value: 'All', label: 'Selecciona una entidad' }]
-                    : [{ value: 'All', label: 'Todos los municipios' }, ...(filtrosOpciones.municipios || []).map(n => ({ value: n, label: n }))]}
+                    ? [{ value: 'All', label: 'Selecciona una entidad', noCuenta: true }]
+                    : [{ value: 'All', label: 'Todos los municipios', noCuenta: true }, ...(filtrosOpciones.municipios || []).map(n => ({ value: n, label: n, noCuenta: esResidual(n) }))]}
                   onChange={v => handleChange('municipio', v)}
                 />
               </div>
