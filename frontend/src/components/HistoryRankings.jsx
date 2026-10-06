@@ -808,7 +808,8 @@ const HistoryRankings = ({ tempColor }) => {
           </div>
 
         {/* Filters and Selectors Container */}
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', padding: '1rem', backgroundColor: 'var(--bg-main)', borderRadius: '8px', marginTop: '1rem' }}>
+        {/* Cuadrícula de columnas iguales: con flex, el último selector que caía solo en una fila (p. ej. "Rango de edad") se estiraba a todo el ancho */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1rem', padding: '1rem', backgroundColor: 'var(--bg-main)', borderRadius: '8px', marginTop: '1rem' }}>
           <div style={{ flex: '1 1 min(100%, 180px)' }}>
             <label className="label-sm" htmlFor="rk-dataset">Conjunto de datos</label>
             <select id="rk-dataset" className="input-select" value={dataset} onChange={e => setDataset(e.target.value)}>
@@ -847,7 +848,7 @@ const HistoryRankings = ({ tempColor }) => {
             </>
           )}
           {/* Aplicar junto a los selectores que gobierna (antes quedaba debajo de las tarjetas de resultado) */}
-          <div style={{ flexBasis: '100%', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button type="button" className="btn" onClick={handleClear} style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0.45rem 1rem', height: 'fit-content', color: 'var(--text-secondary)' }}>
               Limpiar filtros
             </button>
