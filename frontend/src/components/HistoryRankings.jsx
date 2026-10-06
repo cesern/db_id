@@ -279,6 +279,7 @@ const HistoryRankings = ({ tempColor }) => {
   const [anchoGrafica, setAnchoGrafica] = useState(0);
   // Datos cuyo trazo ya se animó: alternar Peor/Mejor no vuelve a dibujar la línea (solo datos nuevos)
   const [animado, setAnimado] = useState(null);
+  const uidTarjetas = useId();
 
   const [options, setOptions] = useState({
     entidades: ['Sonora'],
@@ -550,19 +551,23 @@ const HistoryRankings = ({ tempColor }) => {
     }
   };
 
-  // Tarjeta de posición (peor/mejor): la posición en navy y, además, el interruptor de su marca en la
-  // gráfica (el botón cubre toda la tarjeta). El periodo más reciente a la vista y el resto desplegable.
+  // Tarjeta de posición (peor/mejor): en una fila (etiqueta | lugar y valor) y, además, el interruptor
+  // de su marca en la gráfica (el botón cubre toda la tarjeta). El periodo más reciente a la vista y el
+  // resto desplegable.
   const renderPositionCard = (clave, label, sub, rank, items) => {
     const marca = MARCAS.find(m => m.clave === clave);
     const activo = marcas[clave] && !unSoloPeriodo;
     const sorted = [...items].sort((x, y) => String(y.period).localeCompare(String(x.period)));
     const [latest, ...rest] = sorted;
+    const valorId = `${uidTarjetas}-${clave}`;
     return (
       <div className="rank-card" data-active={activo ? 'true' : undefined} data-solo={unSoloPeriodo ? 'true' : undefined} style={{ '--marca': marca.color, '--marca-fondo': marca.fondo }}>
         <button
           type="button"
           className="rank-card-toggle"
           aria-pressed={activo}
+          aria-label={`Marcar en la gráfica: ${label.toLowerCase()}, ${sub}`}
+          aria-describedby={valorId}
           disabled={unSoloPeriodo}
           title={unSoloPeriodo ? 'Con un solo periodo, peor y mejor coinciden' : `Marcar en la gráfica el ${marca.texto.toLowerCase()} lugar`}
           onClick={() => setMarcas(prev => ({ ...prev, [clave]: !prev[clave] }))}
@@ -570,20 +575,21 @@ const HistoryRankings = ({ tempColor }) => {
           <span className="rank-card-label"><span className="rank-card-dot" aria-hidden="true" />{label}</span>
           <span className="rank-card-sub">{sub}</span>
         </button>
-        <span className="tabular" style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-primary)' }}>
-          #{rank}
-          {/* Municipios: "de N" = municipios clasificados en ese periodo (cambia entre años) */}
-          {nivel === 'municipio' && latest && typeof latest.n === 'number' && (
-            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}> de {latest.n.toLocaleString('es-MX')}</span>
-          )}
-        </span>
-        {latest && (
-          <span className="tabular" style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-            <strong style={{ color: 'var(--text-primary)' }}>{formatPeriodLabel(latest.period)}</strong>: {formatCardValue(latest.total)}
+        <span className="rank-card-value" id={valorId}>
+          <span className="tabular rank-card-rank">
+            #{rank}
+            {/* Municipios: "de N" = municipios clasificados en ese periodo (cambia entre años) */}
+            {nivel === 'municipio' && latest && typeof latest.n === 'number' && (
+              <small> de {latest.n.toLocaleString('es-MX')}</small>
+            )}
           </span>
-        )}
-        <span className="rank-card-hint" aria-hidden="true">{unSoloPeriodo ? '' : activo ? 'Marcado en la gráfica' : 'Marcar en la gráfica'}</span>
-        {rest.length > 0 && <div className="rank-card-more"><MorePeriods items={rest} formatPeriodLabel={formatPeriodLabel} formatCardValue={formatCardValue} /></div>}
+          {latest && (
+            <span className="tabular rank-card-when">
+              <strong style={{ color: 'var(--text-primary)' }}>{formatPeriodLabel(latest.period)}</strong>: {formatCardValue(latest.total)}
+            </span>
+          )}
+          {rest.length > 0 && <div className="rank-card-more"><MorePeriods items={rest} formatPeriodLabel={formatPeriodLabel} formatCardValue={formatCardValue} /></div>}
+        </span>
       </div>
     );
   };
@@ -677,8 +683,8 @@ const HistoryRankings = ({ tempColor }) => {
               cursor: unSoloPeriodo ? 'not-allowed' : 'pointer', opacity: unSoloPeriodo ? 0.55 : 1,
               transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease',
               border: activo ? `1px solid ${m.color}` : '1px solid transparent',
-              background: activo ? m.color : 'var(--bg-main)',
-              color: activo ? '#ffffff' : 'var(--text-secondary)',
+              background: activo ? m.fondo : 'var(--bg-main)',
+              color: activo ? m.color : 'var(--text-secondary)',
             }}
           >
             {m.texto}
@@ -690,7 +696,7 @@ const HistoryRankings = ({ tempColor }) => {
 
   // Sentido del eje Y (reversed: 1 arriba): rótulos verticales discretos en el canal del eje
   const AXIS_W = 30;
-  const AXIS_GUTTER = F(16);
+  const AXIS_GUTTER = F(20);
 
   // Marcas del eje X. Ancho estimado de la etiqueta ("2025" ~ 4 caracteres; "Ene 26" ~ 6) frente al
   // espacio por periodo: si no caben, cada k periodos contados desde el último. El mensual de más de
@@ -840,48 +846,44 @@ const HistoryRankings = ({ tempColor }) => {
               <MultiSelectDropdown label="Rango de edad" options={options.rangosEdad} selected={filters.rangoEdad} onChange={v => handleFilterChange('rangoEdad', v)} />
             </>
           )}
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', marginBottom: '0.5rem', gap: '1rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: '0.5rem 1rem', flex: '1 1 300px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-            {summaryEntidad && (
-              <>
-                {renderPositionCard('peor', 'Peor posición', 'mayor incidencia', summaryEntidad.peor.rank, summaryEntidad.peor.items)}
-                {renderPositionCard('mejor', 'Mejor posición', 'menor incidencia', summaryEntidad.mejor.rank, summaryEntidad.mejor.items)}
-              </>
-            )}
-            {/* Estado aplicado: lo que la gráfica muestra ahora, aunque el formulario ya diga otra cosa */}
-            <p style={{ flexBasis: '100%', margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>La gráfica muestra:</strong> {aplicadoTxt}
-              {nPend > 0 && <span style={{ color: 'var(--color-accent)', fontWeight: 600 }}> · {nPend} sin aplicar</span>}
-            </p>
-            {summaryEntidad && (
-              <p style={{ flexBasis: '100%', margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Escala 1–{nivel === 'municipio' && ultimoPunto?.n ? ultimoPunto.n.toLocaleString('es-MX') : 32}: 1 = {nivel === 'municipio' ? 'municipio' : 'entidad'} con {shown.metricType === 'rate' ? 'mayor tasa' : 'más ' + metricLabel} en el periodo.
-              </p>
-            )}
-            {/* Empate grande: el lugar de un municipio chico se mueve por empates en cero, no por cambios reales */}
-            {empate && !cargandoSerie && (
-              <p style={{ flexBasis: '100%', margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{formatPeriodLabel(ultimoPunto.period)}:</strong> {empate}.
-              </p>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+          {/* Aplicar junto a los selectores que gobierna (antes quedaba debajo de las tarjetas de resultado) */}
+          <div style={{ flexBasis: '100%', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button type="button" className="btn" onClick={handleClear} style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0.45rem 1rem', height: 'fit-content', color: 'var(--text-secondary)' }}>
               Limpiar filtros
             </button>
             <button
               type="button"
               className={hasPending ? 'btn btn-primary' : 'btn'}
-              onClick={handleApply}
+              onClick={() => { if (hasPending) handleApply(); }}
               aria-disabled={!hasPending}
               style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0.45rem 1.1rem', height: 'fit-content', ...(hasPending ? {} : { background: 'var(--bg-main)', color: 'var(--text-secondary)' }) }}
             >
               Aplicar filtros{nPend > 0 ? ` (${nPend})` : ''}
             </button>
           </div>
+        </div>
+
+        {/* Resultado: tarjetas Peor/Mejor y una sola línea de notas, justo antes de la gráfica */}
+        <div style={{ display: 'flex', gap: '0.5rem 0.75rem', flexWrap: 'wrap', alignItems: 'stretch', marginTop: '1rem', marginBottom: '0.5rem' }}>
+          {summaryEntidad && (
+            <>
+              {renderPositionCard('peor', 'Peor posición', 'mayor incidencia', summaryEntidad.peor.rank, summaryEntidad.peor.items)}
+              {renderPositionCard('mejor', 'Mejor posición', 'menor incidencia', summaryEntidad.mejor.rank, summaryEntidad.mejor.items)}
+            </>
+          )}
+          {/* Estado aplicado: lo que la gráfica muestra ahora, aunque el formulario ya diga otra cosa */}
+          <p style={{ flexBasis: '100%', margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>La gráfica muestra:</strong> {aplicadoTxt}
+            {nPend > 0 && <span style={{ color: 'var(--color-accent)', fontWeight: 600 }}> · {nPend} sin aplicar</span>}
+            {summaryEntidad && (
+              <> · Escala 1–{nivel === 'municipio' && ultimoPunto?.n ? ultimoPunto.n.toLocaleString('es-MX') : 32}: 1 = {nivel === 'municipio' ? 'municipio' : 'entidad'} con {shown.metricType === 'rate' ? 'mayor tasa' : 'más ' + metricLabel} en el periodo.</>
+            )}
+            {summaryEntidad && !unSoloPeriodo && ' Toca una tarjeta para marcar su lugar en la gráfica.'}
+            {/* Empate grande: el lugar de un municipio chico se mueve por empates en cero, no por cambios reales */}
+            {empate && !cargandoSerie && (
+              <> <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{formatPeriodLabel(ultimoPunto.period)}:</strong> {empate}.</>
+            )}
+          </p>
         </div>
       </div>
     )}
@@ -994,7 +996,10 @@ const HistoryRankings = ({ tempColor }) => {
                     strokeWidth={isFullScreen ? 4.5 : 3}
                     strokeOpacity={1}
                     // Un solo periodo (conjunto de un año en Anual): el punto, porque no hay línea que trazar
-                    dot={seriePuntos.length === 1 ? { r: 5, fill: primaryColor, stroke: '#ffffff', strokeWidth: 1.5 } : false}
+                    dot={seriePuntos.length === 1
+                      ? { r: 5, fill: primaryColor, stroke: '#ffffff', strokeWidth: 1.5 }
+                      // Anual y acumulado: un punto por periodo (la curva suave no sugiere datos intermedios)
+                      : shown.temporalidad !== 'mensual' ? { r: 3, fill: primaryColor, stroke: '#ffffff', strokeWidth: 1 } : false}
                     activeDot={{ r: 6, fill: primaryColor }}
                     // Trazo de izquierda a derecha: comunica la evolución en el tiempo.
                     // Se omite con "reducir movimiento"; el rótulo final aparece al terminar.

@@ -10,7 +10,7 @@ const pasoDelEje = (span) => (span <= 20 ? 1 : span <= 60 ? 5 : span <= 200 ? 10
  * Eje Y de un municipio: se ajusta al rango de lugares que recorre la serie (con margen y cifras
  * redondas) para que la variación llene la gráfica en vez de ocupar una franja de 1…2,500.
  * El 1 solo aparece si la serie está cerca. `tope` = municipios clasificados (el eje no lo pasa).
- * Devuelve { min, max, ticks } con tres marcas (mínimo, mitad y máximo).
+ * Devuelve { min, max, ticks }: tres marcas (mínimo, mitad y máximo) o cinco si abarca 40 lugares o más.
  */
 export const ejeRanking = (minLugar, maxLugar, tope = Infinity) => {
   const min = Math.max(1, Math.floor(Number(minLugar) || 1));
@@ -23,7 +23,8 @@ export const ejeRanking = (minLugar, maxLugar, tope = Infinity) => {
   let hi = Math.ceil(crudoMax / paso) * paso;
   if (hi > tope) hi = Math.max(tope, max);
   if (hi <= lo) hi = lo + 1;
-  return { min: lo, max: hi, ticks: [lo, Math.round((lo + hi) / 2), hi] };
+  const marcas = hi - lo >= 40 ? 5 : 3;
+  return { min: lo, max: hi, ticks: Array.from({ length: marcas }, (_, i) => Math.round(lo + ((hi - lo) * i) / (marcas - 1))) };
 };
 
 /**

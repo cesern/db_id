@@ -1554,7 +1554,7 @@ select:focus:not(:focus-visible) {
 
 /* Celular: campos a 16 px (con menos, iOS acerca la página al enfocarlos) */
 @media (max-width: 767px) {
-  select.input-select, .table-search, input[type="search"], input[type="text"] { font-size: 16px; }
+  select.input-select, button.input-select, .table-search, input[type="search"], input[type="text"] { font-size: 16px; }
 }
 
 /* Selector de entidad en el título de Rankings: pastilla del ancho del nombre elegido.
@@ -1618,32 +1618,39 @@ select:focus:not(:focus-visible) {
 .ss-search { font-size: 0.8125rem; }
 @media (pointer: coarse) { .ss-search { font-size: 16px; } }
 
-/* Tarjetas Peor / Mejor posición: cada una es el interruptor de su marca en la gráfica. El botón
-   `.rank-card-toggle` cubre toda la tarjeta (::after); "+N periodos más" queda por encima. */
+/* Tarjetas Peor / Mejor posición: en una fila (etiqueta | lugar y valor) y cada una es el interruptor de
+   su marca en la gráfica. El botón `.rank-card-toggle` cubre toda la tarjeta (::after); "+N periodos
+   más" queda por encima. */
 .rank-card {
-  position: relative; flex: 1; min-width: 150px; display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
-  padding: 0.75rem 1rem; border-radius: 8px; background: var(--bg-main); border: 1px solid var(--border-color);
+  position: relative; flex: 1 1 280px; min-width: 0; display: flex; align-items: center; gap: 0.5rem 1rem; flex-wrap: wrap;
+  padding: 0.55rem 0.9rem; border-radius: 8px; background: var(--bg-main); border: 1px solid var(--border-color);
   transition: background-color 150ms var(--ease-out), border-color 150ms var(--ease-out);
 }
 .rank-card[data-active="true"] { background: var(--marca-fondo); border-color: var(--marca); }
 .rank-card-toggle {
-  display: flex; flex-direction: column; align-items: center; background: none; border: none; padding: 0;
-  font: inherit; color: var(--text-secondary); text-align: center; cursor: pointer;
+  display: flex; flex-direction: column; align-items: flex-start; background: none; border: none; padding: 0;
+  font: inherit; color: var(--text-secondary); text-align: left; cursor: pointer;
 }
 .rank-card-toggle::after { content: ''; position: absolute; inset: 0; border-radius: 8px; }
 .rank-card-toggle:disabled { cursor: default; }
 .rank-card-toggle:focus-visible { outline: none; }
 .rank-card:has(.rank-card-toggle:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .rank-card-label { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; font-weight: 700; }
-.rank-card-sub { font-size: 0.75rem; font-weight: 500; }
+.rank-card-sub { font-size: 0.75rem; font-weight: 500; padding-left: calc(10px + 0.4rem); }
 .rank-card-dot { box-sizing: content-box; width: 6px; height: 6px; border-radius: 50%; border: 2px solid var(--marca); background: transparent; flex-shrink: 0; transition: background-color 150ms var(--ease-out); }
 .rank-card[data-active="true"] .rank-card-dot { background: var(--marca); }
-.rank-card-hint { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); min-height: 1em; }
-.rank-card[data-active="true"] .rank-card-hint { color: var(--marca); }
+.rank-card-value { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 0.05rem; }
+.rank-card-rank { font-size: 1.35rem; font-weight: 800; color: var(--color-primary); line-height: 1.1; }
+.rank-card-rank small { font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); }
+.rank-card-when { font-size: 0.8125rem; color: var(--text-secondary); text-align: right; }
 .rank-card-more { position: relative; z-index: 1; width: 100%; }
 @media (hover: hover) and (pointer: fine) {
   .rank-card:not([data-active="true"]):not([data-solo="true"]):hover { border-color: var(--text-secondary); }
 }
+
+/* Indicador de cambio de lugar: el símbolo lleva a su lado contra qué año compara */
+.rank-change-vs { margin-left: 0.3rem; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.rank-change { padding: 0 0.3rem; }
 
 /* Marcas Peor / Mejor sobre la línea: entran con un fundido cuando termina el trazo */
 .rank-mark { animation: rankBadgeIn 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }

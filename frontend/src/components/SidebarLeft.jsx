@@ -410,7 +410,7 @@ const SidebarLeft = ({ selectedFilters: requestedFilters, metricType: requestedM
 
   const maxVal = rows.reduce((mx, r) => (typeof r.value === 'number' && r.value > mx ? r.value : mx), 0);
 
-  const baseValLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
+  const baseValLabel = isVictimasBase ? 'Víctimas' : isAltoImpacto ? 'Delitos' : 'Incidencia';
   // Encabezado de la columna de valores: en tasa, el rótulo único "Tasa por 100 mil hab."
   const valLabel = metricType === 'rate' ? RATE_LABEL : baseValLabel;
   // En tasa la columna se ensancha: el rótulo cabe en dos renglones ("Tasa por 100 / mil hab.")
@@ -625,7 +625,9 @@ const SidebarLeft = ({ selectedFilters: requestedFilters, metricType: requestedM
                     onBlur={() => setShowRankTip(false)}
                     data-dir={up ? 'up' : down ? 'down' : 'same'}
                   >
-                    <span aria-hidden="true">{up ? '▲' : down ? '▼' : '='}</span>
+                    {/* Símbolo + cuánto cambió + contra qué año (visible sin depender del tooltip) */}
+                    <span aria-hidden="true">{up ? '▲' : down ? '▼' : '='}{diff !== 0 ? ` ${Math.abs(diff)}` : ''}</span>
+                    <span className="rank-change-vs" aria-hidden="true">vs {prevRank.anio}</span>
                     {showRankTip && (
                       <span className="rank-tip" role="tooltip">
                         <strong>{headline}</strong>
