@@ -12,7 +12,7 @@ import DrillDownModal from './DrillDownModal';
 import { useFullscreenScale, scaleSize } from '../utils/fullscreenScale';
 import { CHART_ANIM } from '../utils/motion';
 import { useExitAnimation } from '../utils/useExitAnimation';
-import { menuArrows, focusFirstMenuItem } from '../utils/menuKeys';
+import MenuSelect from './MenuSelect';
 
 const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -25,99 +25,6 @@ const FONT_OPTIONS = [
   { value: 1, label: 'Letra normal' },
   { value: 1.3, label: 'Letra grande' }
 ];
-
-const FontSizeSelect = ({ value, onChange }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef(null);
-  const trigRef = useRef(null);
-  const listRef = useRef(null);
-  const active = FONT_OPTIONS.find(o => o.value === value) || FONT_OPTIONS[1];
-
-  // Al cerrarse el menú (opción elegida) el foco no debe quedar suelto en <body>: vuelve al botón
-  const wasOpenRef = useRef(false);
-  useEffect(() => {
-    if (wasOpenRef.current && !isOpen && (!document.activeElement || document.activeElement === document.body)) {
-      trigRef.current?.focus({ preventScroll: true });
-    }
-    wasOpenRef.current = isOpen;
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return undefined;
-    focusFirstMenuItem(listRef.current);
-    const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setIsOpen(false);
-    };
-    const handleKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); setIsOpen(false); trigRef.current?.focus({ preventScroll: true }); } };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, [isOpen]);
-
-  return (
-    <div style={{ position: 'relative' }} ref={containerRef}>
-      <button
-        type="button"
-        ref={trigRef}
-        onClick={() => setIsOpen(v => !v)}
-        title="Tamaño de letra de la gráfica"
-        aria-haspopup="menu"
-        aria-expanded={isOpen}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-          padding: '0.4rem 0.75rem', fontSize: '0.75rem', fontWeight: 600,
-          borderRadius: '8px', border: '1px solid var(--border-color)',
-          background: '#ffffff', color: 'var(--text-secondary)', cursor: 'pointer',
-          boxShadow: 'var(--shadow-sm)', whiteSpace: 'nowrap'
-        }}
-      >
-        {active.label}
-        <span aria-hidden="true" style={{ fontSize: '0.75rem', color: 'var(--color-accent)' }}>▾</span>
-      </button>
-      {isOpen && (
-        <div
-          role="menu"
-          ref={listRef}
-          aria-label="Tamaño de letra de la gráfica"
-          onKeyDown={menuArrows}
-          style={{
-            position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: '150px',
-            background: 'var(--bg-card)', border: '1px solid var(--border-color)',
-            borderRadius: '10px', boxShadow: 'var(--shadow-lg)', padding: '0.35rem', zIndex: 9999
-          }}
-        >
-          {FONT_OPTIONS.map(o => {
-            const selected = o.value === value;
-            return (
-              <button
-                key={o.value}
-                type="button"
-                role="menuitemradio"
-                aria-checked={selected}
-                onClick={() => { onChange(o.value); setIsOpen(false); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%',
-                  padding: '0.45rem 0.6rem', border: 'none', borderRadius: '7px',
-                  cursor: 'pointer', fontSize: '0.8rem', fontWeight: selected ? 700 : 500,
-                  color: selected ? 'var(--color-accent)' : 'var(--text-primary)',
-                  background: selected ? 'var(--color-accent-light, #eceef5)' : 'transparent'
-                }}
-                onMouseEnter={e => { if (!selected) e.currentTarget.style.backgroundColor = 'var(--bg-main)'; }}
-                onMouseLeave={e => { if (!selected) e.currentTarget.style.backgroundColor = 'transparent'; }}
-              >
-                <span style={{ width: '1rem', fontWeight: 800 }}>{selected ? '✓' : ''}</span>
-                {o.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
 
 // Guarda la barra activa (mouse o flechas del teclado de Recharts) para abrir su desglose con Enter/Espacio
 const ActiveLabelTracker = ({ labelRef }) => {
@@ -434,7 +341,7 @@ const ChartBarYears = ({ selectedFilters: requestedFilters, metricType: requeste
           returnFocusRef={fsTriggerRef}
           extraActions={
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <FontSizeSelect value={fontBoost} onChange={handleFontBoost} />
+              <MenuSelect value={fontBoost} options={FONT_OPTIONS} onChange={handleFontBoost} title="Tamaño de letra de la gráfica" />
               <ExportMenu subject={chartTitle}
                 elementRef={cardRef}
                 imageFilename={isVictimasMun ? "victimas_por_mes.png" : (isVictimasBase ? "victimas_por_anio.png" : "incidencia_por_anio.png")}
