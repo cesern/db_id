@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ejeRanking, resumenPosiciones, notaEmpate } from '../src/utils/rankings.js';
+import { ejeRanking, resumenPosiciones, notaEmpate, columnasBalanceadas } from '../src/utils/rankings.js';
 
 test('ejeRanking ajusta el dominio al rango de la serie, con margen y cifras redondas', () => {
   // Cajeme: lugares 67 a 113 de 2,478
@@ -46,4 +46,14 @@ test('resumenPosiciones: la peor posición no sale de un periodo en cero si hubo
   assert.equal(r.peor.rank, 40);
   assert.equal(r.mejor.rank, 900);
   assert.equal(resumenPosiciones([{ period: '2026-01', rank: 5, total: 0, n: 10 }]).peor.rank, 5);
+});
+
+test('columnasBalanceadas reparte los selectores en filas parejas, sin uno huérfano', () => {
+  assert.equal(columnasBalanceadas(8, 1454, 160, 16), 8);   // caben todos: una fila
+  assert.equal(columnasBalanceadas(8, 1100, 160, 16), 4);   // caben 6: 4 + 4 en lugar de 6 + 2
+  assert.equal(columnasBalanceadas(6, 1100, 160, 16), 6);
+  assert.equal(columnasBalanceadas(7, 1100, 160, 16), 4);   // 4 + 3
+  assert.equal(columnasBalanceadas(8, 290, 160, 16), 1);    // celular: una columna
+  assert.equal(columnasBalanceadas(3, 5000, 160, 16), 3);   // nunca más columnas que selectores
+  assert.equal(columnasBalanceadas(8, 0, 160, 16), 1);      // sin medida: una columna
 });

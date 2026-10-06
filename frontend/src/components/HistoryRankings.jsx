@@ -11,7 +11,7 @@ import { useExitAnimation } from '../utils/useExitAnimation';
 import { csvValueLabel } from '../utils/labels';
 import { useDialogFocus } from '../utils/useDialogFocus';
 import { toast } from 'sonner';
-import { ejeRanking, resumenPosiciones, notaEmpate } from '../utils/rankings';
+import { ejeRanking, resumenPosiciones, notaEmpate, columnasBalanceadas } from '../utils/rankings';
 import MultiSelectDropdown from './MultiSelectDropdown';
 import SearchableSelect from './SearchableSelect';
 import LoadingSpinner from './LoadingSpinner';
@@ -280,6 +280,9 @@ const HistoryRankings = ({ tempColor }) => {
   // Datos cuyo trazo ya se animó: alternar Peor/Mejor no vuelve a dibujar la línea (solo datos nuevos)
   const [animado, setAnimado] = useState(null);
   const uidTarjetas = useId();
+  // Ancho del bloque de filtros: reparte los selectores en filas parejas (ver columnasBalanceadas)
+  const filtrosRef = useRef(null);
+  const [anchoFiltros, setAnchoFiltros] = useState(0);
 
   const [options, setOptions] = useState({
     entidades: ['Sonora'],
@@ -314,6 +317,14 @@ const HistoryRankings = ({ tempColor }) => {
     };
     fetchOptions();
   }, [applied]);
+
+  useEffect(() => {
+    const el = filtrosRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(([e]) => setAnchoFiltros(Math.round(e.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isFullScreen]);
 
   useEffect(() => {
     const el = chartBoxRef.current;
@@ -462,6 +473,8 @@ const HistoryRankings = ({ tempColor }) => {
   };
 
   // Cambios sin aplicar: el botón Aplicar solo se ve primario cuando hay algo pendiente (igual que en el tablero)
+  // Selectores del bloque de filtros: Conjunto, Periodo, (Mes de corte), 4 de delito y (Sexo, Rango de edad)
+  const nSelectores = 2 + (temporalidad === 'acumulado' ? 1 : 0) + 4 + (dataset === 'victimas' || dataset === 'victimas_mun' ? 2 : 0);
   const hasPending = JSON.stringify({ dataset, temporalidad, metricType, mesAcumulado, filters })
     !== JSON.stringify({ dataset: applied.dataset, temporalidad: applied.temporalidad, metricType: applied.metricType, mesAcumulado: applied.mesAcumulado, filters: applied.filters });
 
@@ -809,7 +822,7 @@ const HistoryRankings = ({ tempColor }) => {
 
         {/* Filters and Selectors Container */}
         {/* Cuadrícula de columnas iguales: con flex, el último selector que caía solo en una fila (p. ej. "Rango de edad") se estiraba a todo el ancho */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1rem', padding: '1rem', backgroundColor: 'var(--bg-main)', borderRadius: '8px', marginTop: '1rem' }}>
+        <div ref={filtrosRef} style={{ display: 'grid', gridTemplateColumns: anchoFiltros > 0 ? `repeat(${columnasBalanceadas(nSelectores, anchoFiltros, 160, 16)}, minmax(0, 1fr))` : 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '1rem', padding: '1rem', backgroundColor: 'var(--bg-main)', borderRadius: '8px', marginTop: '1rem' }}>
           <div style={{ flex: '1 1 min(100%, 180px)' }}>
             <label className="label-sm" htmlFor="rk-dataset">Conjunto de datos</label>
             <select id="rk-dataset" className="input-select" value={dataset} onChange={e => setDataset(e.target.value)}>

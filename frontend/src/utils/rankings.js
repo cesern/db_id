@@ -54,3 +54,14 @@ export const notaEmpate = (punto, unidad) => {
   const base = `${punto.empatados.toLocaleString('es-MX')} municipios comparten este lugar`;
   return punto.total === 0 ? `${base} (todos con 0 ${unidad})` : base;
 };
+
+/**
+ * Columnas de una cuadrícula de selectores repartidos en filas parejas. Con `minCol` y `gap` caben
+ * `max` columnas en `ancho`; se usan las filas que hagan falta y se reparte el resto en partes iguales
+ * (8 selectores donde caben 6 quedan 4 + 4, no 6 + 2 con uno huérfano).
+ */
+export const columnasBalanceadas = (n, ancho, minCol, gap) => {
+  const max = Math.max(1, Math.floor((Number(ancho) + gap) / (minCol + gap)) || 1);
+  const filas = Math.ceil(n / max);
+  return Math.max(1, Math.ceil(n / filas));
+};
