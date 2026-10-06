@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import axios from 'axios';
 import { API_URL } from '../api';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Customized, usePlotArea, ReferenceLine } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Customized, usePlotArea, ReferenceLine, ReferenceDot } from 'recharts';
 import ExportMenu from './ExportMenu';
 import FullScreenHeader from './FullScreenHeader';
 import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
@@ -243,6 +243,8 @@ const HistoryRankings = ({ tempColor }) => {
   // no de `applied` (que cambia antes de que llegue la respuesta)
   const [shown, setShown] = useState(applied);
   const cargandoSerie = dataKey !== reqKey || shown !== applied;
+  // Marcas del lugar peor y mejor sobre la línea: apagadas al entrar
+  const [marcas, setMarcas] = useState({ peor: false, mejor: false });
 
   const [options, setOptions] = useState({
     entidades: ['Sonora'],
@@ -556,20 +558,20 @@ const HistoryRankings = ({ tempColor }) => {
 
   const primaryColor = 'var(--color-accent)';
 
-  // Badge conectado al último punto: ●── SONORA #21. Recharts dibuja el label al terminar
+  // Badge conectado al último punto: ●── #21 (el nombre ya está en el título). Recharts dibuja el label al terminar
   // el trazo, así que el badge aparece después (fundido de 150ms en .rank-badge).
   const BADGE_FS = F(12);
   const BADGE_H = BADGE_FS + 10;
   const DOT_R = 4;
   const CONNECTOR = 12;
   const badgeWidth = (text) => Math.ceil(String(text).length * BADGE_FS * 0.68) + 16;
-  // Margen derecho según el nombre más largo posible de la entidad (con "#32")
-  const rightMargin = Math.max(90, DOT_R + CONNECTOR + badgeWidth(`${serieLabel.toUpperCase()} #${eje.max}`) + 12);
+  // Margen derecho: el badge más ancho posible ("#2500") y media etiqueta de peor/mejor si cae en el último periodo
+  const rightMargin = Math.max(64, DOT_R + CONNECTOR + badgeWidth(`#${eje.max}`) + 12);
 
   const renderCustomLabel = (props) => {
     const { x, y, value, index } = props;
     if (index !== chartData.length - 1 || value === undefined || value === null) return null;
-    const text = `${serieLabel.toUpperCase()} #${value}`;
+    const text = `#${value}`;
     const w = badgeWidth(text);
     const bx = x + DOT_R + CONNECTOR;
     return (
@@ -583,6 +585,52 @@ const HistoryRankings = ({ tempColor }) => {
       </g>
     );
   };
+
+  // Peor y mejor lugar marcados sobre la línea (los mismos de las tarjetas). Con un solo periodo
+  // coincidirían con el único punto: los botones se deshabilitan.
+  const unSoloPeriodo = seriePuntos.length < 2;
+  const MARCAS = [
+    { clave: 'peor', texto: 'Peor', color: '#b91c1c' },
+    { clave: 'mejor', texto: 'Mejor', color: '#047857' },
+  ];
+  // La etiqueta va del lado libre de la línea: el peor lugar es la cima de la curva (libre arriba) y
+  // el mejor su valle (libre abajo); cerca de los bordes del eje cambia de lado para no salirse
+  const posEtiqueta = (clave, rank) => {
+    const f = eje.max > 1 ? (rank - 1) / (eje.max - 1) : 0;
+    if (clave === 'peor') return f < 0.08 ? 'bottom' : 'top';
+    return f > 0.92 ? 'top' : 'bottom';
+  };
+  const marcasEnGrafica = unSoloPeriodo || !summaryEntidad
+    ? []
+    : MARCAS.filter(m => marcas[m.clave]).map(m => ({ ...m, datos: summaryEntidad[m.clave] }));
+  const marcasControl = summaryEntidad && (
+    <div role="group" aria-label="Marcar en la gráfica" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Marcar en la gráfica:</span>
+      {MARCAS.map(m => {
+        const activo = marcas[m.clave] && !unSoloPeriodo;
+        return (
+          <button
+            key={m.clave}
+            type="button"
+            aria-pressed={activo}
+            disabled={unSoloPeriodo}
+            title={unSoloPeriodo ? 'Con un solo periodo, peor y mejor coinciden' : `Marcar el ${m.texto.toLowerCase()} lugar en la línea`}
+            onClick={() => setMarcas(prev => ({ ...prev, [m.clave]: !prev[m.clave] }))}
+            style={{
+              padding: '0.25rem 0.65rem', fontSize: '0.75rem', fontWeight: 600, borderRadius: '6px',
+              cursor: unSoloPeriodo ? 'not-allowed' : 'pointer', opacity: unSoloPeriodo ? 0.55 : 1,
+              transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease',
+              border: activo ? `1px solid ${m.color}` : '1px solid transparent',
+              background: activo ? m.color : 'var(--bg-main)',
+              color: activo ? '#ffffff' : 'var(--text-secondary)',
+            }}
+          >
+            {m.texto}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   // Sentido del eje Y (reversed: 1 arriba): rótulos verticales discretos en el canal del eje
   const AXIS_W = 30;
@@ -609,12 +657,15 @@ const HistoryRankings = ({ tempColor }) => {
           onClose={() => setFsOpen(false)}
           returnFocusRef={fsTriggerRef}
           extraActions={
-            <ExportMenu subject={`Evolución del ranking de ${serieLabel}`}
-              imageFilename="evolucion_ranking"
-              onDownloadCSV={handleDownloadCSV}
-              onCopyTable={handleCopyTable}
-              isTable={true}
-            />
+            <>
+              {marcasControl}
+              <ExportMenu subject={`Evolución del ranking de ${serieLabel}`}
+                imageFilename="evolucion_ranking"
+                onDownloadCSV={handleDownloadCSV}
+                onCopyTable={handleCopyTable}
+                isTable={true}
+              />
+            </>
           }
         />
       ) : (
@@ -738,6 +789,7 @@ const HistoryRankings = ({ tempColor }) => {
                 Escala 1–{nivel === 'municipio' && ultimoPunto?.n ? ultimoPunto.n.toLocaleString('es-MX') : 32}: 1 = {nivel === 'municipio' ? 'municipio' : 'entidad'} con {shown.metricType === 'rate' ? 'mayor tasa' : 'más ' + metricLabel} en el periodo.
               </p>
             )}
+            {marcasControl && <div style={{ flexBasis: '100%' }}>{marcasControl}</div>}
             {/* Empate grande: el lugar de un municipio chico se mueve por empates en cero, no por cambios reales */}
             {empate && !cargandoSerie && (
               <p style={{ flexBasis: '100%', margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
@@ -883,6 +935,30 @@ const HistoryRankings = ({ tempColor }) => {
                     label={renderCustomLabel}
                   />
                 )}
+
+                {/* Peor / mejor lugar: línea punteada y un punto por periodo; la etiqueta, en el más reciente */}
+                {marcasEnGrafica.map(m => {
+                  const ultimo = [...m.datos.items].sort((a, b) => String(b.period).localeCompare(String(a.period)))[0];
+                  return (
+                    <React.Fragment key={m.clave}>
+                      <ReferenceLine y={m.datos.rank} stroke={m.color} strokeDasharray="3 3" strokeWidth={1} />
+                      {m.datos.items.map(it => (
+                        <ReferenceDot
+                          key={it.period}
+                          x={it.period}
+                          y={m.datos.rank}
+                          r={5}
+                          fill={m.color}
+                          stroke="white"
+                          strokeWidth={1.5}
+                          label={it.period === ultimo.period
+                            ? { value: `${m.texto} #${m.datos.rank} · ${formatPeriodLabel(ultimo.period)}`, position: posEtiqueta(m.clave, m.datos.rank), fill: m.color, fontSize: F(12), fontWeight: 700, stroke: '#ffffff', strokeWidth: 4, paintOrder: 'stroke' }
+                            : undefined}
+                        />
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
               </LineChart>
             </ResponsiveContainer>
           ) : (
