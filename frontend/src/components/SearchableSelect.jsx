@@ -146,7 +146,8 @@ const SearchableSelect = ({
               value={term}
               onChange={e => setTerm(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && visibles.length > 0) { e.preventDefault(); elegir(visibles[0].value); } }}
-              style={{ width: '100%', padding: '0.45rem 0.55rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.8125rem', fontWeight: 400 }}
+              className="ss-search"
+              style={{ width: '100%', padding: '0.45rem 0.55rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontWeight: 400 }}
             />
             <div className="tabular" aria-live="polite" style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
               {term ? `${visibles.length} de ${lista.length}` : `${lista.length} opciones`}

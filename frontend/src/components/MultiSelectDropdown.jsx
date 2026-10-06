@@ -132,10 +132,10 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
               placeholder="Buscar opciones..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              className="ss-search"
               style={{
                 width: '100%', padding: '0.45rem 0.55rem',
-                border: '1px solid var(--border-color)', borderRadius: '6px',
-                fontSize: '0.8125rem'
+                border: '1px solid var(--border-color)', borderRadius: '6px'
               }}
             />
 
