@@ -473,8 +473,9 @@ const HistoryRankings = ({ tempColor }) => {
   };
 
   // Cambios sin aplicar: el botón Aplicar solo se ve primario cuando hay algo pendiente (igual que en el tablero)
-  // Selectores del bloque de filtros: Conjunto, Periodo, (Mes de corte), 4 de delito y (Sexo, Rango de edad)
-  const nSelectores = 2 + (temporalidad === 'acumulado' ? 1 : 0) + 4 + (dataset === 'victimas' || dataset === 'victimas_mun' ? 2 : 0);
+  // Selectores de la primera fila del bloque de filtros: Conjunto, Periodo, (Mes de corte) y los 4 de delito.
+  // Sexo y Rango de edad (filtros de la víctima) van aparte, en una segunda fila.
+  const nSelectores = 2 + (temporalidad === 'acumulado' ? 1 : 0) + 4;
   const hasPending = JSON.stringify({ dataset, temporalidad, metricType, mesAcumulado, filters })
     !== JSON.stringify({ dataset: applied.dataset, temporalidad: applied.temporalidad, metricType: applied.metricType, mesAcumulado: applied.mesAcumulado, filters: applied.filters });
 
@@ -822,7 +823,7 @@ const HistoryRankings = ({ tempColor }) => {
 
         {/* Filters and Selectors Container */}
         {/* Cuadrícula de columnas iguales: con flex, el último selector que caía solo en una fila (p. ej. "Rango de edad") se estiraba a todo el ancho */}
-        <div ref={filtrosRef} style={{ display: 'grid', gridTemplateColumns: anchoFiltros > 0 ? `repeat(${columnasBalanceadas(nSelectores, anchoFiltros, 160, 16)}, minmax(0, 1fr))` : 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '1rem', padding: '1rem', backgroundColor: 'var(--bg-main)', borderRadius: '8px', marginTop: '1rem' }}>
+        <div ref={filtrosRef} style={{ display: 'grid', gridTemplateColumns: anchoFiltros > 0 ? `repeat(${columnasBalanceadas(nSelectores, anchoFiltros, 160, 16)}, minmax(0, 1fr))` : 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '1rem', alignItems: 'end', padding: '1rem', backgroundColor: 'var(--bg-main)', borderRadius: '8px', marginTop: '1rem' }}>
           <div style={{ flex: '1 1 min(100%, 180px)' }}>
             <label className="label-sm" htmlFor="rk-dataset">Conjunto de datos</label>
             <select id="rk-dataset" className="input-select" value={dataset} onChange={e => setDataset(e.target.value)}>
@@ -856,8 +857,13 @@ const HistoryRankings = ({ tempColor }) => {
 
           {(dataset === 'victimas' || dataset === 'victimas_mun') && (
             <>
-              <MultiSelectDropdown label="Sexo" options={options.sexos} selected={filters.sexo} onChange={v => handleFilterChange('sexo', v)} />
-              <MultiSelectDropdown label="Rango de edad" options={options.rangosEdad} selected={filters.rangoEdad} onChange={v => handleFilterChange('rangoEdad', v)} />
+              {/* Segunda fila: filtros de la víctima, en las primeras columnas (mismo ancho que la fila de arriba) */}
+              <div style={{ gridColumnStart: 1 }}>
+                <MultiSelectDropdown label="Sexo" options={options.sexos} selected={filters.sexo} onChange={v => handleFilterChange('sexo', v)} />
+              </div>
+              <div>
+                <MultiSelectDropdown label="Rango de edad" options={options.rangosEdad} selected={filters.rangoEdad} onChange={v => handleFilterChange('rangoEdad', v)} />
+              </div>
             </>
           )}
           {/* Aplicar junto a los selectores que gobierna (antes quedaba debajo de las tarjetas de resultado) */}
