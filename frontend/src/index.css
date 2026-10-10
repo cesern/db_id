@@ -1662,3 +1662,16 @@ select:focus:not(:focus-visible) {
 }
 .rank-card-hint { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); padding-left: calc(10px + 0.4rem); min-height: 1em; }
 .rank-card[data-active="true"] .rank-card-hint { color: var(--marca); }
+
+/* Rankings con cambios sin aplicar: la gráfica y las tarjetas se atenúan y un aviso lo dice */
+.rank-card[data-stale="true"] { opacity: 0.6; }
+.rank-stale {
+  position: absolute; top: 0.4rem; left: 50%; transform: translateX(-50%); z-index: 105;
+  padding: 0.2rem 0.7rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; white-space: nowrap;
+  color: var(--color-accent-dark); background: var(--color-accent-light); border: 1px solid var(--color-accent);
+  pointer-events: none;
+}
+/* Selector con valor: además del borde y el fondo, un punto de acento antes del texto */
+.rankings-filtros button.input-select[data-activo="true"]::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent); margin-right: 0.5rem; flex-shrink: 0;
+}

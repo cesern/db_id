@@ -11,7 +11,7 @@ import { useExitAnimation } from '../utils/useExitAnimation';
 import { csvValueLabel } from '../utils/labels';
 import { useDialogFocus } from '../utils/useDialogFocus';
 import { toast } from 'sonner';
-import { ejeRanking, resumenPosiciones, notaEmpate, columnasBalanceadas, accionesEnLaMismaFila } from '../utils/rankings';
+import { ejeRanking, resumenPosiciones, notaEmpate, columnasBalanceadas, accionesEnLaMismaFila, indicesMarcas } from '../utils/rankings';
 import MultiSelectDropdown from './MultiSelectDropdown';
 import SearchableSelect from './SearchableSelect';
 import LoadingSpinner from './LoadingSpinner';
@@ -217,6 +217,9 @@ const MARCAS = [
   { clave: 'peor', texto: 'Peor', color: '#b91c1c', fondo: '#fef2f2' },
   { clave: 'mejor', texto: 'Mejor', color: '#047857', fondo: '#ecfdf5' },
 ];
+
+// Con puntero táctil se toca; con ratón se hace clic
+const TACTIL = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
 const NOMBRE_CONJUNTO = { delitos: 'Delitos', victimas: 'Víctimas', victimas_mun: 'Víctimas Municipios' };
 const NO_MUNICIPIO = /^(no especificado|otros municipios)$/i;
@@ -582,7 +585,7 @@ const HistoryRankings = ({ tempColor }) => {
     const [latest, ...rest] = sorted;
     const valorId = `${uidTarjetas}-${clave}`;
     return (
-      <div className="rank-card" data-active={activo ? 'true' : undefined} data-solo={unSoloPeriodo ? 'true' : undefined} style={{ '--marca': marca.color, '--marca-fondo': marca.fondo }}>
+      <div className="rank-card" data-stale={nPend > 0 ? 'true' : undefined} data-active={activo ? 'true' : undefined} data-solo={unSoloPeriodo ? 'true' : undefined} style={{ '--marca': marca.color, '--marca-fondo': marca.fondo }}>
         <button
           type="button"
           className="rank-card-toggle"
@@ -595,7 +598,7 @@ const HistoryRankings = ({ tempColor }) => {
         >
           <span className="rank-card-label"><span className="rank-card-dot" aria-hidden="true" />{label}</span>
           <span className="rank-card-sub">{sub}</span>
-          <span className="rank-card-hint" aria-hidden="true">{unSoloPeriodo ? '' : activo ? 'Marcado en la gráfica' : 'Toca para marcar'}</span>
+          <span className="rank-card-hint" aria-hidden="true">{unSoloPeriodo ? '' : activo ? 'Marcado en la gráfica' : TACTIL ? 'Toca para marcar' : 'Clic para marcar'}</span>
         </button>
         <span className="rank-card-value" id={valorId}>
           <span className="tabular rank-card-rank">
@@ -616,13 +619,16 @@ const HistoryRankings = ({ tempColor }) => {
     );
   };
 
+  // Rótulo de la cifra: "Incidencia" solo en Delitos; en los conjuntos de víctimas, "Víctimas"
+  const valorBase = shown.dataset === 'delitos' ? 'Incidencia' : 'Víctimas';
+
   const dataForExport = useMemo(() => seriePuntos.map(pt => (nivel === 'municipio'
     ? { Periodo: pt.period, Municipio: selectedMunicipio, Lugar: pt.rank, De: pt.n, Total: pt.total }
     : { Periodo: pt.period, Entidad: selectedEntidad, Ranking: pt.rank, Total: pt.total })),
   [seriePuntos, nivel, selectedMunicipio, selectedEntidad]);
 
   const exportHeaders = () => {
-    const csvValLabel = csvValueLabel('Incidencia', shown.metricType);
+    const csvValLabel = csvValueLabel(valorBase, shown.metricType);
     return nivel === 'municipio'
       ? ["Periodo", "Municipio", "Lugar", "De", csvValLabel]
       : ["Periodo", "Entidad", "Ranking", csvValLabel];
@@ -721,16 +727,17 @@ const HistoryRankings = ({ tempColor }) => {
   const AXIS_GUTTER = F(20);
 
   // Marcas del eje X. Ancho estimado de la etiqueta ("2025" ~ 4 caracteres; "Ene 26" ~ 6) frente al
-  // espacio por periodo: si no caben, cada k periodos contados desde el último. El mensual de más de
-  // 24 periodos ya rotula solo enero y se deja como está.
+  // espacio por periodo: si no caben, una cada k periodos (siempre el primero y el último). El mensual
+  // de más de 24 periodos rotula solo enero de cada año: ahí se adelgazan los años.
   const periodos = chartData.map(d => d.period);
   const esMensual = /^\d{4}-\d{2}$/.test(String(periodos[0]));
   let ticksX;
-  if (anchoGrafica > 0 && periodos.length > 1 && !(esMensual && periodos.length > 24)) {
-    const anchoEtiqueta = (esMensual ? 6 : 4) * F(12) * 0.62 + 8;
+  if (anchoGrafica > 0 && periodos.length > 1) {
     const anchoPlot = Math.max(1, anchoGrafica - AXIS_GUTTER - AXIS_W - rightMargin);
-    const cada = Math.max(1, Math.ceil(anchoEtiqueta / (anchoPlot / periodos.length)));
-    if (cada > 1) ticksX = periodos.filter((_, i) => (periodos.length - 1 - i) % cada === 0);
+    const base = esMensual && periodos.length > 24 ? periodos.filter(p => p.endsWith('-01')) : periodos;
+    const anchoEtiqueta = (esMensual && periodos.length <= 24 ? 6 : 4) * F(12) * 0.62 + 8;
+    const cada = Math.max(1, Math.ceil(anchoEtiqueta / (anchoPlot / base.length)));
+    if (cada > 1) ticksX = indicesMarcas(base.length, cada).map(i => base[i]);
   }
 
   return (
@@ -940,11 +947,14 @@ const HistoryRankings = ({ tempColor }) => {
             </button>
           </div>
         )}
+        {nPend > 0 && hasLoaded && !isFullScreen && (
+          <div className="rank-stale" role="status">Vista sin actualizar · pulsa Aplicar filtros</div>
+        )}
         <div ref={chartBoxRef} style={{
           position: 'absolute',
           top: '1rem', left: '1rem', right: '1rem', bottom: '0.2rem',
           // Feedback de carga breve y sutil (no un efecto): atenuar rápido, volver rápido
-          opacity: isFading ? 0.55 : 1,
+          opacity: isFading || (nPend > 0 && hasLoaded) ? 0.55 : 1,
           transition: 'opacity 150ms cubic-bezier(0.23, 1, 0.32, 1)'
         }}>
           {error ? (
@@ -960,6 +970,7 @@ const HistoryRankings = ({ tempColor }) => {
                 <XAxis
                   dataKey="period"
                   ticks={ticksX}
+                  padding={{ left: 8, right: 0 }}
                   // Año parcial: segundo renglón "Ene–Ago" en acento (igual que en las barras por año)
                   tick={({ x, y, payload, index, tickFormatter }) => (
                     <g transform={`translate(${x},${y})`}>
@@ -1085,7 +1096,7 @@ const HistoryRankings = ({ tempColor }) => {
               <th scope="col">Periodo</th>
               <th scope="col">Lugar</th>
               {nivel === 'municipio' && <th scope="col">De</th>}
-              <th scope="col">{csvValueLabel('Incidencia', shown.metricType)}</th>
+              <th scope="col">{csvValueLabel(valorBase, shown.metricType)}</th>
             </tr>
           </thead>
           <tbody>

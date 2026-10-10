@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ejeRanking, resumenPosiciones, notaEmpate, columnasBalanceadas, accionesEnLaMismaFila } from '../src/utils/rankings.js';
+import { ejeRanking, resumenPosiciones, notaEmpate, columnasBalanceadas, accionesEnLaMismaFila, indicesMarcas } from '../src/utils/rankings.js';
 
 test('ejeRanking ajusta el dominio al rango de la serie, con margen y cifras redondas', () => {
   // Cajeme: lugares 67 a 113 de 2,478
@@ -71,4 +71,17 @@ test('accionesEnLaMismaFila: los botones suben a la fila de Sexo y Rango de edad
   // con los botones reales (~300 px: Limpiar 127 + Aplicar 160 + espacio) caben en una columna de ~323 px
   assert.equal(accionesEnLaMismaFila(3, 2, 1000, 16, 320), true);
   assert.equal(accionesEnLaMismaFila(3, 2, 960, 16, 320), false);
+});
+
+test('indicesMarcas: una marca cada k periodos, siempre con el primero y el último y sin pegarse', () => {
+  assert.deepEqual(indicesMarcas(12, 1), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  assert.deepEqual(indicesMarcas(12, 2), [0, 3, 5, 7, 9, 11]);    // el 1 se pegaba al 0: se reemplaza
+  assert.deepEqual(indicesMarcas(12, 3), [0, 5, 8, 11]);          // el 2 se pegaba al 0: se reemplaza
+  assert.deepEqual(indicesMarcas(13, 3), [0, 3, 6, 9, 12]);       // cae justo en 0
+  assert.deepEqual(indicesMarcas(10, 4), [0, 5, 9]);
+  for (const [n, k] of [[12, 2], [12, 3], [10, 4], [7, 3], [140, 12]]) {
+    const idx = indicesMarcas(n, k);
+    assert.equal(idx[0], 0); assert.equal(idx[idx.length - 1], n - 1);
+    for (let i = 1; i < idx.length; i++) assert.ok(idx[i] - idx[i - 1] >= k, `${n}/${k}: ${idx}`);
+  }
 });

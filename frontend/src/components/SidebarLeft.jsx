@@ -613,6 +613,10 @@ const SidebarLeft = ({ selectedFilters: requestedFilters, metricType: requestedM
               <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>de {kpiRankTotal}</span>
             )}
           </span>
+          {/* Sin municipio: la cifra es el lugar nacional de la entidad */}
+          {!error && kpiRank !== null && !selectedMunicipio && (
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', marginTop: '-0.1rem' }}>lugar nacional</span>
+          )}
           {/* Con municipio: de qué lista es el lugar */}
           {!error && kpiRank !== null && selectedMunicipio && (
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>en {activeEntityName}</span>

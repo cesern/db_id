@@ -76,3 +76,16 @@ export const accionesEnLaMismaFila = (cols, ocupadas, ancho, gap, necesario) => 
   const anchoColumna = (ancho - (cols - 1) * gap) / cols;
   return libres * anchoColumna + (libres - 1) * gap >= necesario;
 };
+
+/**
+ * Posiciones (0..n-1) de las marcas de un eje X con `n` periodos: una cada `cada`, contadas desde el
+ * último, y siempre el primero (si la marca más cercana queda a menos de `cada`, se reemplaza por él).
+ */
+export const indicesMarcas = (n, cada) => {
+  if (!(n > 0)) return [];
+  if (!(cada > 1)) return Array.from({ length: n }, (_, i) => i);
+  const idx = [];
+  for (let i = n - 1; i >= 0; i -= cada) idx.unshift(i);
+  if (idx[0] !== 0) { if (idx[0] < cada) idx[0] = 0; else idx.unshift(0); }
+  return idx;
+};

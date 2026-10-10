@@ -396,12 +396,6 @@ const ChartBarYears = ({ selectedFilters: requestedFilters, metricType: requeste
             margin={{ top: chartTop, right: chartSide, left: chartSide, bottom: FF(6) }}
             barCategoryGap="6%"
           >
-            <defs>
-              <linearGradient id="colorBarYears" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--color-accent)" stopOpacity={1} />
-                <stop offset="100%" stopColor="var(--color-accent)" stopOpacity={0.6} />
-              </linearGradient>
-            </defs>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
             <XAxis
               dataKey="label"
@@ -447,7 +441,7 @@ const ChartBarYears = ({ selectedFilters: requestedFilters, metricType: requeste
               }}
             />
             <ActiveLabelTracker labelRef={activeLabelRef} />
-            <Bar dataKey="value" radius={[F(6), F(6), 0, 0]} fill="url(#colorBarYears)"
+            <Bar dataKey="value" radius={[F(6), F(6), 0, 0]} fill="var(--color-accent)"
               {...CHART_ANIM}
               onClick={handleBarClick}
               style={{ cursor: 'pointer' }}
@@ -480,7 +474,7 @@ const ChartBarYears = ({ selectedFilters: requestedFilters, metricType: requeste
               {data.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
-                  fill="url(#colorBarYears)"
+                  fill="var(--color-accent)"
                   fillOpacity={entry.partial ? 0.4 : 1}
                   stroke={entry.partial ? 'var(--color-accent)' : 'none'}
                   strokeDasharray={entry.partial ? '4 3' : undefined}
