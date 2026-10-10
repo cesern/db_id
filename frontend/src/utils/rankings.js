@@ -10,8 +10,26 @@ const pasoDelEje = (span) => (span <= 20 ? 1 : span <= 60 ? 5 : span <= 200 ? 10
  * Eje Y de un municipio: se ajusta al rango de lugares que recorre la serie (con margen y cifras
  * redondas) para que la variación llene la gráfica en vez de ocupar una franja de 1…2,500.
  * El 1 solo aparece si la serie está cerca. `tope` = municipios clasificados (el eje no lo pasa).
- * Devuelve { min, max, ticks }: tres marcas (mínimo, mitad y máximo) o cinco si abarca 40 lugares o más.
+ * Devuelve { min, max, ticks }: el mínimo, el máximo y, entre ellos, marcas en cifras redondas (partes
+ * iguales si el rango se divide limpio; si no, múltiplos de un paso redondo), a lo más cinco en total.
  */
+const PASOS_MARCA = [1, 2, 5, 10, 20, 25, 50, 100, 250, 500, 1000, 2500, 5000];
+const marcasDelEje = (lo, hi, paso) => {
+  const span = hi - lo;
+  if (span < 40 && span >= 4 && span % 2 === 0) return [lo, lo + span / 2, hi];
+  for (const k of [4, 2]) {
+    const parte = span / k;
+    if (Number.isInteger(parte) && parte % paso === 0) return Array.from({ length: k + 1 }, (_, i) => lo + parte * i);
+  }
+  // Múltiplos de un paso redondo entre las puntas (a lo más 3), sin pegarse a ellas (< 10 % del rango)
+  const paso2 = PASOS_MARCA.find(p => Math.floor(hi / p) - Math.floor(lo / p) <= 3) ?? PASOS_MARCA[PASOS_MARCA.length - 1];
+  const dentro = [];
+  for (let v = Math.ceil((lo + 1) / paso2) * paso2; v < hi; v += paso2) {
+    if (v - lo >= span * 0.1 && hi - v >= span * 0.1) dentro.push(v);
+  }
+  return [lo, ...dentro, hi];
+};
+
 export const ejeRanking = (minLugar, maxLugar, tope = Infinity) => {
   const min = Math.max(1, Math.floor(Number(minLugar) || 1));
   const max = Math.max(min, Math.ceil(Number(maxLugar) || min));
@@ -23,8 +41,7 @@ export const ejeRanking = (minLugar, maxLugar, tope = Infinity) => {
   let hi = Math.ceil(crudoMax / paso) * paso;
   if (hi > tope) hi = Math.max(tope, max);
   if (hi <= lo) hi = lo + 1;
-  const marcas = hi - lo >= 40 ? 5 : 3;
-  return { min: lo, max: hi, ticks: Array.from({ length: marcas }, (_, i) => Math.round(lo + ((hi - lo) * i) / (marcas - 1))) };
+  return { min: lo, max: hi, ticks: marcasDelEje(lo, hi, paso) };
 };
 
 /**
@@ -78,14 +95,16 @@ export const accionesEnLaMismaFila = (cols, ocupadas, ancho, gap, necesario) => 
 };
 
 /**
- * Posiciones (0..n-1) de las marcas de un eje X con `n` periodos: una cada `cada`, contadas desde el
- * último, y siempre el primero (si la marca más cercana queda a menos de `cada`, se reemplaza por él).
+ * Posiciones (0..n-1) de las marcas de un eje X con `n` periodos: paso fijo `cada` desde el primero y el
+ * último siempre presente. Si el último queda a menos de `minSep` periodos de la última marca de la
+ * rejilla, esa marca se reemplaza por él (con espacio suficiente se añade sin quitar nada).
  */
-export const indicesMarcas = (n, cada) => {
+export const indicesMarcas = (n, cada, minSep = cada) => {
   if (!(n > 0)) return [];
   if (!(cada > 1)) return Array.from({ length: n }, (_, i) => i);
   const idx = [];
-  for (let i = n - 1; i >= 0; i -= cada) idx.unshift(i);
-  if (idx[0] !== 0) { if (idx[0] < cada) idx[0] = 0; else idx.unshift(0); }
+  for (let i = 0; i < n; i += cada) idx.push(i);
+  const ultimo = idx[idx.length - 1];
+  if (ultimo !== n - 1) { if (n - 1 - ultimo >= minSep) idx.push(n - 1); else idx[idx.length - 1] = n - 1; }
   return idx;
 };

@@ -6,13 +6,13 @@ test('ejeRanking ajusta el dominio al rango de la serie, con margen y cifras red
   // Cajeme: lugares 67 a 113 de 2,478
   assert.deepEqual(ejeRanking(67, 113, 2478), { min: 50, max: 130, ticks: [50, 70, 90, 110, 130] });
   // cerca del 1 el eje arranca en 1
-  assert.deepEqual(ejeRanking(2, 12, 2478), { min: 1, max: 14, ticks: [1, 8, 14] });
+  assert.deepEqual(ejeRanking(2, 12, 2478), { min: 1, max: 14, ticks: [1, 5, 10, 14] });
   // lugar constante: un margen mínimo alrededor
   assert.deepEqual(ejeRanking(85, 85, 2478), { min: 80, max: 90, ticks: [80, 85, 90] });
 });
 
 test('ejeRanking no pasa del total de municipios clasificados', () => {
-  assert.deepEqual(ejeRanking(2470, 2478, 2478), { min: 2300, max: 2478, ticks: [2300, 2345, 2389, 2434, 2478] });
+  assert.deepEqual(ejeRanking(2470, 2478, 2478), { min: 2300, max: 2478, ticks: [2300, 2350, 2400, 2450, 2478] });
 });
 
 test('resumenPosiciones: mejor = lugar más alto, peor = más bajo, con todos los periodos empatados', () => {
@@ -73,12 +73,21 @@ test('accionesEnLaMismaFila: los botones suben a la fila de Sexo y Rango de edad
   assert.equal(accionesEnLaMismaFila(3, 2, 960, 16, 320), false);
 });
 
-test('indicesMarcas: una marca cada k periodos, siempre con el primero y el último y sin pegarse', () => {
+test('ejeRanking: marcas en cifras redondas aunque el eje empiece en 1', () => {
+  const e = ejeRanking(1, 1090, 2475);
+  assert.equal(e.min, 1);
+  for (const t of e.ticks.slice(1, -1)) assert.equal(t % 50, 0, `marca no redonda: ${t}`);
+  assert.ok(e.ticks.length <= 5);
+  assert.equal(e.ticks[0], 1);
+  assert.equal(e.ticks[e.ticks.length - 1], e.max);
+});
+
+test('indicesMarcas: paso fijo desde el primero y el último siempre presente', () => {
   assert.deepEqual(indicesMarcas(12, 1), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
-  assert.deepEqual(indicesMarcas(12, 2), [0, 3, 5, 7, 9, 11]);    // el 1 se pegaba al 0: se reemplaza
-  assert.deepEqual(indicesMarcas(12, 3), [0, 5, 8, 11]);          // el 2 se pegaba al 0: se reemplaza
-  assert.deepEqual(indicesMarcas(13, 3), [0, 3, 6, 9, 12]);       // cae justo en 0
-  assert.deepEqual(indicesMarcas(10, 4), [0, 5, 9]);
+  assert.deepEqual(indicesMarcas(12, 3), [0, 3, 6, 11]);            // el 9 quedaba a 2 del último: se reemplaza
+  assert.deepEqual(indicesMarcas(12, 3, 2), [0, 3, 6, 9, 11]);      // con espacio para 2 periodos, el último se añade
+  assert.deepEqual(indicesMarcas(13, 3), [0, 3, 6, 9, 12]);
+  assert.deepEqual(indicesMarcas(12, 2), [0, 2, 4, 6, 8, 11]);
   for (const [n, k] of [[12, 2], [12, 3], [10, 4], [7, 3], [140, 12]]) {
     const idx = indicesMarcas(n, k);
     assert.equal(idx[0], 0); assert.equal(idx[idx.length - 1], n - 1);

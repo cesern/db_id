@@ -165,7 +165,7 @@ const CorteDeEje = ({ desde, hasta, de, fontSize }) => {
   return (
     <g aria-hidden="true">
       <line x1={x} y1={y0 + 8} x2={x} y2={y1 - 8} {...trazo} />
-      <path d={muesca(y0, 1)} {...trazo} />
+      {desde > 1 && <path d={muesca(y0, 1)} {...trazo} />}
       <path d={muesca(y1, -1)} {...trazo} />
       <text x={x} y={y0 - 8} fontSize={fontSize} fontWeight={600} fill="var(--text-secondary)">
         Lugares {n(desde)}–{n(hasta)} de {n(de)}
@@ -513,15 +513,33 @@ const HistoryRankings = ({ tempColor }) => {
 
   const unAnio = aniosPub.length === 1;
 
-  const handleApply = () => {
+  // Aplica el formulario completo. `metrica` y `municipio` permiten usar el valor recién elegido (el estado aún
+  // no se actualizó) cuando un control inmediato (Cifras/Tasa, pastillas) arrastra los cambios pendientes.
+  const aplicarFormulario = (metrica = metricType, municipio = selectedMunicipio) => {
     // Víctimas no tiene municipios: se vuelve a todo el estado y se dice
-    if (dataset === 'victimas' && selectedMunicipio) {
+    if (dataset === 'victimas' && municipio) {
       setSelectedMunicipio('');
       toast('Se volvió a Todo el estado: Víctimas no tiene datos por municipio', { id: 'rankings-municipio' });
     }
     setApplied({
-      dataset, temporalidad, metricType, mesAcumulado, filters: { ...filters }
+      dataset, temporalidad, metricType: metrica, mesAcumulado, filters: { ...filters }
     });
+  };
+  const handleApply = () => aplicarFormulario();
+
+  // Cifras/Tasa y las pastillas Entidad/Municipio actúan al instante; si había cambios pendientes en el formulario,
+  // se aplican con ellos (y se avisa) para que la vista siempre corresponda a una sola consulta.
+  const cambiarMetrica = (m) => {
+    setMetricType(m);
+    if (hasPending) {
+      aplicarFormulario(m);
+      toast('También se aplicaron los cambios pendientes de los filtros', { id: 'rankings-pendientes' });
+    } else {
+      setApplied(prev => ({ ...prev, metricType: m }));
+    }
+  };
+  const avisarPendientes = () => {
+    if (hasPending) toast('También se aplicaron los cambios pendientes de los filtros', { id: 'rankings-pendientes' });
   };
 
   const handleClear = () => {
@@ -723,7 +741,8 @@ const HistoryRankings = ({ tempColor }) => {
   );
 
   // Sentido del eje Y (reversed: 1 arriba): rótulos verticales discretos en el canal del eje
-  const AXIS_W = 30;
+  // Ancho del canal de los números según el más largo ("1100" necesita más que "32")
+  const AXIS_W = Math.max(30, Math.ceil(Math.max(...eje.ticks.map(t => String(t).length)) * F(12) * 0.62) + 12);
   const AXIS_GUTTER = F(20);
 
   // Marcas del eje X. Ancho estimado de la etiqueta ("2025" ~ 4 caracteres; "Ene 26" ~ 6) frente al
@@ -736,8 +755,9 @@ const HistoryRankings = ({ tempColor }) => {
     const anchoPlot = Math.max(1, anchoGrafica - AXIS_GUTTER - AXIS_W - rightMargin);
     const base = esMensual && periodos.length > 24 ? periodos.filter(p => p.endsWith('-01')) : periodos;
     const anchoEtiqueta = (esMensual && periodos.length <= 24 ? 6 : 4) * F(12) * 0.62 + 8;
-    const cada = Math.max(1, Math.ceil(anchoEtiqueta / (anchoPlot / base.length)));
-    if (cada > 1) ticksX = indicesMarcas(base.length, cada).map(i => base[i]);
+    const periodosNecesarios = anchoEtiqueta / (anchoPlot / base.length);   // periodos que ocupa una etiqueta
+    const cada = Math.max(1, Math.ceil(periodosNecesarios));
+    if (cada > 1) ticksX = indicesMarcas(base.length, cada, Math.max(1, periodosNecesarios)).map(i => base[i]);
   }
 
   return (
@@ -784,7 +804,7 @@ const HistoryRankings = ({ tempColor }) => {
                 variant="pill" ariaLabel="Entidad" value={selectedEntidad}
                 unidad="entidades"
                 options={(options.entidades || []).map(ent => ({ value: ent, label: ent }))}
-                onChange={v => { setSelectedEntidad(v); if (v !== 'Sonora') setSelectedMunicipio(''); }}
+                onChange={v => { setSelectedEntidad(v); if (v !== 'Sonora') setSelectedMunicipio(''); if (hasPending) { aplicarFormulario(metricType, v === 'Sonora' ? selectedMunicipio : ''); avisarPendientes(); } }}
               />
               {/* Municipio: solo con Sonora. Su lugar es entre todos los municipios del país. */}
               {selectedEntidad === 'Sonora' && (
@@ -796,7 +816,7 @@ const HistoryRankings = ({ tempColor }) => {
                     describedBy={conMunicipios ? undefined : 'rk-mun-nota'}
                     unidad="municipios"
                     options={[{ value: '', label: 'Todo el estado', noCuenta: true }, ...(conMunicipios ? municipiosSonora : []).map(m => ({ value: m, label: m }))]}
-                    onChange={setSelectedMunicipio}
+                    onChange={v => { setSelectedMunicipio(v); if (hasPending) { aplicarFormulario(metricType, v); avisarPendientes(); } }}
                   />
                   {!conMunicipios && (
                     <span id="rk-mun-nota" style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-secondary)' }}>Víctimas no tiene datos por municipio</span>
@@ -814,10 +834,7 @@ const HistoryRankings = ({ tempColor }) => {
                   type="button"
                   aria-pressed={metricType === 'absolute'}
                   className={metricType === 'absolute' ? 'active' : ''}
-                  onClick={() => {
-                    setMetricType('absolute');
-                    setApplied(prev => ({ ...prev, metricType: 'absolute' }));
-                  }}
+                  onClick={() => cambiarMetrica('absolute')}
                 >
                   Cifras absolutas
                 </button>
@@ -825,10 +842,7 @@ const HistoryRankings = ({ tempColor }) => {
                   type="button"
                   aria-pressed={metricType === 'rate'}
                   className={metricType === 'rate' ? 'active' : ''}
-                  onClick={() => {
-                    setMetricType('rate');
-                    setApplied(prev => ({ ...prev, metricType: 'rate' }));
-                  }}
+                  onClick={() => cambiarMetrica('rate')}
                 >
                   Tasa por 100 mil hab.
                 </button>
@@ -841,7 +855,7 @@ const HistoryRankings = ({ tempColor }) => {
         <div ref={filtrosRef} className="rankings-filtros" style={{ display: 'grid', gridTemplateColumns: colsFiltros !== null ? `repeat(${colsFiltros}, minmax(0, 1fr))` : 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '1rem', alignItems: 'end', padding: '1rem', backgroundColor: 'var(--bg-main)', borderRadius: '8px', marginTop: '1rem' }}>
           <div style={{ flex: '1 1 min(100%, 180px)' }}>
             <label className="label-sm" htmlFor="rk-dataset">Conjunto de datos</label>
-            <select id="rk-dataset" className="input-select" value={dataset} onChange={e => setDataset(e.target.value)}>
+            <select id="rk-dataset" className="input-select" data-pendiente={dataset !== applied.dataset ? 'true' : undefined} value={dataset} onChange={e => setDataset(e.target.value)}>
               <option value="delitos">Delitos</option>
               <option value="victimas">Víctimas</option>
               <option value="victimas_mun">Víctimas Municipios</option>
@@ -849,7 +863,7 @@ const HistoryRankings = ({ tempColor }) => {
           </div>
           <div style={{ flex: '1 1 min(100%, 180px)' }}>
             <label className="label-sm" htmlFor="rk-periodo">Periodo</label>
-            <select id="rk-periodo" className="input-select" value={temporalidad} onChange={e => setTemporalidad(e.target.value)}>
+            <select id="rk-periodo" className="input-select" data-pendiente={temporalidad !== applied.temporalidad ? 'true' : undefined} value={temporalidad} onChange={e => setTemporalidad(e.target.value)}>
               <option value="anual">Anual{unAnio ? ' (un solo año)' : ''}</option>
               <option value="mensual">Mensual</option>
               <option value="acumulado">Acumulado{unAnio ? ' (un solo año)' : ''}</option>
@@ -858,7 +872,7 @@ const HistoryRankings = ({ tempColor }) => {
           {temporalidad === 'acumulado' && (
             <div style={{ flex: '1 1 min(100%, 180px)' }}>
               <label className="label-sm" htmlFor="rk-corte">Mes de corte</label>
-              <select id="rk-corte" className="input-select" value={mesAcumulado} onChange={e => setMesAcumulado(e.target.value)}>
+              <select id="rk-corte" className="input-select" data-pendiente={mesAcumulado !== applied.mesAcumulado ? 'true' : undefined} value={mesAcumulado} onChange={e => setMesAcumulado(e.target.value)}>
                 {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'].map((mes, i) => (
                   <option key={mes} value={mes}>{corteTxt(mes)}{ultimoMes && i + 1 > ultimoMes ? ' (aún sin publicar)' : ''}</option>
                 ))}

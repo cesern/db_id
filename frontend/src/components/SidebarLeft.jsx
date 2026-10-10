@@ -622,7 +622,7 @@ const SidebarLeft = ({ selectedFilters: requestedFilters, metricType: requestedM
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>en {activeEntityName}</span>
           )}
           {!error && kpiRank !== null && (
-            <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.1rem 0.4rem', minWidth: 0 }}>
+            <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.1rem 0.4rem', minWidth: 0, minHeight: '1.5rem' }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{periodLabel}</span>
               {!error && !loading && !selectedMunicipio && rankShown !== null && prevRank && prevRank.metric === metricType && prevRank.filters === selectedFilters && (() => {
                 const diff = prevRank.rank - activeEntityRank; // > 0: subió hacia el 1

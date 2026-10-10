@@ -1675,3 +1675,10 @@ select:focus:not(:focus-visible) {
 .rankings-filtros button.input-select[data-activo="true"]::before {
   content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent); margin-right: 0.5rem; flex-shrink: 0;
 }
+
+/* Tarjetas Peor / Mejor: más angostas (sin vacío central a anchos grandes) */
+.rank-card { max-width: 420px; }
+/* Selector diferido (Conjunto, Periodo, Mes de corte) con un cambio sin aplicar: mismo énfasis que los múltiples con valor */
+.rankings-filtros select.input-select[data-pendiente="true"] {
+  border-color: var(--color-accent); background-color: var(--color-accent-light); color: var(--color-accent-dark); font-weight: 700;
+}
