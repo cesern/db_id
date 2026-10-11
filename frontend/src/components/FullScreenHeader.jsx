@@ -104,7 +104,7 @@ const FullScreenHeader = ({ title, selectedFilters, metricType, onClose, extraAc
     if (selectedFilters.temporalidad) {
       let tempLabel = selectedFilters.temporalidad === 'anual' ? 'Anual' : selectedFilters.temporalidad === 'mensual' ? 'Mensual' : 'Acumulado';
       if (selectedFilters.temporalidad === 'acumulado' && selectedFilters.mesAcumulado) {
-        tempLabel += ` (Ene-${selectedFilters.mesAcumulado.slice(0, 3)})`;
+        tempLabel += selectedFilters.mesAcumulado === 'Enero' ? ' (Ene)' : ` (Ene–${selectedFilters.mesAcumulado.slice(0, 3)})`;
       }
       badges.push({ label: 'Periodo', value: tempLabel });
     }

@@ -1588,9 +1588,11 @@ select:focus:not(:focus-visible) {
 @media (hover: hover) and (pointer: fine) {
   .title-select:hover { background: #dfe4f1; border-color: rgba(69, 89, 147, 0.35); }
 }
-/* Sin opciones que elegir (Víctimas no tiene municipios): gris, sin hover ni puntero */
-.title-select.is-disabled { background: #eef0f4; color: var(--text-secondary); border-color: transparent; }
-.title-select.is-disabled .title-select-native { cursor: not-allowed; }
+/* Sin opciones que elegir (Víctimas no tiene municipios): sin relleno y con borde punteado, para que no
+   pase por una pastilla activa; el <select> deshabilitado deja pasar el puntero a la pastilla (su title) */
+.title-select.is-disabled,
+.title-select.is-disabled:hover { background: transparent; color: var(--text-secondary); border: 1px dashed #94a3b8; cursor: not-allowed; }
+.title-select.is-disabled .title-select-native { pointer-events: none; }
 @media (max-width: 1023px) {
   .title-select { min-height: 40px; }
 }
@@ -1635,9 +1637,9 @@ select:focus:not(:focus-visible) {
 .rank-card-toggle:disabled { cursor: default; }
 .rank-card-toggle:focus-visible { outline: none; }
 .rank-card:has(.rank-card-toggle:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-.rank-card-label { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; font-weight: 700; }
-.rank-card-sub { font-size: 0.75rem; font-weight: 500; padding-left: calc(10px + 0.4rem); }
-.rank-card-dot { box-sizing: content-box; width: 6px; height: 6px; border-radius: 50%; border: 2px solid var(--marca); background: transparent; flex-shrink: 0; transition: background-color 150ms var(--ease-out); }
+.rank-card-label { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8125rem; font-weight: 700; color: var(--marca); }
+.rank-card-sub { font-size: 0.75rem; font-weight: 500; padding-left: calc(12px + 0.4rem); }
+.rank-card-dot { box-sizing: content-box; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--marca); background: transparent; flex-shrink: 0; transition: background-color 150ms var(--ease-out); }
 .rank-card[data-active="true"] .rank-card-dot { background: var(--marca); }
 .rank-card-value { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 0.05rem; }
 .rank-card-rank { font-size: 1.35rem; font-weight: 800; color: var(--color-primary); line-height: 1.1; }
@@ -1660,7 +1662,7 @@ select:focus:not(:focus-visible) {
 .rankings-filtros button.input-select[data-activo="true"] {
   color: var(--color-accent-dark); font-weight: 700; border-color: var(--color-accent); background-color: var(--color-accent-light);
 }
-.rank-card-hint { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); padding-left: calc(10px + 0.4rem); min-height: 1em; }
+.rank-card-hint { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); padding-left: calc(12px + 0.4rem); min-height: 1em; }
 .rank-card[data-active="true"] .rank-card-hint { color: var(--marca); }
 
 /* Rankings con cambios sin aplicar: la gráfica y las tarjetas se atenúan y un aviso lo dice */
@@ -1681,4 +1683,20 @@ select:focus:not(:focus-visible) {
 /* Selector diferido (Conjunto, Periodo, Mes de corte) con un cambio sin aplicar: mismo énfasis que los múltiples con valor */
 .rankings-filtros select.input-select[data-pendiente="true"] {
   border-color: var(--color-accent); background-color: var(--color-accent-light); color: var(--color-accent-dark); font-weight: 700;
+}
+
+/* Rankings: tarjetas Peor/Mejor y notas en una sola franja; las notas toman el espacio libre a la derecha
+   (antes iban en un renglón propio y dejaban ~40 % de la fila de tarjetas vacía) */
+.rank-results { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-top: 0.75rem; }
+.rank-notes { flex: 1 1 260px; min-width: 0; margin: 0; font-size: 0.75rem; line-height: 1.5; color: var(--text-secondary); }
+/* Aviso antes de aplicar: qué se va a perder (municipio con Víctimas) */
+.rank-apply-warn { margin: 0 auto 0 0; align-self: center; font-size: 0.8125rem; font-weight: 600; color: #b45309; }
+
+/* La línea es el resultado: en escritorio la gráfica no baja de max(380px, 50vh). Con filtros que
+   no caben, la página se desplaza en lugar de aplastarla (a 1280×800 con Víctimas + Acumulado medía 259 px). */
+@media (min-width: 1024px) {
+  .rankings-chart-area { min-height: max(380px, 50vh); }
+}
+@media (min-width: 1024px) and (min-height: 800px) {
+  .app-container:has(.rankings-chart-area) { height: auto; min-height: 100vh; overflow: visible; }
 }

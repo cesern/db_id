@@ -18,7 +18,7 @@ const Chevron = () => (
  */
 const SearchableSelect = ({
   id, value, options, onChange, disabled = false, variant = 'field', ariaLabel, labelId,
-  describedBy, selectRef, threshold = 12, className = '', style, unidad,
+  describedBy, selectRef, threshold = 12, className = '', style, unidad, title,
 }) => {
   const uid = useId();
   const triggerId = id || `${uid}-trigger`;
@@ -47,7 +47,7 @@ const SearchableSelect = ({
   if (lista.length <= threshold) {
     if (isPill) {
       return (
-        <span className={`title-select${disabled ? ' is-disabled' : ''} ${className}`.trim()}>
+        <span className={`title-select${disabled ? ' is-disabled' : ''} ${className}`.trim()} title={title}>
           <span className="title-select-value" aria-hidden="true">
             <span className="title-select-text">{actual.label}</span>
             <Chevron />

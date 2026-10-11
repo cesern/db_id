@@ -113,13 +113,14 @@ const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, da
             <p style={{ fontSize: `${12 * fs}px`, fontWeight: '700', color: '#475569', margin: '0 0 6px 0', textTransform: 'uppercase' }}>Top 3 Nacional</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {top3.map((t, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: `${12 * fs}px` }}>
-                  <span style={{ color: '#475569', display: 'flex', gap: '4px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', maxWidth: nivel === 'municipio' ? '190px' : '120px' }}>
-                    <span style={{ fontWeight: '700' }}>#{t.rank}</span>
+                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: `${12 * fs}px` }}>
+                  {/* minWidth 0: sin él la elipsis no actúa y el nombre se encimaba con la cifra */}
+                  <span style={{ color: '#475569', display: 'flex', gap: '4px', minWidth: 0, maxWidth: nivel === 'municipio' ? '190px' : '120px' }}>
+                    <span style={{ fontWeight: '700', flexShrink: 0 }}>#{t.rank}</span>
                     {/* Municipios: con su entidad (hay nombres repetidos entre estados) */}
-                    <span title={t.name} style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{nivel === 'municipio' ? t.name : t.name.split(',')[0]}</span>
+                    <span title={t.name} style={{ minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{nivel === 'municipio' ? t.name : t.name.split(',')[0]}</span>
                   </span>
-                  <span style={{ color: '#64748b', fontWeight: '600' }}>{formatVal(t.total)}</span>
+                  <span className="tabular" style={{ color: '#64748b', fontWeight: '600', flexShrink: 0, whiteSpace: 'nowrap' }}>{formatVal(t.total)}</span>
                 </div>
               ))}
             </div>
@@ -188,8 +189,8 @@ const MorePeriods = ({ items, formatPeriodLabel, formatCardValue }) => {
         aria-controls={listId}
         onClick={() => setOpen(v => !v)}
         style={{
-          display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-          background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', borderRadius: '6px',
+          display: 'inline-flex', alignItems: 'center', gap: '0.3rem', minHeight: '28px',
+          background: 'none', border: 'none', cursor: 'pointer', padding: '2px 8px', borderRadius: '6px',
           fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-accent)'
         }}
       >
@@ -275,6 +276,10 @@ const HistoryRankings = ({ tempColor }) => {
   // no de `applied` (que cambia antes de que llegue la respuesta)
   const [shown, setShown] = useState(applied);
   const cargandoSerie = dataKey !== reqKey || shown !== applied;
+  // Serie de los datos YA cargados: mientras llega la de otro municipio, tarjetas, CSV y tabla siguen con
+  // la anterior (bajo el atenuado) en vez de desaparecer y mover la gráfica
+  const [dataNivel, dataMun] = dataKey.split('|');
+  const serieDatos = dataNivel === 'municipio' ? `${dataMun}, Sonora` : selectedEntidad;
   // Marcas del lugar peor y mejor sobre la línea: apagadas al entrar
   const [marcas, setMarcas] = useState({ peor: false, mejor: false });
   // Ancho de la gráfica: con poco espacio por periodo se muestra una marca de cada k (siempre el último)
@@ -505,7 +510,7 @@ const HistoryRankings = ({ tempColor }) => {
   const nFiltros = Object.values(shown.filters).filter(v => Array.isArray(v) && v.length > 0).length;
   const aplicadoTxt = [
     NOMBRE_CONJUNTO[shown.dataset] || 'Delitos',
-    nivel === 'municipio' ? 'Municipios del país' : 'Entidades',
+    dataNivel === 'municipio' ? 'Municipios del país' : 'Entidades',
     shown.temporalidad === 'anual' ? 'Anual' : shown.temporalidad === 'mensual' ? 'Mensual' : `Acumulado ${corteTxt(shown.mesAcumulado)}`,
     shown.metricType === 'rate' ? 'Tasa por 100 mil hab.' : 'Cifras absolutas',
     nFiltros > 0 ? `${nFiltros} ${nFiltros === 1 ? 'filtro' : 'filtros'} de delito` : null,
@@ -526,6 +531,8 @@ const HistoryRankings = ({ tempColor }) => {
     });
   };
   const handleApply = () => aplicarFormulario();
+  // Víctimas elegido sin aplicar con un municipio a la vista: se avisa ANTES de que Aplicar lo quite
+  const perderaMunicipio = dataset === 'victimas' && applied.dataset !== 'victimas' && selectedEntidad === 'Sonora' && !!selectedMunicipio;
 
   // Cifras/Tasa y las pastillas Entidad/Municipio actúan al instante; si había cambios pendientes en el formulario,
   // se aplican con ellos (y se avisa) para que la vista siempre corresponda a una sola consulta.
@@ -552,13 +559,13 @@ const HistoryRankings = ({ tempColor }) => {
 
   // Puntos de la serie elegida: lugar, cifra, total clasificado y empate por periodo
   const seriePuntos = useMemo(() => chartData
-    .filter(d => d[serieName] !== undefined && d[serieName] !== null)
-    .map(d => ({ period: d.period, rank: d[serieName], total: d[serieName + '_total'], n: d[serieName + '_n'], empatados: d[serieName + '_emp'] })),
-  [chartData, serieName]);
+    .filter(d => d[serieDatos] !== undefined && d[serieDatos] !== null)
+    .map(d => ({ period: d.period, rank: d[serieDatos], total: d[serieDatos + '_total'], n: d[serieDatos + '_n'], empatados: d[serieDatos + '_emp'] })),
+  [chartData, serieDatos]);
   const summaryEntidad = useMemo(() => resumenPosiciones(seriePuntos), [seriePuntos]);
   const ultimoPunto = seriePuntos.length > 0 ? seriePuntos[seriePuntos.length - 1] : null;
   // Eje: 1–32 fijo para entidades; para un municipio, ajustado al lugar más bajo que alcanza
-  const eje = nivel === 'municipio'
+  const eje = dataNivel === 'municipio'
     ? ejeRanking(
         seriePuntos.reduce((mn, pt) => Math.min(mn, pt.rank), Infinity),
         seriePuntos.reduce((mx, pt) => Math.max(mx, pt.rank), 1),
@@ -580,7 +587,7 @@ const HistoryRankings = ({ tempColor }) => {
   };
 
   const metricLabel = shown.dataset === 'delitos' ? 'delitos' : 'víctimas';
-  const empate = nivel === 'municipio' ? notaEmpate(ultimoPunto, metricLabel) : null;
+  const empate = dataNivel === 'municipio' ? notaEmpate(ultimoPunto, metricLabel) : null;
 
   const formatCardValue = (val) => {
     if (val === null || val === undefined) return '';
@@ -603,7 +610,7 @@ const HistoryRankings = ({ tempColor }) => {
     const [latest, ...rest] = sorted;
     const valorId = `${uidTarjetas}-${clave}`;
     return (
-      <div className="rank-card" data-stale={nPend > 0 ? 'true' : undefined} data-active={activo ? 'true' : undefined} data-solo={unSoloPeriodo ? 'true' : undefined} style={{ '--marca': marca.color, '--marca-fondo': marca.fondo }}>
+      <div className="rank-card" data-stale={nPend > 0 || cargandoSerie ? 'true' : undefined} data-active={activo ? 'true' : undefined} data-solo={unSoloPeriodo ? 'true' : undefined} style={{ '--marca': marca.color, '--marca-fondo': marca.fondo }}>
         <button
           type="button"
           className="rank-card-toggle"
@@ -622,7 +629,7 @@ const HistoryRankings = ({ tempColor }) => {
           <span className="tabular rank-card-rank">
             #{rank}
             {/* Municipios: "de N" = municipios clasificados en ese periodo (cambia entre años) */}
-            {nivel === 'municipio' && latest && typeof latest.n === 'number' && (
+            {dataNivel === 'municipio' && latest && typeof latest.n === 'number' && (
               <small> de {latest.n.toLocaleString('es-MX')}</small>
             )}
           </span>
@@ -640,14 +647,14 @@ const HistoryRankings = ({ tempColor }) => {
   // Rótulo de la cifra: "Incidencia" solo en Delitos; en los conjuntos de víctimas, "Víctimas"
   const valorBase = shown.dataset === 'delitos' ? 'Incidencia' : 'Víctimas';
 
-  const dataForExport = useMemo(() => seriePuntos.map(pt => (nivel === 'municipio'
-    ? { Periodo: pt.period, Municipio: selectedMunicipio, Lugar: pt.rank, De: pt.n, Total: pt.total }
+  const dataForExport = useMemo(() => seriePuntos.map(pt => (dataNivel === 'municipio'
+    ? { Periodo: pt.period, Municipio: dataMun, Lugar: pt.rank, De: pt.n, Total: pt.total }
     : { Periodo: pt.period, Entidad: selectedEntidad, Ranking: pt.rank, Total: pt.total })),
-  [seriePuntos, nivel, selectedMunicipio, selectedEntidad]);
+  [seriePuntos, dataNivel, dataMun, selectedEntidad]);
 
   const exportHeaders = () => {
     const csvValLabel = csvValueLabel(valorBase, shown.metricType);
-    return nivel === 'municipio'
+    return dataNivel === 'municipio'
       ? ["Periodo", "Municipio", "Lugar", "De", csvValLabel]
       : ["Periodo", "Entidad", "Ranking", csvValLabel];
   };
@@ -656,9 +663,9 @@ const HistoryRankings = ({ tempColor }) => {
     downloadCSV(`evolucion_ranking_${serieLabel.toLowerCase().replace(/\s+/g, '_')}.csv`, dataForExport, exportHeaders(), {
       ...shown, ...shown.filters,
       periodoRanking: shown.temporalidad === 'anual' ? 'Anual' : shown.temporalidad === 'mensual' ? 'Mensual' : `Acumulado ${corteTxt(shown.mesAcumulado)}`,
-      comparacion: nivel === 'municipio' ? 'Municipios del país' : 'Entidades del país',
+      comparacion: dataNivel === 'municipio' ? 'Municipios del país' : 'Entidades del país',
       entidad: selectedEntidad,
-      municipio: nivel === 'municipio' ? selectedMunicipio : 'All',
+      municipio: dataNivel === 'municipio' ? dataMun : 'All',
     });
   };
 
@@ -725,6 +732,7 @@ const HistoryRankings = ({ tempColor }) => {
             title={unSoloPeriodo ? 'Con un solo periodo, peor y mejor coinciden' : `Marcar el ${m.texto.toLowerCase()} lugar en la línea`}
             onClick={() => setMarcas(prev => ({ ...prev, [m.clave]: !prev[m.clave] }))}
             style={{
+              minHeight: isFullScreen ? '32px' : undefined,
               padding: isFullScreen ? '0.35rem 0.85rem' : '0.25rem 0.65rem', fontSize: isFullScreen ? '0.875rem' : '0.75rem', fontWeight: 600, borderRadius: '6px', whiteSpace: 'nowrap',
               cursor: unSoloPeriodo ? 'not-allowed' : 'pointer', opacity: unSoloPeriodo ? 0.55 : 1,
               transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease',
@@ -764,11 +772,13 @@ const HistoryRankings = ({ tempColor }) => {
     <div
       ref={headerRef}
       className={isFullScreen ? `fullscreen-immersive-overlay${fsClosing ? ' is-closing' : ''}` : "card"}
-      style={isFullScreen ? {} : { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}
+      // flex '1 0 auto': la tarjeta llena el alto disponible pero no se encoge por debajo de su contenido
+      // (con la gráfica a su altura mínima, la página se desplaza en vez de aplastarla)
+      style={isFullScreen ? {} : { flex: '1 0 auto', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}
     >
       {isFullScreen ? (
         <FullScreenHeader
-          title={`Evolución del ranking nacional — ${nivel === 'municipio' ? serieName : selectedEntidad}`}
+          title={`Evolución del ranking nacional de ${nivel === 'municipio' ? serieName : selectedEntidad}`}
           selectedFilters={{
             entidad: selectedEntidad,
             municipio: nivel === 'municipio' ? selectedMunicipio : undefined,
@@ -814,12 +824,13 @@ const HistoryRankings = ({ tempColor }) => {
                     value={conMunicipios ? selectedMunicipio : ''}
                     disabled={!conMunicipios}
                     describedBy={conMunicipios ? undefined : 'rk-mun-nota'}
+                    title={conMunicipios ? undefined : 'Víctimas no tiene datos por municipio'}
                     unidad="municipios"
                     options={[{ value: '', label: 'Todo el estado', noCuenta: true }, ...(conMunicipios ? municipiosSonora : []).map(m => ({ value: m, label: m }))]}
                     onChange={v => { setSelectedMunicipio(v); if (hasPending) { aplicarFormulario(metricType, v); avisarPendientes(); } }}
                   />
                   {!conMunicipios && (
-                    <span id="rk-mun-nota" style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-secondary)' }}>Víctimas no tiene datos por municipio</span>
+                    <span id="rk-mun-nota" className="sr-only">Víctimas no tiene datos por municipio</span>
                   )}
                 </>
               )}
@@ -897,6 +908,9 @@ const HistoryRankings = ({ tempColor }) => {
           )}
           {/* Aplicar junto a los selectores que gobierna (antes quedaba debajo de las tarjetas de resultado) */}
           <div style={{ gridColumn: accionesArriba || accionesApiladas ? '3 / -1' : '1 / -1', display: 'flex', flexDirection: accionesApiladas ? 'column' : 'row', justifyContent: 'flex-end', gap: accionesApiladas ? '0.5rem' : '0.75rem', flexWrap: accionesApiladas ? 'nowrap' : 'wrap' }}>
+            {perderaMunicipio && (
+              <p className="rank-apply-warn" role="status">Aplicar quitará {selectedMunicipio}: Víctimas no tiene datos por municipio</p>
+            )}
             <button type="button" className="btn" onClick={handleClear} style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0.45rem 1rem', height: 'fit-content', color: 'var(--text-secondary)' }}>
               Limpiar filtros
             </button>
@@ -905,7 +919,7 @@ const HistoryRankings = ({ tempColor }) => {
               className={hasPending ? 'btn btn-primary' : 'btn'}
               onClick={() => { if (hasPending) handleApply(); }}
               aria-disabled={!hasPending}
-              style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0.45rem 1.1rem', height: 'fit-content', ...(hasPending ? {} : { background: 'var(--bg-main)', color: 'var(--text-secondary)' }) }}
+              style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0.45rem 1.1rem', height: 'fit-content', ...(hasPending ? {} : { background: 'var(--bg-main)', color: 'var(--text-secondary)', opacity: 0.6, cursor: 'default', boxShadow: 'none' }) }}
             >
               Aplicar filtros{nPend > 0 ? ` (${nPend})` : ''}
             </button>
@@ -913,7 +927,7 @@ const HistoryRankings = ({ tempColor }) => {
         </div>
 
         {/* Resultado: tarjetas Peor/Mejor y una sola línea de notas, justo antes de la gráfica */}
-        <div style={{ display: 'flex', gap: '0.5rem 0.75rem', flexWrap: 'wrap', alignItems: 'stretch', marginTop: '1rem', marginBottom: '0.5rem' }}>
+        <div className="rank-results" style={{ minHeight: !hasLoaded ? '62px' : undefined }}>
           {summaryEntidad && (
             <>
               {renderPositionCard('peor', 'Peor posición', 'mayor incidencia', summaryEntidad.peor.rank, summaryEntidad.peor.items)}
@@ -921,11 +935,12 @@ const HistoryRankings = ({ tempColor }) => {
             </>
           )}
           {/* Estado aplicado: lo que la gráfica muestra ahora, aunque el formulario ya diga otra cosa */}
-          <p style={{ flexBasis: '100%', margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+          <p className="rank-notes">
             <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>La gráfica muestra:</strong> {aplicadoTxt}
             {nPend > 0 && <span style={{ color: 'var(--color-accent)', fontWeight: 600 }}> · {nPend} sin aplicar</span>}
+            {selectedEntidad === 'Sonora' && !conMunicipios && <> · Víctimas no tiene datos por municipio</>}
             {summaryEntidad && (
-              <> · Escala 1–{nivel === 'municipio' && ultimoPunto?.n ? ultimoPunto.n.toLocaleString('es-MX') : 32}: 1 = {nivel === 'municipio' ? 'municipio' : 'entidad'} con {shown.metricType === 'rate' ? 'mayor tasa' : 'más ' + metricLabel} en el periodo.</>
+              <> · Escala 1–{dataNivel === 'municipio' && ultimoPunto?.n ? ultimoPunto.n.toLocaleString('es-MX') : 32}: 1 = {dataNivel === 'municipio' ? 'municipio' : 'entidad'} con {shown.metricType === 'rate' ? 'mayor tasa' : 'más ' + metricLabel} en el periodo.</>
             )}
             {/* Empate grande: el lugar de un municipio chico se mueve por empates en cero, no por cambios reales */}
             {empate && !cargandoSerie && (
@@ -938,7 +953,8 @@ const HistoryRankings = ({ tempColor }) => {
 
       {/* Altura mínima fuera de pantalla completa: en móvil la tarjeta no tiene altura fija
           y con flex:1 + minHeight:0 la gráfica colapsaba a 0 px */}
-      <div className={isFullScreen ? undefined : 'rankings-chart-area'} style={{ flex: 1, minHeight: 0, backgroundColor: '#ffffff', position: 'relative' }}>
+      {/* Fuera de pantalla completa la altura mínima la pone .rankings-chart-area (index.css) */}
+      <div className={isFullScreen ? undefined : 'rankings-chart-area'} style={{ flex: 1, minHeight: isFullScreen ? 0 : undefined, backgroundColor: '#ffffff', position: 'relative' }}>
         {!isFullScreen && (
           <div style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', zIndex: 110, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <ExportMenu subject={`Evolución del ranking de ${serieLabel}`}
@@ -1103,7 +1119,7 @@ const HistoryRankings = ({ tempColor }) => {
 
       {/* Equivalente textual de la gráfica: el lugar de cada periodo, para lector de pantalla */}
       {seriePuntos.length > 0 && !cargandoSerie && (
-        <table className="sr-only">
+        <div className="sr-only"><table>
           <caption>{`Lugar de ${nivel === 'municipio' ? serieName : selectedEntidad} en el ranking nacional de ${nivel === 'municipio' ? 'municipios' : 'entidades'}: ${aplicadoTxt}`}</caption>
           <thead>
             <tr>
@@ -1123,7 +1139,7 @@ const HistoryRankings = ({ tempColor }) => {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
 
       {isModalOpen && <RankingHelp onClose={() => setIsModalOpen(false)} />}
