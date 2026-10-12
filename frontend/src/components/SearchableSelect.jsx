@@ -134,7 +134,7 @@ const SearchableSelect = ({
           onKeyDown={onKeyDown}
           style={{
             position: 'absolute', left: 0, minWidth: isPill ? '260px' : '100%',
-            ...(arriba ? { bottom: '100%', marginBottom: '4px' } : { top: '100%', marginTop: '4px' }), zIndex: 100, backgroundColor: 'white', border: '1px solid var(--border-color)',
+            ...(arriba ? { bottom: '100%', marginBottom: '4px' } : { top: '100%', marginTop: '4px' }), zIndex: 'var(--z-popover)', backgroundColor: 'white', border: '1px solid var(--border-color)',
             borderRadius: '8px', boxShadow: 'var(--shadow-lg)', display: 'flex', flexDirection: 'column',
             maxHeight: '320px', fontFamily: 'inherit', lineHeight: 1.4, fontSize: '0.8125rem', fontWeight: 400, color: 'var(--text-primary)',
           }}

@@ -1,6 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Montserrat:wght@800;900&display=swap');
 
 :root {
+  /* Listas desplegables (selectores): por encima de todo lo que vive dentro de las tarjetas
+     (botones y capas de gráficas ~110), debajo de avisos (500), modales (1000) y pantalla completa */
+  --z-popover: 300;
   --bg-main: #e9eef4;
   --bg-card: #ffffff;
   --text-primary: #1e293b;
@@ -127,6 +130,7 @@ body {
 .btn-toggle button {
   border: none;
   background: transparent;
+  font-size: 0.8125rem;
   padding: 0.5rem 1rem;
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -1657,24 +1661,19 @@ select:focus:not(:focus-visible) {
 /* Marcas Peor / Mejor sobre la línea: entran con un fundido cuando termina el trazo */
 .rank-mark { animation: rankBadgeIn 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }
 
-/* Filtros de Rankings: los selectores múltiples en "Todos" se atenúan y los que tienen valor se resaltan */
-.rankings-filtros button.input-select { color: var(--text-secondary); }
-.rankings-filtros button.input-select[data-activo="true"] {
+/* Selectores múltiples (tablero y Rankings): en "Todos" se atenúan y los que tienen valor se resaltan.
+   `.ms-trigger` es solo el disparador de MultiSelectDropdown: Entidad/Municipio (SearchableSelect) no se atenúan. */
+.ms-trigger { color: var(--text-secondary); }
+.ms-trigger[data-activo="true"] {
   color: var(--color-accent-dark); font-weight: 700; border-color: var(--color-accent); background-color: var(--color-accent-light);
 }
 .rank-card-hint { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); padding-left: calc(12px + 0.4rem); min-height: 1em; }
 .rank-card[data-active="true"] .rank-card-hint { color: var(--marca); }
 
-/* Rankings con cambios sin aplicar: la gráfica y las tarjetas se atenúan y un aviso lo dice */
+/* Rankings con cambios sin aplicar: la gráfica y las tarjetas se atenúan (el selector cambiado y "Aplicar filtros (N)" dicen qué falta) */
 .rank-card[data-stale="true"] { opacity: 0.6; }
-.rank-stale {
-  position: absolute; top: 0.4rem; left: 50%; transform: translateX(-50%); z-index: 105;
-  padding: 0.2rem 0.7rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; white-space: nowrap;
-  color: var(--color-accent-dark); background: var(--color-accent-light); border: 1px solid var(--color-accent);
-  pointer-events: none;
-}
 /* Selector con valor: además del borde y el fondo, un punto de acento antes del texto */
-.rankings-filtros button.input-select[data-activo="true"]::before {
+.ms-trigger[data-activo="true"]::before {
   content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent); margin-right: 0.5rem; flex-shrink: 0;
 }
 
@@ -1687,10 +1686,27 @@ select:focus:not(:focus-visible) {
 
 /* Rankings: tarjetas Peor/Mejor y notas en una sola franja; las notas toman el espacio libre a la derecha
    (antes iban en un renglón propio y dejaban ~40 % de la fila de tarjetas vacía) */
-.rank-results { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-top: 0.75rem; }
-.rank-notes { flex: 1 1 260px; min-width: 0; margin: 0; font-size: 0.75rem; line-height: 1.5; color: var(--text-secondary); }
+.rank-results { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.5rem 0.75rem; margin-top: 0.75rem; }
+.rank-notes { flex: 1 1 260px; min-width: 0; margin: 0; align-self: center; font-size: 0.75rem; line-height: 1.5; color: var(--text-secondary); }
+/* Exportar y pantalla completa al final de la franja (fuera del área del trazo) */
+.rank-actions { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; align-self: center; }
+/* Periodo: en Acumulado, el mes de corte va como selector compacto en el renglón del rótulo
+   (no agrega columna ni alto: antes elegir Acumulado reacomodaba toda la cuadrícula) */
+.rk-periodo-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-width: 0; }
+.rk-periodo-head .label-sm { flex-shrink: 0; }
+.rk-corte-mini {
+  appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 5rem; min-width: 0;
+  margin: 0; padding: 0 1rem 0 0.35rem; height: 1rem; line-height: 1; border: 1px solid transparent; border-radius: 4px;
+  font: inherit; font-size: 0.75rem; font-weight: 700; color: var(--color-accent-dark); cursor: pointer;
+  background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2338487a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2.5' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E") no-repeat right 0.15rem center / 0.7rem;
+  text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
+  transition: background-color 150ms var(--ease-out), border-color 150ms var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) { .rk-corte-mini:hover { background-color: var(--color-accent-light); } }
+.rk-corte-mini[data-pendiente="true"] { background-color: var(--color-accent-light); border-color: var(--color-accent); }
+@media (max-width: 1023px) { .rk-corte-mini { height: 2rem; width: 6rem; font-size: 0.875rem; } }
 /* Aviso antes de aplicar: qué se va a perder (municipio con Víctimas) */
-.rank-apply-warn { margin: 0 auto 0 0; align-self: center; font-size: 0.8125rem; font-weight: 600; color: #b45309; }
+.rank-apply-warn { margin: 0 auto 0 0; align-self: center; font-size: 0.8125rem; font-weight: 600; color: #92400e; }
 
 /* La línea es el resultado: en escritorio la gráfica no baja de max(380px, 50vh). Con filtros que
    no caben, la página se desplaza en lugar de aplastarla (a 1280×800 con Víctimas + Acumulado medía 259 px). */

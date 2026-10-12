@@ -77,7 +77,7 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
       <button
         type="button"
         id={`${uid}-trigger`}
-        className="input-select"
+        className="input-select ms-trigger"
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         data-activo={displayText !== 'Todos' ? 'true' : undefined}
@@ -113,7 +113,7 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
             position: 'absolute', top: '100%', left: 0, right: 0,
             minWidth: '220px',
             backgroundColor: 'white', border: '1px solid var(--border-color)',
-            borderRadius: '8px', marginTop: '4px', zIndex: 100,
+            borderRadius: '8px', marginTop: '4px', zIndex: 'var(--z-popover)',
             boxShadow: 'var(--shadow-lg)',
             display: 'flex', flexDirection: 'column',
             maxHeight: '350px'
@@ -195,7 +195,8 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
                       onChange={() => handleToggle(opt)}
                       style={{ cursor: 'pointer', accentColor: 'var(--color-accent)', flexShrink: 0 }}
                     />
-                    <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {/* Nombres largos en varios renglones ("Otros delitos que atentan contra…" se cortaba a 220 px) */}
+                    <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', lineHeight: 1.35, minWidth: 0, overflowWrap: 'anywhere' }}>
                       {opt}
                     </span>
                   </label>

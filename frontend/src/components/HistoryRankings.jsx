@@ -116,7 +116,7 @@ const CustomTooltip = ({ active, payload, label, metricType, selectedEntidad, da
               {top3.map((t, idx) => (
                 <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: `${12 * fs}px` }}>
                   {/* minWidth 0: sin él la elipsis no actúa y el nombre se encimaba con la cifra */}
-                  <span style={{ color: '#475569', display: 'flex', gap: '4px', minWidth: 0, maxWidth: nivel === 'municipio' ? '190px' : '120px' }}>
+                  <span style={{ color: '#475569', display: 'flex', gap: '4px', minWidth: 0, maxWidth: nivel === 'municipio' ? '190px' : '160px' }}>
                     <span style={{ fontWeight: '700', flexShrink: 0 }}>#{t.rank}</span>
                     {/* Municipios: con su entidad (hay nombres repetidos entre estados) */}
                     <span title={t.name} style={{ minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{nivel === 'municipio' ? t.name : t.name.split(',')[0]}</span>
@@ -489,7 +489,7 @@ const HistoryRankings = ({ tempColor }) => {
   // Cambios sin aplicar: el botón Aplicar solo se ve primario cuando hay algo pendiente (igual que en el tablero)
   // Selectores de la primera fila del bloque de filtros: Conjunto, Periodo, (Mes de corte) y los 4 de delito.
   // Sexo y Rango de edad (filtros de la víctima) van aparte, en una segunda fila.
-  const nSelectores = 2 + (temporalidad === 'acumulado' ? 1 : 0) + 4;
+  const nSelectores = 2 + 4; // Mes de corte comparte la celda de Periodo
   const conFiltrosVictima = dataset === 'victimas' || dataset === 'victimas_mun';
   const colsFiltros = anchoFiltros > 0 ? columnasBalanceadas(nSelectores, anchoFiltros, 160, 16) : null;
   // Con Sexo y Rango de edad en la segunda fila, "Limpiar / Aplicar" suben a esa misma fila si caben
@@ -614,6 +614,7 @@ const HistoryRankings = ({ tempColor }) => {
     const activo = marcas[clave] && !unSoloPeriodo;
     const sorted = [...items].sort((x, y) => String(y.period).localeCompare(String(x.period)));
     const [latest, ...rest] = sorted;
+    const constante = !unSoloPeriodo && summaryEntidad && summaryEntidad.peor.rank === summaryEntidad.mejor.rank;
     const valorId = `${uidTarjetas}-${clave}`;
     return (
       <div className="rank-card" data-stale={nPend > 0 || cargandoSerie ? 'true' : undefined} data-active={activo ? 'true' : undefined} data-solo={unSoloPeriodo ? 'true' : undefined} style={{ '--marca': marca.color, '--marca-fondo': marca.fondo }}>
@@ -639,12 +640,15 @@ const HistoryRankings = ({ tempColor }) => {
               <small> de {latest.n.toLocaleString('es-MX')}</small>
             )}
           </span>
-          {latest && (
+          {/* El mismo lugar en todos los periodos (p. ej. México #1): se dice, en vez de "+11 periodos más" */}
+          {constante ? (
+            <span className="rank-card-when">En todos los periodos</span>
+          ) : latest && (
             <span className="tabular rank-card-when">
               <strong style={{ color: 'var(--text-primary)' }}>{formatPeriodLabel(latest.period)}</strong>: {formatCardValue(latest.total)}
             </span>
           )}
-          {rest.length > 0 && <div className="rank-card-more"><MorePeriods items={rest} formatPeriodLabel={formatPeriodLabel} formatCardValue={formatCardValue} /></div>}
+          {!constante && rest.length > 0 && <div className="rank-card-more"><MorePeriods items={rest} formatPeriodLabel={formatPeriodLabel} formatCardValue={formatCardValue} /></div>}
         </span>
       </div>
     );
@@ -878,24 +882,26 @@ const HistoryRankings = ({ tempColor }) => {
               <option value="victimas_mun">Víctimas Municipios</option>
             </select>
           </div>
-          <div style={{ flex: '1 1 min(100%, 180px)' }}>
-            <label className="label-sm" htmlFor="rk-periodo">Periodo</label>
+          {/* Periodo y, en Acumulado, su mes de corte en la MISMA celda: elegir Acumulado ya no agrega una
+              columna (antes la cuadrícula pasaba de 6 a 4 columnas y la gráfica bajaba 75 px) */}
+          <div>
+            {/* Rótulo y, en Acumulado, el mes de corte como selector compacto en el mismo renglón */}
+            <div className="rk-periodo-head">
+              <label className="label-sm" htmlFor="rk-periodo">Periodo</label>
+              {temporalidad === 'acumulado' && (
+                <select id="rk-corte" aria-label="Mes de corte" title="Mes de corte: se suma de enero a este mes en cada año" className="rk-corte-mini" data-pendiente={mesAcumulado !== applied.mesAcumulado ? 'true' : undefined} value={mesAcumulado} onChange={e => setMesAcumulado(e.target.value)}>
+                  {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'].map((mes, i) => (
+                    <option key={mes} value={mes}>{corteTxt(mes)}{ultimoMes && i + 1 > ultimoMes ? ' (aún sin publicar)' : ''}</option>
+                  ))}
+                </select>
+              )}
+            </div>
             <select id="rk-periodo" className="input-select" data-pendiente={temporalidad !== applied.temporalidad ? 'true' : undefined} value={temporalidad} onChange={e => setTemporalidad(e.target.value)}>
               <option value="anual">Anual{unAnio ? ' (un solo año)' : ''}</option>
               <option value="mensual">Mensual</option>
               <option value="acumulado">Acumulado{unAnio ? ' (un solo año)' : ''}</option>
             </select>
           </div>
-          {temporalidad === 'acumulado' && (
-            <div style={{ flex: '1 1 min(100%, 180px)' }}>
-              <label className="label-sm" htmlFor="rk-corte">Mes de corte</label>
-              <select id="rk-corte" className="input-select" data-pendiente={mesAcumulado !== applied.mesAcumulado ? 'true' : undefined} value={mesAcumulado} onChange={e => setMesAcumulado(e.target.value)}>
-                {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'].map((mes, i) => (
-                  <option key={mes} value={mes}>{corteTxt(mes)}{ultimoMes && i + 1 > ultimoMes ? ' (aún sin publicar)' : ''}</option>
-                ))}
-              </select>
-            </div>
-          )}
           <MultiSelectDropdown label="Bien jurídico afectado" options={options.bienesJuridicos} selected={filters.bienJuridico} onChange={v => handleFilterChange('bienJuridico', v)} />
           <MultiSelectDropdown label="Tipo de delito" options={options.tiposDelito} selected={filters.tipoDelito} onChange={v => handleFilterChange('tipoDelito', v)} />
           <MultiSelectDropdown label="Subtipo de delito" options={options.subtiposDelito} selected={filters.subtipoDelito} onChange={v => handleFilterChange('subtipoDelito', v)} />
@@ -943,8 +949,6 @@ const HistoryRankings = ({ tempColor }) => {
           {/* Estado aplicado: lo que la gráfica muestra ahora, aunque el formulario ya diga otra cosa */}
           <p className="rank-notes">
             <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>La gráfica muestra:</strong> {aplicadoTxt}
-            {nPend > 0 && <span style={{ color: 'var(--color-accent)', fontWeight: 600 }}> · {nPend} sin aplicar</span>}
-            {selectedEntidad === 'Sonora' && !conMunicipios && <> · Víctimas no tiene datos por municipio</>}
             {summaryEntidad && (
               <> · Escala 1–{dataNivel === 'municipio' && ultimoPunto?.n ? ultimoPunto.n.toLocaleString('es-MX') : 32}: 1 = {dataNivel === 'municipio' ? 'municipio' : 'entidad'} con {shown.metricType === 'rate' ? 'mayor tasa' : 'más ' + metricLabel} en el periodo.</>
             )}
@@ -953,16 +957,9 @@ const HistoryRankings = ({ tempColor }) => {
               <> <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{formatPeriodLabel(ultimoPunto.period)}:</strong> {empate}.</>
             )}
           </p>
-        </div>
-      </div>
-    )}
-
-      {/* Altura mínima fuera de pantalla completa: en móvil la tarjeta no tiene altura fija
-          y con flex:1 + minHeight:0 la gráfica colapsaba a 0 px */}
-      {/* Fuera de pantalla completa la altura mínima la pone .rankings-chart-area (index.css) */}
-      <div className={isFullScreen ? undefined : 'rankings-chart-area'} style={{ flex: 1, minHeight: isFullScreen ? 0 : undefined, backgroundColor: '#ffffff', position: 'relative' }}>
-        {!isFullScreen && (
-          <div style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', zIndex: 110, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {/* Exportar y pantalla completa: en la franja de resultados, fuera del área del trazo (ahí tapaban el
+              badge cuando la serie está cerca del #1) */}
+          <div className="rank-actions">
             <ExportMenu subject={`Evolución del ranking de ${serieLabel}`}
               imageFilename="evolucion_ranking"
               onDownloadCSV={handleDownloadCSV}
@@ -982,10 +979,14 @@ const HistoryRankings = ({ tempColor }) => {
               </svg>
             </button>
           </div>
-        )}
-        {nPend > 0 && hasLoaded && !isFullScreen && (
-          <div className="rank-stale" role="status">Vista sin actualizar · pulsa Aplicar filtros</div>
-        )}
+        </div>
+      </div>
+    )}
+
+      {/* Altura mínima fuera de pantalla completa: en móvil la tarjeta no tiene altura fija
+          y con flex:1 + minHeight:0 la gráfica colapsaba a 0 px */}
+      {/* Fuera de pantalla completa la altura mínima la pone .rankings-chart-area (index.css) */}
+      <div className={isFullScreen ? undefined : 'rankings-chart-area'} style={{ flex: 1, minHeight: isFullScreen ? 0 : undefined, backgroundColor: '#ffffff', position: 'relative' }}>
         <div ref={chartBoxRef} style={{
           position: 'absolute',
           top: '1rem', left: '1rem', right: '1rem', bottom: '0.2rem',
