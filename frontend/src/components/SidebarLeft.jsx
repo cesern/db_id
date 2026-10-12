@@ -405,8 +405,10 @@ const SidebarLeft = ({ selectedFilters: requestedFilters, metricType: requestedM
     return Array.from({ length: cols }, (_, i) => limited.slice(i * per, (i + 1) * per)).filter(c => c.length > 0);
   })();
 
-  // Tabla con todas las filas en 0: estado vacío en vez de un empate en 1
-  const tablaEnCero = !error && !loading && todoEnCero(rows);
+  // Tabla con todas las filas en 0: estado vacío en vez de un empate en 1. Se decide con las filas A LA
+  // VISTA (no con `loading`): mientras carga otra consulta se conserva el estado vacío bajo el velo; antes
+  // se soltaba y asomaban las filas en cero como "1 Aconchi 0 / 1 Cananea 0…" hasta llegar la respuesta.
+  const tablaEnCero = !error && todoEnCero(rows);
 
   const maxVal = rows.reduce((mx, r) => (typeof r.value === 'number' && r.value > mx ? r.value : mx), 0);
 
@@ -455,6 +457,9 @@ const SidebarLeft = ({ selectedFilters: requestedFilters, metricType: requestedM
           extraActions={
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               {buscador}
+              {/* Vista, conmutador y exportar juntos (sin partir): antes el icono de exportar bajaba solo
+                  a otro renglón, desalineado de "Cerrar" */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexShrink: 0 }}>
               <MenuSelect
                 value={fsView}
                 onChange={setFsViewPersist}
@@ -507,6 +512,7 @@ const SidebarLeft = ({ selectedFilters: requestedFilters, metricType: requestedM
                 onCopyTable={handleCopy}
                 isTable={true}
               />
+              </div>
             </div>
           }
         />
@@ -646,8 +652,9 @@ const SidebarLeft = ({ selectedFilters: requestedFilters, metricType: requestedM
                     data-dir={up ? 'up' : down ? 'down' : 'same'}
                   >
                     {/* Símbolo + cuánto cambió + contra qué año (visible sin depender del tooltip) */}
-                    <span aria-hidden="true">{up ? '▲' : down ? '▼' : '='}{diff !== 0 ? ` ${Math.abs(diff)}` : ''}</span>
-                    <span className="rank-change-vs" aria-hidden="true">vs {prevRank.anio}</span>
+                    {/* Mismo lugar: en palabras ("Igual que 2025"); antes "= vs 2025" no se entendía sin el tooltip */}
+                    {(up || down) && <span aria-hidden="true">{up ? '▲' : '▼'} {Math.abs(diff)}</span>}
+                    <span className="rank-change-vs" aria-hidden="true">{up || down ? `vs ${prevRank.anio}` : `Igual que ${prevRank.anio}`}</span>
                     {showRankTip && (
                       <span className="rank-tip" role="tooltip">
                         <strong>{headline}</strong>

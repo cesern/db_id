@@ -742,6 +742,12 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
                           color: isActive ? '#ffffff' : 'var(--text-secondary)'
                         }}
                       >
+                        {/* Palomita en los activos: deja ver que el chip se puede apagar (antes los 7 se veían
+                            como etiquetas fijas en azul sólido) */}
+                        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                          style={{ flexShrink: 0, display: isActive ? 'block' : 'none' }}>
+                          <path d="M5 12.5l4.5 4.5L19 7.5" />
+                        </svg>
                         {parsed.name}
                         {parsed.isCustom && (
                           <span

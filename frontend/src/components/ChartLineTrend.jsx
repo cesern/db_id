@@ -783,8 +783,8 @@ const ChartLineTrend = ({ selectedFilters: requestedFilters, metricType: request
               ))}
             </div>
 
-            {/* Separador visual */}
-            <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
+            {/* Separador visual (oculto en celular: ahí "Suavizado" baja de renglón y el separador quedaba suelto) */}
+            <div className="trend-sep" aria-hidden="true" />
 
             {/* Menú de suavizado */}
             <SmoothingMenu maWindow={maWindow} onSelect={(win) => setMAWindow(win)} btnStyle={btnStyle} />

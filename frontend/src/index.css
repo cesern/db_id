@@ -417,6 +417,9 @@ html { overflow-x: hidden; }
   outline-offset: 2px;
   border-radius: 4px;
 }
+/* Gráficas que reciben el foco (al volver de un desglose o con Tab): anillo por dentro y discontinuo,
+   menos pesado que un recuadro sólido alrededor de toda el área */
+.recharts-surface:focus-visible, .recharts-wrapper:focus-visible { outline: 2px dashed var(--color-accent); outline-offset: -2px; border-radius: 6px; }
 button:focus:not(:focus-visible),
 select:focus:not(:focus-visible) {
   outline: none;
@@ -450,7 +453,8 @@ select:focus:not(:focus-visible) {
   display: block;
   white-space: nowrap;
   font-size: 1.9rem; /* respaldo sin container queries */
-  font-size: clamp(1.1rem, calc(100cqi / (var(--chars, 6) * 0.62)), 1.9rem);
+  /* Tope 2.6rem: en pantallas grandes la cifra principal crece y supera al título (antes 1.9rem < h1) */
+  font-size: clamp(1.1rem, calc(100cqi / (var(--chars, 6) * 0.62)), 2.6rem);
 }
 
 /* Respuesta táctil al presionar (sutil; se omite con movimiento reducido). Solo en botones de acción:
@@ -967,6 +971,17 @@ select:focus:not(:focus-visible) {
   padding-top: 0.5rem;
   border-top: 1px solid var(--border-color);
 }
+/* Celular: con el panel abierto, Limpiar/Aplicar quedan pegados al borde inferior de la pantalla mientras
+   se recorre el panel (antes "Aplicar" quedaba en y≈872 de 812, fuera de la vista) */
+@media (max-width: 767px) {
+  .filters-collapse[data-open="true"]:not([data-clip="true"]) .filters-actions {
+    position: sticky; bottom: 0; z-index: 5;
+    background: var(--bg-card);
+    margin: 0 calc(-1 * var(--filters-padding-x, 1rem));
+    padding: 0.5rem var(--filters-padding-x, 1rem) calc(0.5rem + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -6px 12px -10px rgba(15, 23, 42, 0.35);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .filters-panel, .filters-collapse, .filters-collapse-inner, .filters-toggle,
@@ -1252,7 +1267,7 @@ select:focus:not(:focus-visible) {
 .fs-col-rank { color: var(--text-secondary); font-weight: 500; }
 .fs-col-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fs-col-value { text-align: right; font-weight: 600; }
-.fs-col-row[data-highlight="soft"] { background: #dfe5f2; color: var(--color-accent-dark); box-shadow: inset 3px 0 0 var(--color-accent); }
+.fs-col-row[data-highlight="soft"] { background: #dfe5f2; color: var(--color-accent-dark); }
 .fs-col-row[data-highlight="soft"] .fs-col-name { font-weight: 600; }
 .fs-col-row[data-highlight="strong"] { background: #e3e8f3; color: var(--color-accent-dark); font-weight: 700; }
 .fs-col-row[data-highlight="strong"] > span { font-weight: 700; color: var(--color-accent-dark); }
@@ -1462,7 +1477,11 @@ select:focus:not(:focus-visible) {
      Limpiar/Aplicar (aplicar cierra el panel: va al final de lo que se edita) */
   .filters-main-row { display: contents; }
   .filters-body > .month-strip-wrap { order: 2; }
-  .filters-controls-right { order: 3; }
+  /* También se disuelve el bloque métrica + acciones: así Limpiar/Aplicar quedan como hijos del panel
+     entero y pueden quedarse fijos al fondo de la pantalla (sticky) mientras se recorre */
+  .filters-controls-right { display: contents; }
+  .filters-metric { order: 3; }
+  .filters-actions { order: 4; }
 }
 
 /* La pista de la tira de meses conserva su renglón al elegir un mes (el tablero no salta) */
@@ -1655,7 +1674,8 @@ select:focus:not(:focus-visible) {
 }
 
 /* Indicador de cambio de lugar: el símbolo lleva a su lado contra qué año compara */
-.rank-change-vs { margin-left: 0.3rem; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.rank-change-vs { font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+* + .rank-change-vs { margin-left: 0.3rem; }
 .rank-change { padding: 0 0.3rem; }
 
 /* Marcas Peor / Mejor sobre la línea: entran con un fundido cuando termina el trazo */
@@ -1716,3 +1736,7 @@ select:focus:not(:focus-visible) {
 @media (min-width: 1024px) and (min-height: 800px) {
   .app-container:has(.rankings-chart-area) { height: auto; min-height: 100vh; overflow: visible; }
 }
+
+/* Histórico: separador entre los indicadores y "Suavizado"; en celular "Suavizado" baja de renglón */
+.trend-sep { width: 1px; height: 20px; background: var(--border-color); }
+@media (max-width: 767px) { .trend-sep { display: none; } }

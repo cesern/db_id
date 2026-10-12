@@ -319,9 +319,23 @@ const ChartBarYears = ({ selectedFilters: requestedFilters, metricType: requeste
     ? baseSide
     : Math.max(baseSide, Math.ceil((maxLabelW - chartW / n + 8) / (2 * (1 - 1 / n))));
   const slotW = slotFor(chartSide);
-  const labelRows = fitsInline
-    ? 1
-    : Math.min(MAX_LABEL_ROWS, Math.max(2, Math.ceil((maxLabelW + 4) / slotW)));
+  const rowsNecesarios = fitsInline ? 1 : Math.max(2, Math.ceil((maxLabelW + 4) / slotW));
+  // Vista normal angosta (celular): si las cifras necesitarían 3 renglones o más, pesaban más que las
+  // barras (a 375 px, ~70 px de números sobre barras de ~50 px). Se rotulan solo el último periodo, el
+  // máximo y el año elegido; el resto, en el tooltip.
+  const selectivo = !isFullScreen && rowsNecesarios >= 3;
+  const destacados = (() => {
+    if (!selectivo || n === 0) return null;
+    const idx = new Set([n - 1]);
+    let iMax = -1;
+    data.forEach((d, i) => { if (typeof d.value === 'number' && (iMax < 0 || d.value > data[iMax].value)) iMax = i; });
+    // Vecinas del último chocarían en un solo renglón: el máximo pegado al último se omite
+    if (iMax >= 0 && iMax < n - 2) idx.add(iMax);
+    const iSel = data.findIndex(d => String(d.label) === String(selectedFilters?.anio));
+    if (iSel >= 0 && iSel < n - 1 && ![...idx].some(j => Math.abs(j - iSel) === 1)) idx.add(iSel);
+    return idx;
+  })();
+  const labelRows = selectivo ? 1 : Math.min(MAX_LABEL_ROWS, rowsNecesarios);
   const staggerLabels = labelRows > 1;
   const chartTop = F(30) + (labelRows - 1) * LABEL_STEP;
 
@@ -451,6 +465,7 @@ const ChartBarYears = ({ selectedFilters: requestedFilters, metricType: requeste
                 position="top"
                 content={(props) => {
                   const { x, y, width, value, index } = props;
+                  if (destacados && !destacados.has(index)) return null;
                   const fs = LABEL_FS;
                   const text = formatValue(value);
                   const labelY = staggerLabels

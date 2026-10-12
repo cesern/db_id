@@ -105,6 +105,10 @@ const MapMexico = ({ selectedFilters: requestedFilters, metricType: requestedMet
     } else {
       if (w < 10 || h < 10) return null;
       H = Math.round(W * h / w);
+      // Nacional en la columna angosta: el lienzo toma el alto de la forma de México (más un margen)
+      // y el bloque mapa + leyenda se centra; antes el lienzo era alto como la columna y el mapa
+      // quedaba como una franja en medio de una tarjeta vacía
+      if (!isSonora && !isFullScreen) H = Math.min(H, Math.round(W * 0.34 / 0.53 * 1.12));
     }
     // Extensión en radianes Mercator: Sonora ≈ 0.117 × 0.124; México ≈ 0.53 × 0.34
     const s = isSonora ? Math.min(0.9 * W / 0.117, 0.9 * H / 0.124) : Math.min(0.92 * W / 0.53, 0.92 * H / 0.34);
@@ -114,6 +118,8 @@ const MapMexico = ({ selectedFilters: requestedFilters, metricType: requestedMet
 
   // Factor de escala fullscreen (1 en vista normal) para el tooltip
   const fsScale = useFullscreenScale(isFullScreen);
+  // Mapa nacional en la vista normal de escritorio: mapa y leyenda completa, juntos y centrados
+  const nacionalCompacto = !isSonora && !isFullScreen && isDesktopLayout;
 
   // Builds shared filter query params from selectedFilters
   const buildFilterParams = (params) => {
@@ -372,8 +378,9 @@ const MapMexico = ({ selectedFilters: requestedFilters, metricType: requestedMet
 
   const tooltipLabel = isVictimasBase ? 'Víctimas' : 'Incidencia';
 
-  // Periodo sin datos (todo en 0): estado vacío en lugar de una escala 0–1 engañosa
-  const mapEnCero = !loading && !error && todoEnCero(stateData);
+  // Periodo sin datos (todo en 0): estado vacío en lugar de una escala 0–1 engañosa. Con los datos A LA
+  // VISTA, no con `loading` (mientras carga, la leyenda 0–1 asomaba hasta llegar la respuesta)
+  const mapEnCero = !error && todoEnCero(stateData);
   const sinDatos = sinDatosCopy(selectedFilters?.anio ?? '', selectedFilters?.meses, mesFinal);
 
   // Qué abre el clic (y Enter/Espacio con el teclado): municipios en el mapa nacional, subtipos en
@@ -454,7 +461,7 @@ const MapMexico = ({ selectedFilters: requestedFilters, metricType: requestedMet
         </div>
       )}
 
-      <div ref={mapWrapRef} style={{ flex: isDesktopLayout || isFullScreen ? 1 : 'none', position: 'relative', width: '100%', minHeight: 0 }}>
+      <div ref={mapWrapRef} style={{ flex: isDesktopLayout || isFullScreen ? 1 : 'none', position: 'relative', width: '100%', minHeight: 0, ...(nacionalCompacto ? { display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.75rem' } : {}) }}>
         <p id={keysHintId} className="sr-only">Usa las flechas para cambiar de región; Enter abre el desglose.</p>
         {loading && <LoadingSpinner size="md" />}
         {!loading && error && <EmptyState variant="error" onRetry={() => setRetryKey(k => k + 1)} />}
@@ -494,7 +501,7 @@ const MapMexico = ({ selectedFilters: requestedFilters, metricType: requestedMet
             scale: mapScale,
             center: isSonora ? [-111.5, 29.5] : [-102, 24]
           }}
-          style={{ width: "100%", height: isDesktopLayout || isFullScreen ? "100%" : "auto", display: "block" }}
+          style={{ width: "100%", height: (isDesktopLayout || isFullScreen) && !nacionalCompacto ? "100%" : "auto", display: "block", flexShrink: 0 }}
         >
           <Geographies geography={geoUrl}>
             {({ geographies }) => {
@@ -529,7 +536,7 @@ const MapMexico = ({ selectedFilters: requestedFilters, metricType: requestedMet
                     // flechas/Inicio/Fin cambian de región y Enter/Espacio abre el desglose
                     tabIndex={regionsFocusable && geo.rsmKey === tabKey ? 0 : -1}
                     role="button"
-                    aria-label={`${shownName}: ${formatValue(realValue)}. ${drillHint}`}
+                    aria-label={`${shownName}: ${formatValue(realValue)}. ${drillHint.replace('Clic para', 'Enter para')}`}
                     aria-describedby={keysHintId}
                     onFocus={() => { setRovingKey(geo.rsmKey); setTooltipData({ name: shownName, value: realValue }); }}
                     onBlur={() => setTooltipData(null)}
@@ -569,15 +576,16 @@ const MapMexico = ({ selectedFilters: requestedFilters, metricType: requestedMet
             role="img"
             aria-label={`Escala de color (raíz cuadrada): de 0 a ${formatValue(maxVal)} ${metricType === 'rate' ? 'por 100 mil habitantes' : tooltipLabel.toLowerCase()}`}
             style={{
-              position: 'absolute', left: '0.5rem', bottom: '0.5rem', zIndex: 3,
+              ...(nacionalCompacto ? { position: 'relative', alignSelf: 'stretch', margin: '0 0.5rem' } : { position: 'absolute', left: '0.5rem', bottom: '0.5rem' }),
+              zIndex: 3,
               background: 'rgba(255,255,255,0.92)', border: '1px solid var(--border-color)',
               color: 'var(--text-secondary)',
-              ...(isFullScreen
+              ...(isFullScreen || nacionalCompacto
                 ? { borderRadius: '8px', padding: '0.4rem 0.6rem', minWidth: '150px', fontSize: `${0.72 * Math.max(1, fsScale || 1)}rem` }
                 : { borderRadius: '6px', padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' })
             }}
           >
-            {isFullScreen ? (
+            {isFullScreen || nacionalCompacto ? (
               <>
                 <div style={{ fontWeight: 600, color: 'var(--color-primary)', marginBottom: '0.25rem' }}>
                   {metricType === 'rate' ? `${tooltipLabel} · tasa por 100 mil hab.` : tooltipLabel}

@@ -173,7 +173,8 @@ const DrillDownModal = ({
           {/* ── Body ── */}
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {loading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '220px', gap: '0.75rem', color: 'var(--text-secondary)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '360px', gap: '0.75rem', color: 'var(--text-secondary)' }}>
+                {/* 360 px: cerca del alto de la tabla que llega, para que el modal no salte al cargar */}
                 <div style={{ width: '34px', height: '34px', border: '3px solid var(--border-color)', borderTopColor: 'var(--color-accent)', borderRadius: '50%', animation: 'spin 0.75s linear infinite' }} />
                 <span style={{ fontSize: '0.875rem' }}>Cargando datos…</span>
               </div>

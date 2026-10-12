@@ -29,7 +29,7 @@ const Header = ({ dataset, setDataset, activeTab = 'dashboard', setActiveTab }) 
         <img src="/logo.png" alt="Fiscalía General de Justicia del Estado de Sonora" style={{ height: 'var(--header-logo-height, 50px)', objectFit: 'contain' }} />
         <h1
           style={{
-            fontSize: 'clamp(1.2rem, 2.6vw, 2.2rem)',
+            fontSize: 'clamp(1.2rem, 2vw, 1.6rem)', // tope 1.6rem: el título no debe pesar más que las cifras del tablero
             fontWeight: 900,
             color: '#081C3A',
             letterSpacing: '-0.03em',

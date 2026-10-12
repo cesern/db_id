@@ -166,7 +166,7 @@ const AltoImpactoModal = ({ onClose, onConfirm, customCapsules, scope, activeTok
               id="ai-bien" labelId="ai-bien-label" ariaLabel="Bien jurídico afectado" style={selectStyle} selectRef={firstFieldRef}
               value={bien}
               unidad="bienes jurídicos"
-              options={[{ value: '', label: 'Todos', noCuenta: true }, ...opciones.bienesJuridicos.map(o => ({ value: o, label: o }))]}
+              options={[{ value: '', label: 'Elige un bien jurídico', noCuenta: true }, ...opciones.bienesJuridicos.map(o => ({ value: o, label: o }))]}
               onChange={v => { setBien(v); setTipo(''); setSubtipo(''); setModalidad(''); }}
             />
           </div>
