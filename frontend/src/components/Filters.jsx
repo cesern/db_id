@@ -11,6 +11,7 @@ import { useExitAnimation } from '../utils/useExitAnimation';
 import MonthStrip from './MonthStrip';
 import MultiSelectDropdown from './MultiSelectDropdown';
 import SearchableSelect from './SearchableSelect';
+import { purgarSeleccion } from '../utils/filtrosCascada';
 
 
 // "No especificado" y "Otros Municipios" no son municipios: se pueden elegir, pero no cuentan
@@ -543,44 +544,8 @@ const Filters = ({ dataset, metricType, setMetricType, selectedFilters, setSelec
             rangosEdad: res.data.rangosEdad || []
           }));
 
-          // Limpiar selecciones que ya no son válidas con el nuevo contexto
-          setSelectedFilters(prev => {
-            const curTd = Array.isArray(prev.tipoDelito) ? prev.tipoDelito : [];
-            const curSd = Array.isArray(prev.subtipoDelito) ? prev.subtipoDelito : [];
-            const curMo = Array.isArray(prev.modalidad) ? prev.modalidad : [];
-            const curSx = Array.isArray(prev.sexo) ? prev.sexo : [];
-            const curRe = Array.isArray(prev.rangoEdad) ? prev.rangoEdad : [];
-
-            const availTd = res.data.tiposDelito || [];
-            const availSd = res.data.subtiposDelito || [];
-            const availMo = res.data.modalidades || [];
-            const availSx = res.data.sexos || [];
-            const availRe = res.data.rangosEdad || [];
-
-            const filteredTd = curTd.filter(v => availTd.includes(v));
-            const filteredSd = curSd.filter(v => availSd.includes(v));
-            const filteredMo = curMo.filter(v => availMo.includes(v));
-            const filteredSx = curSx.filter(v => availSx.includes(v));
-            const filteredRe = curRe.filter(v => availRe.includes(v));
-
-            if (
-              filteredTd.length !== curTd.length ||
-              filteredSd.length !== curSd.length ||
-              filteredMo.length !== curMo.length ||
-              filteredSx.length !== curSx.length ||
-              filteredRe.length !== curRe.length
-            ) {
-              return { 
-                ...prev, 
-                tipoDelito: filteredTd, 
-                subtipoDelito: filteredSd, 
-                modalidad: filteredMo,
-                sexo: filteredSx,
-                rangoEdad: filteredRe
-              };
-            }
-            return prev;
-          });
+          // Limpiar selecciones que ya no son válidas con el nuevo contexto (misma regla que Rankings)
+          setSelectedFilters(prev => purgarSeleccion(prev, res.data));
         }
       })
       .catch(err => {

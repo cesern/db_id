@@ -12,6 +12,7 @@ import { csvValueLabel } from '../utils/labels';
 import { useDialogFocus } from '../utils/useDialogFocus';
 import { toast } from 'sonner';
 import { ejeRanking, resumenPosiciones, notaEmpate, columnasBalanceadas, accionesEnLaMismaFila, indicesMarcas } from '../utils/rankings';
+import { purgarSeleccion } from '../utils/filtrosCascada';
 import MultiSelectDropdown from './MultiSelectDropdown';
 import SearchableSelect from './SearchableSelect';
 import LoadingSpinner from './LoadingSpinner';
@@ -297,34 +298,39 @@ const HistoryRankings = ({ tempColor }) => {
     bienesJuridicos: [], tiposDelito: [], subtiposDelito: [], modalidades: [], sexos: [], rangosEdad: []
   });
 
+  // Opciones en cascada según lo ELEGIDO (como el tablero): elegir un Bien jurídico acota Tipo, Subtipo y
+  // Modalidad sin esperar a Aplicar, y lo que deja de ser válido se quita. Sin entidad ni año: el ranking
+  // es nacional y abarca todos los años.
   useEffect(() => {
-    const fetchOptions = async () => {
-      try {
-        const params = { dataset: applied.dataset };
-        if (applied.filters.bienJuridico.length > 0) params.bienJuridico = applied.filters.bienJuridico.join('|');
-        if (applied.filters.tipoDelito.length > 0) params.tipoDelito = applied.filters.tipoDelito.join('|');
-        if (applied.filters.subtipoDelito.length > 0) params.subtipoDelito = applied.filters.subtipoDelito.join('|');
-        if (applied.filters.sexo.length > 0) params.sexo = applied.filters.sexo.join('|');
-        if (applied.filters.rangoEdad.length > 0) params.rangoEdad = applied.filters.rangoEdad.join('|');
+    const controller = new AbortController();
+    const params = { dataset };
+    if (filters.bienJuridico.length > 0) params.bienJuridico = filters.bienJuridico.join('|');
+    if (filters.tipoDelito.length > 0) params.tipoDelito = filters.tipoDelito.join('|');
+    if (filters.subtipoDelito.length > 0) params.subtipoDelito = filters.subtipoDelito.join('|');
+    if (filters.sexo.length > 0) params.sexo = filters.sexo.join('|');
+    if (filters.rangoEdad.length > 0) params.rangoEdad = filters.rangoEdad.join('|');
 
-        const res = await axios.get(`${API_URL}/api/filtros`, { params });
-        if (res.data) {
-          setOptions({
-            entidades: res.data.entidades || ['Sonora'],
-            bienesJuridicos: res.data.bienesJuridicos || [],
-            tiposDelito: res.data.tiposDelito || [],
-            subtiposDelito: res.data.subtiposDelito || [],
-            modalidades: res.data.modalidades || [],
-            sexos: res.data.sexos || [],
-            rangosEdad: res.data.rangosEdad || []
-          });
-        }
-      } catch (err) {
-        console.error("Error fetching options", err);
-      }
-    };
-    fetchOptions();
-  }, [applied]);
+    axios.get(`${API_URL}/api/filtros`, { params, signal: controller.signal })
+      .then(res => {
+        if (!res.data) return;
+        setOptions({
+          entidades: res.data.entidades || ['Sonora'],
+          bienesJuridicos: res.data.bienesJuridicos || [],
+          tiposDelito: res.data.tiposDelito || [],
+          subtiposDelito: res.data.subtiposDelito || [],
+          modalidades: res.data.modalidades || [],
+          sexos: res.data.sexos || [],
+          rangosEdad: res.data.rangosEdad || []
+        });
+        setFilters(prev => purgarSeleccion(prev, res.data));
+      })
+      .catch(err => {
+        if (axios.isCancel(err)) return; // reemplazada por una consulta más nueva
+        console.error('Error fetching options', err);
+        toast.error('No se pudieron cargar las opciones de los filtros', { id: 'filtros-error' });
+      });
+    return () => controller.abort();
+  }, [dataset, filters.bienJuridico, filters.tipoDelito, filters.subtipoDelito, filters.sexo, filters.rangoEdad]);
 
   useEffect(() => {
     const el = filtrosRef.current;
