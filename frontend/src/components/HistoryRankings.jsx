@@ -226,7 +226,7 @@ const TACTIL = typeof window !== 'undefined' && !!window.matchMedia && window.ma
 const NOMBRE_CONJUNTO = { delitos: 'Delitos', victimas: 'Víctimas', victimas_mun: 'Víctimas Municipios' };
 const NO_MUNICIPIO = /^(no especificado|otros municipios)$/i;
 
-const HistoryRankings = ({ tempColor }) => {
+const HistoryRankings = () => {
   const [selectedEntidad, setSelectedEntidad] = useState('Sonora');
   const [dataset, setDataset] = useState('delitos');
   const [temporalidad, setTemporalidad] = useState('anual');

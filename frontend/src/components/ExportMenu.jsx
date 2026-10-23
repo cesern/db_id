@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { downloadImage, downloadPNGFromSVG } from '../utils/exportUtils';
+import { downloadPNGFromSVG } from '../utils/exportUtils';
 import { menuArrows, focusFirstMenuItem } from '../utils/menuKeys';
 
 const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isTable = false, style = {}, subject }) => {
@@ -47,18 +47,6 @@ const ExportMenu = ({ elementRef, imageFilename, onDownloadCSV, onCopyTable, isT
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
   }, [isOpen]);
-
-  const handleExportImage = () => {
-    if (elementRef && elementRef.current) {
-      // Ocultar temporalmente el menú de exportación antes de capturar la imagen
-      setIsOpen(false);
-      
-      // Esperar un breve instante para que el menú se cierre visualmente
-      setTimeout(() => {
-        downloadImage(elementRef.current, imageFilename);
-      }, 150);
-    }
-  };
 
   const handleExportCSV = () => {
     setIsOpen(false);

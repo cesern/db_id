@@ -96,7 +96,7 @@ const computeLowess = (points, frac = 0.2) => {
       const dists = [];
       for (let j = 0; j < n; j++) dists.push(Math.abs(j - i));
       dists.sort((a, b) => a - b);
-      const band = dists[Math.min(r, n - 1)] || h;
+      const band = dists[Math.min(r, n - 1)] || 1;
       let sw = 0, swx = 0, swy = 0, swxx = 0, swxy = 0;
       for (let j = 0; j < n; j++) {
         const w = tricube(Math.abs(j - i) / (band || 1)) * robust[j];
@@ -414,7 +414,6 @@ const ChartLineTrend = ({ selectedFilters: requestedFilters, metricType: request
 
     const dataset = requestedFilters.dataset || 'delitos';
     const isVictimas = dataset === 'victimas';
-  const isVictimasMun = dataset === 'victimas_mun';
   const isAltoImpacto = dataset === 'alto_impacto';
 
     const params = new URLSearchParams();

@@ -124,13 +124,6 @@ const SidebarLeft = ({ selectedFilters: requestedFilters, metricType: requestedM
   const isAltoImpacto = dataset === 'alto_impacto';
   const wireDataset = isAltoImpacto ? 'delitos' : dataset;
 
-  // Force table view to entidades when on victimas dataset
-  useEffect(() => {
-    if (isVictimas) {
-      setTableView('entidades');
-    }
-  }, [dataset]);
-
   useEffect(() => {
     if (!requestedFilters || requestedFilters.anio === null) return;
     // Lo pedido (no lo mostrado): la consulta sale con los filtros recién aplicados

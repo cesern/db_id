@@ -79,7 +79,6 @@ const ChartBarYears = ({ selectedFilters: requestedFilters, metricType: requeste
     const dataset = requestedFilters.dataset || 'delitos';
     const isVictimas = dataset === 'victimas';
   const isVictimasMun = dataset === 'victimas_mun';
-  const isVictimasBase = isVictimas || isVictimasMun;
   const isAltoImpacto = dataset === 'alto_impacto';
 
     const params = new URLSearchParams();
