@@ -19,6 +19,8 @@ import { downloadCSV, copyTableToClipboard } from '../utils/exportUtils';
 import DrillDownModal from './DrillDownModal';
 import { useFullscreenScale } from '../utils/fullscreenScale';
 import { useExitAnimation } from '../utils/useExitAnimation';
+import { normalizar } from '../utils/buscar';
+import { buscarDatoGeo } from '../utils/geoMatch';
 
 // NOTA: El mapa solo soporta dos vistas:
 //   1. Vista Nacional (entidad = "All")  → muestra todas las entidades usando /mexico_geo.json
@@ -339,9 +341,6 @@ const MapMexico = ({ selectedFilters: requestedFilters, metricType: requestedMet
     return colorScale(num);
   };
 
-  // Helper para normalizar nombres entre TopoJSON y la base de datos
-  const normalize = (s) => s ? s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
-
   const formatValue = (val) => {
     if (val === 'N/D' || val === undefined || val === null) return 'N/D';
     const num = typeof val === 'number' ? val : parseFloat(val);
@@ -506,21 +505,15 @@ const MapMexico = ({ selectedFilters: requestedFilters, metricType: requestedMet
           <Geographies geography={geoUrl}>
             {({ geographies }) => {
               // Parada de Tab: la última región enfocada; si no, el municipio elegido o la primera región
-              const selMun = isSonora && selectedFilters?.municipio && selectedFilters.municipio !== 'All' ? normalize(selectedFilters.municipio) : null;
-              const selGeo = selMun ? geographies.find(g => normalize(g.properties.MUN || '') === selMun) : null;
+              const selMun = isSonora && selectedFilters?.municipio && selectedFilters.municipio !== 'All' ? normalizar(selectedFilters.municipio) : null;
+              const selGeo = selMun ? geographies.find(g => normalizar(g.properties.MUN || '') === selMun) : null;
               const tabKey = geographies.some(g => g.rsmKey === rovingKey) ? rovingKey : (selGeo || geographies[0])?.rsmKey;
               return geographies.map((geo) => {
                 const stateName = isSonora ? (geo.properties.MUN || "Desconocido") : (geo.properties.nom_ent || "Desconocido");
 
-                const mapName = normalize(stateName);
-                const foundData =
-                  stateData.find(d => normalize(d.name) === mapName) ||
-                  stateData.find(d => {
-                    const dbName = normalize(d.name);
-                    return mapName.includes(dbName) || dbName.includes(mapName);
-                  });
+                const foundData = buscarDatoGeo(stateData, stateName, isSonora);
 
-                const realValue = foundData ? foundData.value : 0;
+                const realValue = foundData ? foundData.value : undefined;
                 // Nombre a mostrar y a consultar: el de los datos ("Álamos"), no el del archivo
                 // geográfico ("Alamos"), que no coincide con el filtro por municipio
                 const shownName = foundData ? ((isSonora ? foundData.municipio : foundData.name) || stateName) : stateName;
